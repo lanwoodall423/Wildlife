@@ -7,6 +7,65 @@ using Verse;
 
 namespace Herds
 {
+    public sealed class ChoiceLetter_WildlifeStory : ChoiceLetter
+    {
+        public Map map;
+        public int storyTick = -1;
+        public string storyTitle;
+
+        public override IEnumerable<DiaOption> Choices
+        {
+            get { yield return Option_Close; }
+        }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            Scribe_References.Look(ref map, "map");
+            Scribe_Values.Look(ref storyTick, "storyTick", -1);
+            Scribe_Values.Look(ref storyTitle, "storyTitle");
+        }
+
+        public override void OpenLetter()
+        {
+            WildlifeUI.CloseMenus();
+            Map targetMap = map ?? Find.CurrentMap;
+            if (targetMap != null)
+                Find.WindowStack.Add(new Window_WildlifeFieldJournal(targetMap, 5, storyTick));
+        }
+    }
+
+    internal static class WildlifeUI
+    {
+        internal static void CloseMenus()
+        {
+            foreach (Window window in Find.WindowStack.Windows.ToList())
+                if (window.layer == WindowLayer.Dialog || window is FloatMenu)
+                    window.Close(false);
+        }
+
+        internal static void Focus(Thing thing)
+        {
+            if (thing == null) return;
+            CloseMenus();
+            CameraJumper.TryJumpAndSelect(thing);
+        }
+
+        internal static void Focus(IntVec3 cell, Map map)
+        {
+            if (!cell.IsValid || map == null) return;
+            CloseMenus();
+            CameraJumper.TryJump(cell, map);
+        }
+
+        internal static void Show(Thing thing)
+        {
+            if (thing == null) return;
+            CloseMenus();
+            CameraJumper.TryJumpAndSelect(thing);
+        }
+    }
+
     public sealed class WildlifeExperienceEvent : IExposable
     {
         public int tick;
@@ -197,7 +256,7 @@ namespace Herds
             float navigationY = 202f;
             float cardGap = 8f;
             float navigationWidth = (rect.width - cardGap * 2f) / 3f;
-            float navigationHeight = 56f;
+            float navigationHeight = 60f;
             for (int i = 0; i < navigation.Count; i++)
             {
                 Rect navRect = new Rect((i % 3) * (navigationWidth + cardGap),
@@ -212,7 +271,10 @@ namespace Herds
             IReadOnlyList<WildlifeExperienceEvent> entries = HerdsMod.Settings.enableOutcomeHistory
                 ? Current.Game.GetComponent<WildlifeExperienceGameComponent>()?.Events
                 : null;
-            Rect view = new Rect(0f, 0f, outer.width - 18f, Mathf.Max(outer.height, 90f + (entries?.Count ?? 0) * 48f));
+            float entriesHeight = entries?.Sum(entry => OutcomeRowHeight(
+                entry.category + " - " + entry.text, outer.width - 18f)) ?? 0f;
+            Rect view = new Rect(0f, 0f, outer.width - 18f,
+                Mathf.Max(outer.height, 46f + entriesHeight));
             Widgets.BeginScrollView(outer, ref scroll, view);
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, view.width, 30f), "Recent Outcomes");
@@ -223,21 +285,24 @@ namespace Herds
                 Widgets.Label(new Rect(0f, 36f, view.width, 30f), "No wildlife outcomes have been recorded yet.");
             else
             {
+                float y = 38f;
                 for (int i = 0; i < entries.Count; i++)
                 {
                     WildlifeExperienceEvent entry = entries[i];
-                    Rect row = new Rect(0f, 38f + i * 48f, view.width, 42f);
+                    string text = entry.category + " - " + entry.text;
+                    float height = OutcomeRowHeight(text, view.width);
+                    Rect row = new Rect(0f, y, view.width, height - 6f);
                     Widgets.DrawHighlightIfMouseover(row);
                     if (WildlifeExperience.IsNegative(entry)) GUI.color = new Color(1f, 0.42f, 0.38f);
-                    Widgets.Label(row.ContractedBy(6f), entry.category + " — " + entry.text);
+                    Widgets.Label(row.ContractedBy(6f), text);
                     GUI.color = Color.white;
                     Thing thing = WildlifeExperience.ResolveThing(entry.thingId);
                     if (thing != null && Widgets.ButtonInvisible(row))
                     {
-                        CameraJumper.TryJumpAndSelect(thing);
-                        Close();
+                        WildlifeUI.Focus(thing);
                     }
                     TooltipHandler.TipRegion(row, "Occurred " + entry.tick.ToStringTicksToPeriod() + " after colony start." + (thing == null ? string.Empty : " Click to select."));
+                    y += height;
                 }
             }
             Widgets.EndScrollView();
@@ -261,90 +326,81 @@ namespace Herds
             TooltipHandler.TipRegion(rect, tooltip);
         }
 
+        internal static float OutcomeRowHeight(string text, float width) =>
+            Mathf.Max(48f, Text.CalcHeight(text ?? string.Empty, Mathf.Max(40f, width - 12f)) + 18f);
+
         private void DrawNavigationCard(Rect rect, OverviewNavigation item)
         {
-            Widgets.DrawMenuSection(rect);
-            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, 5f, rect.height), item.accent);
-            Widgets.DrawHighlightIfMouseover(rect);
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(rect.x + 13f, rect.y + 7f, rect.width - 21f, 22f),
-                item.title);
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(0.68f, 0.75f, 0.69f);
-            Widgets.Label(new Rect(rect.x + 13f, rect.y + 30f, rect.width - 21f, 18f),
-                item.detail);
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            if (Widgets.ButtonInvisible(rect)) item.action();
+            if (Widgets.ButtonText(rect, item.title + "\n" + item.detail)) item.action();
+            Widgets.DrawBoxSolid(new Rect(rect.x + 2f, rect.y + 2f, 4f, rect.height - 4f),
+                item.accent);
             TooltipHandler.TipRegion(rect, item.tooltip);
         }
 
         private List<OverviewNavigation> Navigation()
         {
-            List<OverviewNavigation> result = new List<OverviewNavigation>
+            OverviewNavigation animalKnowledge = new OverviewNavigation
             {
-                new OverviewNavigation
-                {
-                    title = "Animal Knowledge", detail = "What the colony understands",
-                    tooltip = "Review every known animal and the information its current knowledge tier reveals.",
-                    accent = new Color(0.58f, 0.50f, 0.25f),
-                    action = () => Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge())
-                }
+                title = "Animal Knowledge", detail = "What the colony understands",
+                tooltip = "Review every known animal and the information its current knowledge tier reveals.",
+                accent = new Color(0.58f, 0.50f, 0.25f),
+                action = () => Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge())
             };
-            if (HerdsMod.Settings.enableRegionalPopulations)
-                result.Add(new OverviewNavigation
+            OverviewNavigation localWildlife = HerdsMod.Settings.enableRegionalPopulations
+                ? new OverviewNavigation
                 {
                     title = "Local Wildlife", detail = "Populations and roaming animals",
                     tooltip = "Review nearby populations, trends, confidence, habitat, and known animals beyond the map.",
                     accent = new Color(0.29f, 0.52f, 0.50f),
                     action = () => Find.WindowStack.Add(new Window_RegionalWildlife(map))
-                });
-            if (HerdsMod.Settings.enableTrailReading)
-                result.Add(new OverviewNavigation
+                } : null;
+            OverviewNavigation signalGuide = HerdsMod.Settings.enableWildlifeSignalCulture
+                ? new OverviewNavigation
                 {
-                    title = "Trail Leads", detail = "Investigate physical evidence",
-                    tooltip = "Combine signs into a trail, assign a tracker, and follow living quarry or regional leads.",
+                    title = "Signal Guide", detail = "Learn animal calls and meanings",
+                    tooltip = "Review local signal dialects, observed meanings, credibility, and colonist understanding.",
+                    accent = new Color(0.43f, 0.38f, 0.62f),
+                    action = () => Find.WindowStack.Add(new Window_WildlifeSignals(map, null))
+                } : null;
+            OverviewNavigation trailLeads = HerdsMod.Settings.enableTrailReading
+                ? new OverviewNavigation
+                {
+                    title = "Trail Leads", detail = "Follow animals beyond the map",
+                    tooltip = "Study evidence left by animals that departed, then pursue time-sensitive regional leads.",
                     accent = new Color(0.43f, 0.55f, 0.29f),
                     action = () => Find.WindowStack.Add(new Window_WildlifeTrailBoard(map))
-                });
-            if (HerdsMod.Settings.enableWildlifeLandscaping)
-                result.Add(new OverviewNavigation
+                } : null;
+            OverviewNavigation landscape = HerdsMod.Settings.enableWildlifeLandscaping
+                ? new OverviewNavigation
                 {
-                    title = "Living Landscape",
+                    title = "Landscape",
                     detail = "Places shaped by wildlife",
                     tooltip = "Review persistent game trails, feeding grounds, nesting sites, wallows, shoreline works, and territorial landmarks. Select a place to study or protect it.",
                     accent = new Color(0.36f, 0.58f, 0.31f),
                     action = () => Find.WindowStack.Add(new Window_WildlifeLandscape(map))
-                });
-            if (HerdsMod.Settings.enableFieldJournal ||
+                } : null;
+            OverviewNavigation fieldJournal = (HerdsMod.Settings.enableFieldJournal ||
                 HerdsMod.Settings.enableDynamicWildlifeOpportunities ||
                 HerdsMod.Settings.enableWildlifeMysteries ||
                 HerdsMod.Settings.enableWildlifeFolklore)
-                result.Add(new OverviewNavigation
+                ? new OverviewNavigation
                 {
                     title = "Field Journal", detail = "Moments, mysteries, and stories",
                     tooltip = "Review the field guide, respond to Wildlife Moments, investigate mysteries, and manage stories.",
                     accent = new Color(0.42f, 0.62f, 0.38f),
                     action = () => Find.WindowStack.Add(new Window_WildlifeFieldJournal(map,
                         map.GetComponent<WildlifeFieldJournalMapComponent>()?.Opportunity != null ? 2 : 0))
-                });
-            if (HerdsMod.Settings.enableWildlifeSignalCulture)
-                result.Add(new OverviewNavigation
-                {
-                    title = "Signal Guide", detail = "Learn animal calls and meanings",
-                    tooltip = "Review local signal dialects, observed meanings, credibility, and colonist understanding.",
-                    accent = new Color(0.43f, 0.38f, 0.62f),
-                    action = () => Find.WindowStack.Add(new Window_WildlifeSignals(map, null))
-                });
-            if (HerdsMod.Settings.enableResearchProgression)
-                result.Add(new OverviewNavigation
+                } : null;
+            OverviewNavigation progression = HerdsMod.Settings.enableResearchProgression
+                ? new OverviewNavigation
                 {
                     title = "Progression", detail = "Research and feature unlocks",
                     tooltip = "See which Wildlife systems are available now and what research unlocks next.",
                     accent = new Color(0.52f, 0.45f, 0.31f),
                     action = () => Find.WindowStack.Add(new Window_WildlifeProgression())
-                });
-            return result;
+                } : null;
+            return new[] { animalKnowledge, localWildlife, signalGuide, trailLeads,
+                landscape, fieldJournal, progression }.Where(item => item != null).ToList();
         }
 
         private string NextAction()

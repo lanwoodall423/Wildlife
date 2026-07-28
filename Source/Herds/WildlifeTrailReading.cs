@@ -132,14 +132,24 @@ namespace Herds
                 .OrderByDescending(value => value.createdTick).FirstOrDefault();
         }
 
+        public WildlifeTrailLead LeadFor(Pawn animal)
+        {
+            if (HerdsMod.Settings?.enableTrailReading != true || animal == null) return null;
+            int now = Find.TickManager.TicksGame;
+            return leads.Where(value => value?.targetAnimal == animal && value.expiresTick > now)
+                .OrderByDescending(value => value.createdTick).FirstOrDefault();
+        }
+
         public WildlifeTrailLead Analyze(WildlifeSign seed, Pawn tracker)
         {
             if (HerdsMod.Settings?.enableTrailReading != true || seed?.Spawned != true ||
-                seed.species == null || tracker == null) return null;
+                seed.species == null || tracker == null || !RepresentsDepartedAnimal(seed))
+                return null;
             int now = Find.TickManager.TicksGame;
             List<WildlifeSign> evidence = map.listerThings.ThingsOfDef(HerdsDefOf.Herds_WildlifeSign)
                 .OfType<WildlifeSign>()
-                .Where(value => value.species == seed.species && now - value.createdTick <= 18000 &&
+                .Where(value => value.sourceAnimal == seed.sourceAnimal &&
+                    value.species == seed.species && now - value.createdTick <= 18000 &&
                     value.Position.DistanceToSquared(seed.Position) <= 8100)
                 .OrderByDescending(value => value.createdTick).Take(12)
                 .OrderBy(value => value.createdTick).ToList();
@@ -172,33 +182,16 @@ namespace Herds
 
             Pawn sourceAnimal = newest.sourceAnimal ?? seed.sourceAnimal;
             Pawn target = sourceAnimal;
-            if (!UsableTarget(target, seed.species, true) ||
-                target.CurJob?.exitMapOnArrival == true)
-                target = evidence.Select(value => value.sourceAnimal)
-                    .Where(value => UsableTarget(value, seed.species, true) &&
-                        value.CurJob?.exitMapOnArrival != true)
-                    .OrderBy(value => value.Position.DistanceToSquared(newest.travelTo))
-                    .FirstOrDefault();
-            if (target == null)
-                target = BestLiveTarget(seed.species, tracker, evidence.Count >= 3);
             RoamingAnimalRecord roaming = sourceAnimal == null ? null :
                 map.GetComponent<RegionalWildlifeMapComponent>()?.RoamingAnimals
                     .FirstOrDefault(value => value?.animal == sourceAnimal &&
                         value.state != RoamingAnimalState.Dead);
             if (target == null && roaming != null) target = sourceAnimal;
-            bool targetLeaving = target?.Spawned == true &&
-                target.CurJob?.exitMapOnArrival == true;
-            bool liveTarget = UsableTarget(target, seed.species, true) && !targetLeaving;
             bool beyondMap = target?.Spawned != true && roaming != null;
-            if (liveTarget)
-            {
-                int error = Mathf.Max(2, Mathf.RoundToInt(Mathf.Lerp(12f, 3f, confidence)));
-                predicted = CellFinder.RandomClosewalkCellNear(target.Position, map, error);
-            }
-            else if (beyondMap)
+            if (beyondMap)
                 predicted = newest.travelTo;
 
-            WildlifeTrailLead lead = LeadFor(seed.species);
+            WildlifeTrailLead lead = LeadFor(sourceAnimal);
             if (lead == null)
             {
                 lead = new WildlifeTrailLead { species = seed.species };
@@ -215,23 +208,19 @@ namespace Herds
                 .OrderByDescending(group => group.Count()).First().Key;
             lead.groupSize = Mathf.Max(1, Mathf.RoundToInt((float)evidence.Average(value => value.groupSize)));
             lead.createdTick = now;
-            lead.expiresTick = now + (beyondMap ? 60000 : 30000);
+            lead.expiresTick = now + 60000;
             lead.confidence = confidence;
             lead.predator = evidence.Any(value => value.predator);
             lead.direction = DirectionLabel(movement);
             lead.failedSearches = 0;
-            lead.viableLead = liveTarget && evidence.Count >= 3;
-            lead.state = beyondMap ? WildlifeTrailState.BeyondMap :
-                liveTarget ? WildlifeTrailState.LiveQuarry :
-                targetLeaving ? WildlifeTrailState.Pursuit : WildlifeTrailState.Ambient;
-            lead.departureCell = beyondMap ? newest.travelTo : IntVec3.Invalid;
-            lead.lastOutcome = beyondMap
-                ? "The originating animal is roaming beyond the local map; the trail reaches the boundary."
-                : liveTarget
-                ? "Fresh evidence is connected to wildlife still present on the map."
-                : targetLeaving
-                    ? "The animal is moving toward the map boundary."
-                    : "No individual animal has yet been confirmed.";
+            lead.viableLead = beyondMap;
+            lead.state = WildlifeTrailState.BeyondMap;
+            lead.departureCell = newest.travelTo;
+            lead.lastOutcome = "The originating animal is roaming beyond the local map; the trail reaches the boundary.";
+            map.GetComponent<HuntingKnowledgeMapComponent>()?.Learn(tracker, seed.species,
+                8f + evidence.Count * 1.5f);
+            map.GetComponent<HuntingExpeditionMapComponent>()?
+                .TryCreateTrailHuntOpportunity(tracker, seed.species, confidence, target);
             SetMarked(lead, true);
             WildlifeExperience.Record("Trail Reading", tracker.LabelShortCap + " reconstructed a " +
                 ConfidenceLabel(confidence).ToLowerInvariant() + " " + seed.species.label +
@@ -241,6 +230,15 @@ namespace Herds
                     " evidence=" + evidence.Count + " confidence=" + confidence.ToString("0.00") +
                     " direction=" + lead.direction + " prediction=" + predicted, tracker, seed);
             return lead;
+        }
+
+        public bool RepresentsDepartedAnimal(WildlifeSign sign)
+        {
+            Pawn animal = sign?.sourceAnimal;
+            if (animal == null || animal.Spawned) return false;
+            return map.GetComponent<RegionalWildlifeMapComponent>()?.RoamingAnimals.Any(value =>
+                value?.animal == animal && value.state != RoamingAnimalState.Present &&
+                value.state != RoamingAnimalState.Dead) == true;
         }
 
         public void Follow(Pawn pawn, WildlifeTrailLead lead, WildlifeSign source)
@@ -703,6 +701,13 @@ namespace Herds
                 lead.lastOutcome.NullOrEmpty()
                     ? "The trail has not yet produced an outcome."
                     : lead.lastOutcome);
+            TrailHuntOpportunity opportunity = map.GetComponent<HuntingExpeditionMapComponent>()?
+                .ActiveTrailHuntOpportunity(lead.species, map.Biome);
+            if (opportunity != null)
+                TooltipHandler.TipRegion(new Rect(0f, top, rect.width, 58f),
+                    "Hunt opportunity active for " +
+                    (opportunity.expiresTick - Find.TickManager.TicksGame).ToStringTicksToPeriod() +
+                    ". A matching hunt expedition receives improved encounter, success, and safety conditions.");
 
             Rect interpretation = new Rect(0f, top + 70f, rect.width, 88f);
             Widgets.DrawMenuSection(interpretation);
@@ -738,10 +743,7 @@ namespace Herds
                     (i + 1) + ". " + age.ToStringTicksToPeriod() + " ago" +
                     (i == lead.evidenceCells.Count - 1 ? "  —  latest sign" : ""));
                 if (Widgets.ButtonInvisible(row))
-                {
-                    CameraJumper.TryJump(lead.evidenceCells[i], map);
-                    Close();
-                }
+                    WildlifeUI.Focus(lead.evidenceCells[i], map);
                 TooltipHandler.TipRegion(row, "Click to focus this piece of evidence on the map.");
             }
             Widgets.EndScrollView();
@@ -750,12 +752,25 @@ namespace Herds
             if (Widgets.ButtonText(new Rect(0f, buttonY, 170f, 36f), "Focus Likely Area"))
             {
                 map.GetComponent<WildlifeTrailMapComponent>()?.SetMarked(lead, true);
-                CameraJumper.TryJump(lead.predictedCell, map);
-                Close();
+                WildlifeUI.Focus(lead.predictedCell, map);
             }
             if (Widgets.ButtonText(new Rect(180f, buttonY, 170f, 36f),
                 lead.marked ? "Clear Trail Mark" : "Mark Trail"))
                 map.GetComponent<WildlifeTrailMapComponent>()?.SetMarked(lead, !lead.marked);
+            TrailHuntOpportunity huntOpportunity = map.GetComponent<HuntingExpeditionMapComponent>()?
+                .ActiveTrailHuntOpportunity(lead.species, map.Biome);
+            if (huntOpportunity != null && Widgets.ButtonText(new Rect(360f, buttonY, 160f, 36f),
+                "Improved Hunt Expedition"))
+            {
+                HuntingExpeditionMapComponent expeditions =
+                    map.GetComponent<HuntingExpeditionMapComponent>();
+                ExpeditionDestination destination = expeditions.Destinations()
+                    .OrderByDescending(value => value.biome == huntOpportunity.biome)
+                    .ThenBy(value => value.distance).FirstOrDefault();
+                Find.WindowStack.Add(new Window_HuntingExpeditionSetup(map, destination,
+                    lead.species, ExpeditionObjective.Hunt));
+                Close();
+            }
             bool quarryVisible = QuarryAtTrailEnd();
             string followLabel = lead.state == WildlifeTrailState.BeyondMap
                 ? "Follow Beyond Map" : quarryVisible ? "Focus Animal" : "Follow Trail";
@@ -767,10 +782,7 @@ namespace Herds
                     OpenBeyondMapOptions();
                 }
                 else if (quarryVisible)
-                {
-                    CameraJumper.TryJumpAndSelect(lead.targetAnimal);
-                    Close();
-                }
+                    WildlifeUI.Show(lead.targetAnimal);
                 else ChooseFollower();
             }
             TooltipHandler.TipRegion(followButton,
@@ -855,6 +867,8 @@ namespace Herds
             if (WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition) &&
                 expeditions != null)
             {
+                TrailHuntOpportunity opportunity = expeditions.ActiveTrailHuntOpportunity(
+                    lead.species, map.Biome);
                 options.Add(new FloatMenuOption("Send Wildlife Expedition", () =>
                 {
                     Window_WildlifeExpeditions list =
@@ -862,6 +876,16 @@ namespace Herds
                     WildlifeWorldMapController.BeginNewExpeditionSelection(expeditions, list);
                     Close();
                 }));
+                if (opportunity != null)
+                    options.Add(new FloatMenuOption("Plan Improved Hunt Expedition", () =>
+                    {
+                        ExpeditionDestination destination = expeditions.Destinations()
+                            .OrderByDescending(value => value.biome == opportunity.biome)
+                            .ThenBy(value => value.distance).FirstOrDefault();
+                        Find.WindowStack.Add(new Window_HuntingExpeditionSetup(map, destination,
+                            lead.species, ExpeditionObjective.Hunt));
+                        Close();
+                    }));
             }
             else
                 options.Add(new FloatMenuOption("Send Wildlife Expedition (research required)", null));
@@ -960,11 +984,12 @@ namespace Herds
             int now = Find.TickManager.TicksGame;
             return map.listerThings.ThingsOfDef(HerdsDefOf.Herds_WildlifeSign)
                 .OfType<WildlifeSign>()
-                .Where(value => value.species != null && now - value.createdTick <= 18000)
-                .GroupBy(value => value.species)
+                .Where(value => value.species != null && now - value.createdTick <= 18000 &&
+                    trails?.RepresentsDepartedAnimal(value) == true)
+                .GroupBy(value => value.sourceAnimal)
                 .Select(group => new TrailCandidate
                 {
-                    species = group.Key,
+                    species = group.First().species,
                     signs = group.OrderByDescending(value => value.createdTick).ToList(),
                     lead = trails?.LeadFor(group.Key)
                 })
@@ -1023,8 +1048,7 @@ namespace Herds
             if (Widgets.ButtonText(new Rect(buttonX + 128f, card.y + 18f, 120f, 34f),
                 "Focus"))
             {
-                CameraJumper.TryJumpAndSelect(candidate.Latest);
-                Close();
+                WildlifeUI.Show(candidate.Latest);
             }
             if (candidate.lead != null &&
                 Widgets.ButtonText(new Rect(buttonX + 256f, card.y + 18f, 120f, 34f),
@@ -1073,8 +1097,7 @@ namespace Herds
                         study.playerForced = true;
                         if (tracker.jobs.TryTakeOrderedJob(study, JobTag.Misc))
                         {
-                            CameraJumper.TryJumpAndSelect(selectedSign);
-                            Close();
+                            WildlifeUI.Show(selectedSign);
                         }
                         else Messages.Message(tracker.LabelShortCap +
                             " could not begin studying the wildlife sign.", tracker,

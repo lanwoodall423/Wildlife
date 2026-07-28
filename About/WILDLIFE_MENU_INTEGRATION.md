@@ -17,8 +17,10 @@ Herds.WildlifeMenuRegistry.Register(
 Entries are ordered by numeric order, then label and ID. Built-in entries reserve:
 
 - `0`: Wildlife Overview
-- `10`: Wildlife Expeditions
+- `10`: Horticulture - Novel Seeds (optional companion)
+- `20`: Aquaculture (optional companion)
+- `30`: Expeditions
 
-Third-party integrations should normally use `100` or higher. Buttons wrap into responsive rows and the pawn table reserves the required vertical space automatically.
+Third-party integrations should normally use `100` or higher. Buttons wrap into responsive rows and the pawn table reserves the required vertical space automatically. Optional companions should register only while active and open their existing `MainButtonDef` through `Find.MainTabsRoot` rather than duplicating a window.
 
 Optional integrations can call the same method through reflection to avoid making Wildlife a required assembly dependency.

@@ -251,7 +251,7 @@ namespace Herds
                 }
             }
             else opportunity = null;
-            if (settings.enableStewardProjects) UpdateProject();
+            if (settings.enableStewardProjects) FinishProjectIfReady();
             else project = null;
         }
 
@@ -342,7 +342,7 @@ namespace Herds
                  HerdsMod.Settings.enableTrackingSigns != true))
             {
                 reason = !ResearchAllowsResponse(response)
-                    ? "Tracking Wildlife Moments requires Wildlife Telemetry."
+                    ? "Tracking Wildlife Moments requires additional research."
                     : "Fading Tracks and Wildlife Signs are disabled.";
                 return false;
             }
@@ -669,6 +669,80 @@ namespace Herds
             project = null;
         }
 
+        public bool CanStartProject(WildlifeStewardProjectKind kind, ThingDef species,
+            out string reason)
+        {
+            reason = null;
+            if (species?.race?.Animal != true)
+            {
+                reason = "Choose a known animal species.";
+                return false;
+            }
+            if (kind != WildlifeStewardProjectKind.RestoreSpecies) return true;
+            RegionalSpeciesRecord record = map.GetComponent<RegionalWildlifeMapComponent>()?
+                .Records.FirstOrDefault(value => value.species == species);
+            bool declined = RestoreSpeciesEligible(record);
+            if (declined) return true;
+            reason = "Restore a Species becomes available after this species is regionally scarce, locally depleted, or has fallen by at least 25% since the previous estimate.";
+            return false;
+        }
+
+        internal static bool RestoreSpeciesEligible(RegionalSpeciesRecord record) =>
+            record != null && (record.consequenceState == 1 ||
+                record.consequenceState == 3 || record.previousPopulation > 0f &&
+                record.population <= record.previousPopulation * 0.75f);
+
+        public bool AssignProjectWork(Pawn worker)
+        {
+            if (project == null || worker?.Spawned != true || worker.Downed ||
+                worker.InMentalState || HerdsDefOf.Herds_PerformStewardshipProject == null)
+                return false;
+            IntVec3 cell = ProjectWorkCell(worker);
+            if (!cell.IsValid || !worker.CanReach(cell, PathEndMode.OnCell, Danger.Some))
+                return false;
+            Job job = JobMaker.MakeJob(HerdsDefOf.Herds_PerformStewardshipProject, cell);
+            job.playerForced = true;
+            return worker.jobs.TryTakeOrderedJob(job, JobTag.Misc);
+        }
+
+        public void CompleteProjectWork(Pawn worker)
+        {
+            if (project == null || worker == null) return;
+            float gain = 0.12f;
+            bool HasTool(WildlifeToolKind kind) => map.listerThings.AllThings
+                .OfType<Building_WildlifeTool>().Any(tool => tool.Kind == kind && tool.active);
+            if (project.kind == WildlifeStewardProjectKind.RestoreSpecies &&
+                (HasTool(WildlifeToolKind.HabitatRestoration) || HasTool(WildlifeToolKind.Reserve)))
+                gain += 0.08f;
+            else if ((project.kind == WildlifeStewardProjectKind.MigrationCorridor ||
+                      project.kind == WildlifeStewardProjectKind.ProtectMigration) &&
+                     HasTool(WildlifeToolKind.MigrationCorridor)) gain += 0.08f;
+            else if ((project.kind == WildlifeStewardProjectKind.RanchDefense ||
+                      project.kind == WildlifeStewardProjectKind.SuppressPredators) &&
+                     HasTool(WildlifeToolKind.PredatorDeterrent)) gain += 0.07f;
+            else if (project.kind == WildlifeStewardProjectKind.AttractRareBirds &&
+                     (HasTool(WildlifeToolKind.HabitatRestoration) ||
+                      HasTool(WildlifeToolKind.WaterSource))) gain += 0.07f;
+            int skill = worker.skills?.GetSkill(SkillDefOf.Animals)?.Level ?? 0;
+            project.progress = Mathf.Clamp01(project.progress + gain + skill * 0.003f);
+            map.GetComponent<HuntingKnowledgeMapComponent>()?.Learn(worker, project.species, 8f);
+            WildlifeExperience.Record("Steward Project", worker.LabelShortCap + " completed fieldwork for " +
+                ProjectLabel(project.kind).ToLowerInvariant() + ".", worker);
+            FinishProjectIfReady();
+        }
+
+        private IntVec3 ProjectWorkCell(Pawn worker)
+        {
+            Pawn animal = map.mapPawns.AllPawnsSpawned.FirstOrDefault(value =>
+                value?.def == project.species && !value.Dead);
+            if (animal != null)
+                return CellFinder.RandomClosewalkCellNear(animal.Position, map, 8);
+            Building_WildlifeTool tool = map.listerThings.AllThings.OfType<Building_WildlifeTool>()
+                .Where(value => value.active).OrderBy(value =>
+                    value.Position.DistanceToSquared(worker.Position)).FirstOrDefault();
+            return tool?.Position ?? CellFinder.RandomClosewalkCellNear(map.Center, map, 20);
+        }
+
         public void NotifyHuntKill(ThingDef species)
         {
             if (project?.kind == WildlifeStewardProjectKind.PopulationControl && project.species == species)
@@ -876,6 +950,8 @@ namespace Herds
             WildlifeOpportunityRecord completed = opportunity;
             Pawn target = ResponseTarget(completed.response) ?? completed.animal;
             string text;
+            int storyTick = -1;
+            string storyTitle = null;
             if (success)
             {
                 float populationDelta = completed.response == WildlifeMomentResponse.Hunt ? -0.35f : 0f;
@@ -910,9 +986,12 @@ namespace Herds
                     completed.kind == WildlifeOpportunityKind.SocialBond ||
                     completed.kind == WildlifeOpportunityKind.AnimalRivalry ||
                     completed.kind == WildlifeOpportunityKind.SignalResponse)
-                    WildlifeMemoryUtility.Folklore(map,
-                        OpportunityLabel(completed.kind) + ": " + completed.species.LabelCap,
+                {
+                    storyTitle = OpportunityLabel(completed.kind) + ": " + completed.species.LabelCap;
+                    storyTick = Find.TickManager.TicksGame;
+                    WildlifeMemoryUtility.Folklore(map, storyTitle,
                         text, completed.animal, completed.response != WildlifeMomentResponse.Hunt);
+                }
             }
             else text = !completed.failureReason.NullOrEmpty()
                 ? OpportunityLabel(completed.kind) + " ended: " + completed.failureReason
@@ -929,7 +1008,20 @@ namespace Herds
                 text = text
             });
             if (momentHistory.Count > 20) momentHistory.RemoveRange(20, momentHistory.Count - 20);
-            Messages.Message(text, completed.animal,
+            if (storyTick >= 0 && HerdsDefOf.Herds_WildlifeStory != null)
+            {
+                ChoiceLetter_WildlifeStory letter = LetterMaker.MakeLetter(
+                    "Wildlife Moment became a Colony Story", text,
+                    HerdsDefOf.Herds_WildlifeStory, completed.animal) as ChoiceLetter_WildlifeStory;
+                if (letter != null)
+                {
+                    letter.map = map;
+                    letter.storyTick = storyTick;
+                    letter.storyTitle = storyTitle;
+                    Find.LetterStack.ReceiveLetter(letter);
+                }
+            }
+            else Messages.Message(text, completed.animal,
                 success ? MessageTypeDefOf.PositiveEvent : MessageTypeDefOf.NeutralEvent, false);
             WildlifeExperience.Record("Wildlife Moment", text, completed.animal, !success && !ignored);
             opportunity = null;
@@ -1207,47 +1299,9 @@ namespace Herds
             !key.NullOrEmpty() && !recentMomentKeys.Any(value =>
                 value.key == key && value.expiresTick > now);
 
-        private void UpdateProject()
+        private void FinishProjectIfReady()
         {
-            if (project == null || Find.TickManager.TicksGame % 60000 >= 2500) return;
-            bool HasTool(WildlifeToolKind kind) => map.listerThings.AllThings.OfType<Building_WildlifeTool>()
-                .Any(tool => tool.Kind == kind && tool.active);
-            switch (project.kind)
-            {
-                case WildlifeStewardProjectKind.RestoreSpecies:
-                    if (HasTool(WildlifeToolKind.HabitatRestoration) || HasTool(WildlifeToolKind.Reserve))
-                        project.progress += 0.10f;
-                    break;
-                case WildlifeStewardProjectKind.MigrationCorridor:
-                    if (HasTool(WildlifeToolKind.MigrationCorridor)) project.progress += 0.12f;
-                    break;
-                case WildlifeStewardProjectKind.PopulationControl:
-                    project.progress += 0.01f;
-                    break;
-                case WildlifeStewardProjectKind.RanchDefense:
-                    if (HasTool(WildlifeToolKind.PredatorDeterrent)) project.progress += 0.08f;
-                    break;
-                case WildlifeStewardProjectKind.ProtectMigration:
-                    MigrationWaveRecord wave = map.GetComponent<WildlifeRegionalStoriesMapComponent>()?.Wave;
-                    if (wave?.species == project.species && wave.response == MigrationWaveResponse.Protect)
-                        project.progress += 0.22f;
-                    else if (HasTool(WildlifeToolKind.MigrationCorridor)) project.progress += 0.05f;
-                    break;
-                case WildlifeStewardProjectKind.SuppressPredators:
-                    RegionalSpeciesRecord predator = map.GetComponent<RegionalWildlifeMapComponent>()?.Records
-                        .FirstOrDefault(record => record.species == project.species);
-                    if (predator != null && predator.population <= predator.previousPopulation)
-                        project.progress += HasTool(WildlifeToolKind.PredatorDeterrent) ? 0.12f : 0.04f;
-                    break;
-                case WildlifeStewardProjectKind.AttractRareBirds:
-                    RegionalSpeciesRecord bird = map.GetComponent<RegionalWildlifeMapComponent>()?.Records
-                        .FirstOrDefault(record => record.species == project.species);
-                    if (bird != null && bird.nearbyPopulation >= bird.previousNearbyPopulation)
-                        project.progress += HasTool(WildlifeToolKind.HabitatRestoration) ||
-                            HasTool(WildlifeToolKind.WaterSource) ? 0.10f : 0.03f;
-                    break;
-            }
-            if (project.progress < 1f) return;
+            if (project?.progress < 1f) return;
             completedProjects++;
             map.GetComponent<RegionalWildlifeMapComponent>()?.ApplyExpeditionImpact(project.species,
                 project.kind == WildlifeStewardProjectKind.PopulationControl ||
@@ -1311,10 +1365,25 @@ namespace Herds
             kind == WildlifeStewardProjectKind.RestoreSpecies ? "Restore a Species" :
             kind == WildlifeStewardProjectKind.MigrationCorridor ? "Establish a Migration Corridor" :
             kind == WildlifeStewardProjectKind.PopulationControl ? "Control Overpopulation" :
-            kind == WildlifeStewardProjectKind.RanchDefense ? "Protect the Ranch" :
+            kind == WildlifeStewardProjectKind.RanchDefense ? "Protect Wildlife Habitat" :
             kind == WildlifeStewardProjectKind.ProtectMigration ? "Protect a Migration" :
             kind == WildlifeStewardProjectKind.SuppressPredators ? "Suppress Predator Pressure" :
             "Attract Rare Birds";
+
+        public static string ProjectDescription(WildlifeStewardProjectKind kind) =>
+            kind == WildlifeStewardProjectKind.RestoreSpecies
+                ? "Restore a significantly declined species through repeated colonist fieldwork. Active reserves or habitat restoration improve each work session."
+                : kind == WildlifeStewardProjectKind.MigrationCorridor
+                    ? "Survey and maintain a safer migration route. An active migration corridor improves each work session."
+                    : kind == WildlifeStewardProjectKind.PopulationControl
+                        ? "Perform surveys and controlled fieldwork to reduce an overabundant population responsibly."
+                        : kind == WildlifeStewardProjectKind.RanchDefense
+                            ? "Protect wildlife habitat near colony territory through hands-on monitoring and deterrent work."
+                            : kind == WildlifeStewardProjectKind.ProtectMigration
+                                ? "Support a vulnerable migration through repeated patrol and route-maintenance work."
+                                : kind == WildlifeStewardProjectKind.SuppressPredators
+                                    ? "Reduce predator pressure through repeated field patrols. An active deterrent improves each work session."
+                                    : "Prepare habitat and water access for rare birds through repeated field surveys and maintenance.";
 
         private static string OpportunityDescription(WildlifeOpportunityKind kind, ThingDef species)
         {
@@ -1324,7 +1393,9 @@ namespace Herds
             if (kind == WildlifeOpportunityKind.InjuredAnimal) return "An injured " + animal + " has been reported. Rescue, recovery, capture, or death will conclude the event.";
             if (kind == WildlifeOpportunityKind.PredatorIncursion) return "A " + animal + " is ranging close to colony territory. Remove it or activate a predator deterrent.";
             if (kind == WildlifeOpportunityKind.RareSighting) return "An unusual " + animal + " has been sighted. Complete a close study before it leaves.";
-            return animal + " show signs that may indicate disease. Maintain an observation post or telemetry station to document the concern.";
+            return animal + " show signs that may indicate disease. Maintain an observation post" +
+                (WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
+                    ? " or telemetry station" : "") + " to document the concern.";
         }
 
         private static string Mark(bool complete) => complete ? "Recorded" : "Undiscovered";
@@ -1374,6 +1445,25 @@ namespace Herds
         }
     }
 
+    public sealed class JobDriver_PerformStewardshipProject : JobDriver
+    {
+        public override bool TryMakePreToilReservations(bool errorOnFailed) => true;
+
+        protected override IEnumerable<Toil> MakeNewToils()
+        {
+            yield return Toils_Goto.GotoCell(TargetIndex.A, PathEndMode.OnCell);
+            Toil work = Toils_General.Wait(2500, TargetIndex.A);
+            work.socialMode = RandomSocialMode.Off;
+            work.WithProgressBarToilDelay(TargetIndex.A);
+            yield return work;
+            Toil finish = ToilMaker.MakeToil("CompleteStewardshipProjectWork");
+            finish.initAction = () => pawn.Map?.GetComponent<WildlifeFieldJournalMapComponent>()?
+                .CompleteProjectWork(pawn);
+            finish.defaultCompleteMode = ToilCompleteMode.Instant;
+            yield return finish;
+        }
+    }
+
     public sealed class Window_WildlifeFieldJournal : Window
     {
         private readonly Map map;
@@ -1381,10 +1471,15 @@ namespace Herds
         private Vector2 scroll;
         public override Vector2 InitialSize => new Vector2(860f, 700f);
 
-        public Window_WildlifeFieldJournal(Map map, int initialTab = 0)
+        private readonly int focusedStoryTick = -1;
+        private bool positionedStory;
+
+        public Window_WildlifeFieldJournal(Map map, int initialTab = 0,
+            int focusedStoryTick = -1)
         {
             this.map = map;
             tab = Mathf.Clamp(initialTab, 0, 5);
+            this.focusedStoryTick = focusedStoryTick;
             doCloseX = true;
             resizeable = true;
             absorbInputAroundWindow = true;
@@ -1478,7 +1573,10 @@ namespace Herds
                 Widgets.Label(new Rect(14f, 12f, rect.width - 28f, 28f), "No Unexplained Pattern");
                 Text.Font = GameFont.Small;
                 Widgets.Label(new Rect(14f, 47f, rect.width - 28f, 52f),
-                    "The journal watches real migration, population, telemetry, tradition, predator, and family-line behavior. An investigation begins only when those systems produce an unusual pattern with a real cause.");
+                "The journal watches real migration, population, tradition, predator, and family-line behavior" +
+                (WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
+                    ? ", including telemetry" : "") +
+                ". An investigation begins only when those systems produce an unusual pattern with a real cause.");
                 return;
             }
             Rect outer = new Rect(0f, 0f, rect.width, rect.height);
@@ -1629,8 +1727,8 @@ namespace Herds
                 {
                     Thing focusThing = value.animal?.Spawned == true
                         ? value.animal : value.evidence?.Spawned == true ? value.evidence : null;
-                    if (focusThing != null) CameraJumper.TryJumpAndSelect(focusThing);
-                    else if (value.focusCell.IsValid) CameraJumper.TryJump(value.focusCell, map);
+                    if (focusThing != null) WildlifeUI.Show(focusThing);
+                    else if (value.focusCell.IsValid) WildlifeUI.Focus(value.focusCell, map);
                 }
                 TooltipHandler.TipRegion(focus,
                     "Center the map on the focal animal or its remaining physical evidence.");
@@ -1732,7 +1830,11 @@ namespace Herds
                 Text.Font = GameFont.Small;
                 Widgets.Label(new Rect(14f, 45f, rect.width - 28f, 24f), value.species.LabelCap + "  •  " + value.progress.ToStringPercent() + " complete");
                 Widgets.FillableBar(new Rect(14f, 78f, rect.width - 210f, 18f), Mathf.Clamp01(value.progress));
+                if (Widgets.ButtonText(new Rect(rect.width - 354f, 72f, 164f, 32f), "Assign Fieldwork"))
+                    ShowProjectWorkerMenu(component);
                 if (Widgets.ButtonText(new Rect(rect.width - 180f, 72f, 164f, 32f), "Cancel Project")) component.CancelProject();
+                TooltipHandler.TipRegion(new Rect(14f, 8f, rect.width - 28f, 98f),
+                    WildlifeFieldJournalMapComponent.ProjectDescription(value.kind));
                 return;
             }
             Widgets.Label(new Rect(0f, 0f, rect.width, 40f), "Choose a long-term objective. Progress is earned through matching structures and wildlife actions.");
@@ -1740,27 +1842,47 @@ namespace Herds
             for (int i = 0; i < kinds.Length; i++)
             {
                 WildlifeStewardProjectKind kind = kinds[i];
-                if (Widgets.ButtonText(new Rect(0f, 52f + i * 48f, 330f, 38f), WildlifeFieldJournalMapComponent.ProjectLabel(kind)))
+                Rect button = new Rect(0f, 52f + i * 48f, 330f, 38f);
+                if (Widgets.ButtonText(button, WildlifeFieldJournalMapComponent.ProjectLabel(kind)))
                     ChooseProjectSpecies(component, kind);
+                TooltipHandler.TipRegion(button,
+                    WildlifeFieldJournalMapComponent.ProjectDescription(kind));
             }
+        }
+
+        private void ShowProjectWorkerMenu(WildlifeFieldJournalMapComponent component)
+        {
+            List<FloatMenuOption> options = map.mapPawns.FreeColonistsSpawned
+                .OrderByDescending(pawn => pawn.skills?.GetSkill(SkillDefOf.Animals)?.Level ?? 0)
+                .Select(pawn => new FloatMenuOption(pawn.LabelShortCap,
+                    () =>
+                    {
+                        if (component.AssignProjectWork(pawn)) WildlifeUI.Focus(pawn);
+                        else Messages.Message(pawn.LabelShortCap + " cannot reach suitable project fieldwork.",
+                            pawn, MessageTypeDefOf.RejectInput, false);
+                    })).ToList();
+            if (options.Count == 0) options.Add(new FloatMenuOption("No colonists are available.", null));
+            Find.WindowStack.Add(new FloatMenu(options));
         }
 
         private void ChooseProjectSpecies(WildlifeFieldJournalMapComponent component, WildlifeStewardProjectKind kind)
         {
             List<ThingDef> species = component.Entries.Select(entry => entry.species).Where(def => def != null)
                 .OrderBy(def => def.label).ToList();
-            if (kind == WildlifeStewardProjectKind.RanchDefense)
-                species = species.Where(def => def.race.predator).ToList();
-            else if (kind == WildlifeStewardProjectKind.SuppressPredators)
+            if (kind == WildlifeStewardProjectKind.SuppressPredators)
                 species = species.Where(def => def.race.predator).ToList();
             else if (kind == WildlifeStewardProjectKind.MigrationCorridor ||
                 kind == WildlifeStewardProjectKind.ProtectMigration)
                 species = species.Where(HuntingExpeditionMapComponent.IsHerdSpecies).ToList();
             else if (kind == WildlifeStewardProjectKind.AttractRareBirds)
                 species = species.Where(PreyProfileDatabase.IsBird).ToList();
+            species = species.Where(def => component.CanStartProject(kind, def, out _)).ToList();
             if (species.Count == 0)
             {
-                Messages.Message("The colony must identify wildlife before beginning a species project.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message(kind == WildlifeStewardProjectKind.RestoreSpecies
+                        ? "No known species has declined enough to require restoration."
+                        : "The colony must identify suitable wildlife before beginning this project.",
+                    MessageTypeDefOf.RejectInput, false);
                 return;
             }
             Find.WindowStack.Add(new FloatMenu(species.Select(def =>
@@ -1797,6 +1919,13 @@ namespace Herds
             WildlifeMemoryMapComponent component = map.GetComponent<WildlifeMemoryMapComponent>();
             List<WildlifeFolkloreRecord> stories = component?.Folklore
                 .OrderByDescending(value => value.createdTick).ToList() ?? new List<WildlifeFolkloreRecord>();
+            int focusedIndex = focusedStoryTick < 0 ? -1 :
+                stories.FindIndex(value => value.createdTick == focusedStoryTick);
+            if (!positionedStory && focusedIndex >= 0)
+            {
+                scroll.y = focusedIndex * 86f;
+                positionedStory = true;
+            }
             Rect header = new Rect(0f, 0f, rect.width, 104f);
             Widgets.DrawMenuSection(header);
             Text.Font = GameFont.Medium;
@@ -1824,11 +1953,7 @@ namespace Herds
                     quest.title + "\n" + quest.objective);
                 if (Widgets.ButtonText(new Rect(questRect.xMax - 64f, questRect.y + 4f, 60f, 30f), "Focus") &&
                     quest.animal?.Spawned == true)
-                {
-                    Find.Selector.ClearSelection();
-                    Find.Selector.Select(quest.animal);
-                    CameraJumper.TryJump(quest.animal);
-                }
+                    WildlifeUI.Show(quest.animal);
                 TooltipHandler.TipRegion(questRect, component.LegendQuestDescription(quest) + "\nExpires in " +
                     Mathf.Max(0, quest.expiresTick - Find.TickManager.TicksGame).ToStringTicksToPeriod() + ".");
             }
@@ -1839,6 +1964,8 @@ namespace Herds
             {
                 WildlifeFolkloreRecord story = stories[i];
                 Rect row = new Rect(0f, i * 86f, view.width, 80f);
+                if (i == focusedIndex)
+                    Widgets.DrawBoxSolid(row, new Color(0.22f, 0.34f, 0.20f, 0.9f));
                 Widgets.DrawMenuSection(row);
                 GUI.color = story.positive ? new Color(0.72f, 0.92f, 0.68f) : new Color(1f, 0.62f, 0.58f);
                 Widgets.Label(new Rect(10f, row.y + 7f, row.width - 20f, 24f), story.title);
@@ -1852,11 +1979,7 @@ namespace Herds
                 GUI.color = Color.white;
                 Text.Anchor = TextAnchor.UpperLeft;
                 if (story.animal?.Spawned == true && Widgets.ButtonInvisible(row))
-                {
-                    Find.Selector.ClearSelection();
-                    Find.Selector.Select(story.animal);
-                    CameraJumper.TryJump(story.animal);
-                }
+                    WildlifeUI.Show(story.animal);
                 TooltipHandler.TipRegion(row, story.animal?.Spawned == true
                     ? "Click to select " + story.animal.LabelShortCap + ". Stories are retold over time while colonists recreate."
                     : "Stories are retold over time while colonists recreate.");

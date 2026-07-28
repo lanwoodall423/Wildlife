@@ -62,6 +62,8 @@ namespace Herds
         public static JobDef Herds_ObserveWildlifeMoment;
         public static JobDef Herds_RetellWildlifeStory;
         public static JobDef Herds_WildlifeCeremonyGather;
+        public static JobDef Herds_PerformStewardshipProject;
+        public static LetterDef Herds_WildlifeStory;
         public static HediffDef Herds_RanchGuardian;
         public static HediffDef Herds_HuntedAdrenaline;
         public static HediffDef Herds_HuntingOnTrack;

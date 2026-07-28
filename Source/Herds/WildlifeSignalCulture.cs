@@ -938,7 +938,6 @@ namespace Herds
                 expectedBehavior = trace.expectedBehavior,
                 observedBehavior = trace.observedBehavior
             });
-            Find.CameraDriver.JumpToCurrentMapLoc(trace.cell);
         }
 
         public List<string> DebugSignalScenario(string kindName)
@@ -1280,10 +1279,14 @@ namespace Herds
         private Vector2 detailScroll;
         private ThingDef selectedSpecies;
 
-        public Window_WildlifeSignals(Map map, Pawn observer)
+        public Window_WildlifeSignals(Map map, Pawn observer, ThingDef selectedSpecies = null,
+            Vector2? speciesScroll = null, Vector2? detailScroll = null)
         {
             this.map = map;
             this.observer = observer;
+            this.selectedSpecies = selectedSpecies;
+            this.speciesScroll = speciesScroll ?? Vector2.zero;
+            this.detailScroll = detailScroll ?? Vector2.zero;
             doCloseButton = true;
             doCloseX = true;
             absorbInputAroundWindow = true;
@@ -1315,7 +1318,7 @@ namespace Herds
             Widgets.Label(new Rect(inRect.x, inRect.y + 32f, inRect.width, 42f),
                 "Wild animals use species-specific local calls. Choose an animal to learn what its visible " +
                 "signals mean, how reliable they are, and how nearby animals responded.");
-            Rect listenerRect = new Rect(inRect.x, inRect.y + 77f, inRect.width, 32f);
+            Rect listenerRect = new Rect(inRect.x, inRect.y + 77f, inRect.width, 48f);
             Widgets.DrawBoxSolid(listenerRect, observer == null
                 ? new Color(0.16f, 0.15f, 0.11f, 0.9f)
                 : new Color(0.1f, 0.23f, 0.19f, 0.9f));
@@ -1332,7 +1335,7 @@ namespace Herds
                 "reliability at 70%, and misleading calls at 92%.\n\nIn Colony view, knowledge can fall " +
                 "when its current contributor leaves or dies.");
 
-            Rect body = new Rect(inRect.x, inRect.y + 118f, inRect.width, inRect.height - 163f);
+            Rect body = new Rect(inRect.x, inRect.y + 133f, inRect.width, inRect.height - 178f);
             Rect left = new Rect(body.x, body.y, 310f, body.height);
             Rect right = new Rect(left.xMax + 10f, body.y, body.width - left.width - 10f, body.height);
             Widgets.DrawBoxSolid(left, new Color(0.08f, 0.12f, 0.13f, 0.92f));
@@ -1502,7 +1505,17 @@ namespace Herds
                     Widgets.Label(new Rect(card.x + 8f, card.y + 31f, card.width - 90f, 42f),
                         understanding >= 0.4f ? trace.cause : "Continue observing to interpret this call.");
                 if (Widgets.ButtonText(new Rect(card.xMax - 76f, card.y + 32f, 68f, 30f), "Replay"))
+                {
+                    Pawn savedObserver = observer;
+                    ThingDef savedSpecies = selectedSpecies;
+                    Vector2 savedSpeciesScroll = speciesScroll;
+                    Vector2 savedDetailScroll = detailScroll;
+                    WildlifeUI.CloseMenus();
+                    Find.CameraDriver.JumpToCurrentMapLoc(trace.cell);
                     signals.Replay(trace);
+                    Find.WindowStack.Add(new Window_WildlifeSignals(map, savedObserver,
+                        savedSpecies, savedSpeciesScroll, savedDetailScroll));
+                }
                 TooltipHandler.TipRegion(card, understanding >= 0.7f
                     ? trace.cause + "\n\nExpected: " + trace.expectedBehavior +
                       "\nObserved: " + trace.observedBehavior

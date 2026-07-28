@@ -381,7 +381,7 @@ namespace Herds
                 "Repeated compatible activity forms persistent trails, feeding grounds, nesting sites, wallows, shoreline works, and territorial landmarks. Disabled: no scans, formation, decay, drawing, or interaction processing occurs.");
             if (Settings.enableWildlifeLandscaping)
             {
-                listing.CheckboxLabeled("Living Landscape Gameplay Effects",
+                listing.CheckboxLabeled("Landscape Gameplay Effects",
                     ref Settings.enableLandscapeEffects,
                     "Allow established features to influence animal movement, habitat quality, migration, and fieldcraft. Disabling this preserves existing features as visual history only.");
                 listing.CheckboxLabeled("Wildlife Crossroads",

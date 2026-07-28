@@ -114,7 +114,7 @@ namespace Herds
             "LIST_ANIMALS|R|Compact animal list",
             "ANIMAL|R|Detailed animal state by thing ID",
             "WILDLIFE_DEFS|R|Animal definitions matching a filter",
-            "LANDSCAPE|R|Living Landscape features and formation progress",
+            "LANDSCAPE|R|Landscape features and formation progress",
             "LANDSCAPE_ROLES|R|Inferred ecological roles for local species",
             "TEST_LANDSCAPE_CROSSROADS|W|Create and validate a visible Wildlife Crossroad",
             "SOCIAL_GRAPH|R|Animal social relationships and memories",

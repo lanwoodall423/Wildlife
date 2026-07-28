@@ -11,6 +11,16 @@ using Verse.AI;
 
 namespace Herds
 {
+    internal static class WildlifeTabKnowledgePolicy
+    {
+        internal static bool RevealsIdentity(int level) => level >= 1;
+        internal static bool RevealsSocialStructure(int level) => level >= 2;
+        internal static bool RevealsBehavior(int level) => level >= 3;
+        internal static bool RevealsHabitat(int level) => level >= 3;
+        internal static bool RevealsSignals(int level) => level >= 4;
+        internal static bool RevealsIndividualMemory(int level) => level >= 5;
+    }
+
     [StaticConstructorOnStartup]
     public static class HerdsStartup
     {
@@ -459,20 +469,31 @@ namespace Herds
             int knowledge = HuntingKnowledgeMapComponent.ColonyLevel(selected.def);
             float knowledgeXp = HuntingKnowledgeMapComponent.ColonyExperience(selected.def);
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f), selected.LabelShortCap);
+            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f),
+                WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge)
+                    ? selected.LabelShortCap : "Unknown animal");
             Text.Font = GameFont.Small;
             Widgets.FillableBar(new Rect(rect.x, rect.y + 32f, rect.width, 7f), Mathf.Clamp01(knowledgeXp / 1200f));
-            string identity = soloBird ? "Solo bird" : solitary ? "Solitary" :
+            string identity = !WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge) ? "Unidentified wildlife" :
+                soloBird ? "Solo bird" : solitary ? "Solitary" :
                 herd.Label + "  •  " + herd.members.Count + " visible";
             Widgets.Label(new Rect(rect.x, rect.y + 43f, rect.width, 22f), identity + "  •  " + HuntingKnowledgeMapComponent.LevelLabel(knowledge) + "  •  " + (observed ? "Observed" : "Not observed"));
-            if (!observed)
+            if (!WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge))
+            {
+                Rect notice = new Rect(rect.x, rect.y + 70f, rect.width, 86f);
+                Widgets.DrawMenuSection(notice);
+                Widgets.Label(notice.ContractedBy(9f),
+                    "The colony is unfamiliar with this animal. Observe it, study its trails, tend it, or encounter it during hunts to identify the species and progressively reveal wildlife information.");
+                return;
+            }
+            if (!observed || !WildlifeTabKnowledgePolicy.RevealsSocialStructure(knowledge))
             {
                 Rect notice = new Rect(rect.x, rect.y + 70f, rect.width, 62f);
                 Widgets.DrawMenuSection(notice);
-                Widgets.Label(notice.ContractedBy(9f), solitary
+                Widgets.Label(notice.ContractedBy(9f), !observed ? (solitary
                     ? "Observe this animal from nearby or from an active observation post to reveal its survival strategy, refuge preference, vigilance, home, and behavior."
-                    : "Observe this group from nearby or from an active observation post to reveal its leadership, vigilance, home, and behavior.");
-                DrawMembers(new Rect(rect.x, rect.y + 140f, rect.width, rect.height - 140f), herd.members, ref scroll, selected);
+                    : "Observe this group from nearby or from an active observation post to reveal its leadership, vigilance, home, and behavior.")
+                    : "The species is recognized, but social structure and behavior require Tracked Animal Knowledge (120 colony XP).");
                 return;
             }
             float top = rect.y + 70f;
@@ -487,9 +508,13 @@ namespace Herds
                     soloBird
                         ? "This bird is currently moving independently. If it joins compatible birds, flock leadership and rotating lookout behavior will become relevant."
                         : "This species normally lives and moves alone rather than relying on group leadership or sentinels.");
-                DrawValueRow(new Rect(social.x + 8f, social.y + 51f, social.width - 16f, 22f), "Survival", DefenseStrategyLabel(profile.defenseStrategy),
+                DrawValueRow(new Rect(social.x + 8f, social.y + 51f, social.width - 16f, 22f), "Survival",
+                    WildlifeTabKnowledgePolicy.RevealsBehavior(knowledge)
+                        ? DefenseStrategyLabel(profile.defenseStrategy) : "Unknown",
                     "The animal's preferred response when it detects a serious threat.");
-                DrawValueRow(new Rect(social.x + 8f, social.y + 73f, social.width - 16f, 22f), "Refuge", RefugePreferenceLabel(profile.refugePreference),
+                DrawValueRow(new Rect(social.x + 8f, social.y + 73f, social.width - 16f, 22f), "Refuge",
+                    WildlifeTabKnowledgePolicy.RevealsHabitat(knowledge)
+                        ? RefugePreferenceLabel(profile.refugePreference) : "Unknown",
                     "The kind of cover or home this animal prefers when hiding or resting.");
             }
             else
@@ -507,8 +532,12 @@ namespace Herds
             Rect vigilanceRect = new Rect(behavior.x + 9f, behavior.y + 55f, behavior.width - 18f, 24f);
             Rect personalityRect = new Rect(behavior.x + 9f, behavior.y + 78f, behavior.width - 18f, 24f);
             Widgets.Label(stateRect, StateLabel(herd));
-            Widgets.Label(vigilanceRect, "Vigilance  " + component.VigilanceFor(selected).ToStringPercent());
-            Widgets.Label(personalityRect, "Personality  " + WildlifeLifeUtility.PersonalityLabel(selected));
+            bool revealBehavior = WildlifeTabKnowledgePolicy.RevealsBehavior(knowledge);
+            Widgets.Label(stateRect, revealBehavior ? StateLabel(herd) : "State  —  Requires Studied knowledge");
+            Widgets.Label(vigilanceRect, "Vigilance  " + (revealBehavior
+                ? component.VigilanceFor(selected).ToStringPercent() : "Unknown"));
+            Widgets.Label(personalityRect, "Personality  " + (revealBehavior
+                ? WildlifeLifeUtility.PersonalityLabel(selected) : "Unknown"));
             TooltipHandler.TipRegion(stateRect, solitary
                 ? "This animal's current response. Calm animals follow normal routines; threatened animals may flee, hide, freeze, or stand their ground."
                 : "The group's current coordinated response. Calm groups follow normal routines; threatened groups flee, scatter, hide, freeze, protect young, or stand their ground.");
@@ -518,22 +547,24 @@ namespace Herds
             Rect habitat = new Rect(rect.x, top + 114f, rect.width, 132f);
             Widgets.DrawMenuSection(habitat);
             DrawSectionTitle(habitat, "Home and Safety");
-            Thing home = component.HomeFor(selected);
+            bool revealHabitat = WildlifeTabKnowledgePolicy.RevealsHabitat(knowledge);
+            Thing home = revealHabitat ? component.HomeFor(selected) : null;
             string homeLabel = home is Plant ? "Tree home" : home?.TryGetComp<CompHidingRefuge>() != null ? "Den / refuge" : "Home";
             DrawThingLink(new Rect(habitat.x + 9f, habitat.y + 31f, habitat.width * 0.48f, 28f), homeLabel, home);
-            DrawThingLink(new Rect(habitat.x + habitat.width * 0.51f, habitat.y + 31f, habitat.width * 0.47f, 28f), "Threat", herd.defenseThreat);
-            DrawThingLink(new Rect(habitat.x + 9f, habitat.y + 62f, habitat.width * 0.48f, 27f), "Enclosure", herd.pen?.parent);
+            DrawThingLink(new Rect(habitat.x + habitat.width * 0.51f, habitat.y + 31f, habitat.width * 0.47f, 28f), "Threat", revealHabitat ? herd.defenseThreat : null);
+            DrawThingLink(new Rect(habitat.x + 9f, habitat.y + 62f, habitat.width * 0.48f, 27f), "Enclosure", revealHabitat ? herd.pen?.parent : null);
             DrawValueRow(new Rect(habitat.x + habitat.width * 0.51f, habitat.y + 62f,
-                habitat.width * 0.47f, 27f), "Season", selected.Map
-                    .GetComponent<WildlifeLivesMapComponent>()?.Lifecycle(selected) ?? "Unknown",
+                habitat.width * 0.47f, 27f), "Season", revealHabitat
+                    ? selected.Map.GetComponent<WildlifeLivesMapComponent>()?.Lifecycle(selected) ?? "Unknown"
+                    : "Unknown",
                 "The animal's current seasonal lifecycle. Nesting, breeding, rearing, migration preparation, and winter sheltering affect its wider population and ordinary movement.");
             DrawValueRow(new Rect(habitat.x + 9f, habitat.y + 92f,
                 habitat.width - 18f, 27f), "Landscape",
-                WildlifeLandscapeAPI.RoleSummary(selected),
+                revealHabitat ? WildlifeLandscapeAPI.RoleSummary(selected) : "Requires Studied knowledge",
                 WildlifeLandscapeAPI.RoleTooltip(selected));
 
             float membersTop = top + 254f;
-            if (HerdsMod.Settings.enableWildlifeSignalCulture)
+            if (HerdsMod.Settings.enableWildlifeSignalCulture && WildlifeTabKnowledgePolicy.RevealsSignals(knowledge))
             {
                 WildlifeSignalCultureMapComponent signals =
                     selected.Map.GetComponent<WildlifeSignalCultureMapComponent>();
@@ -549,7 +580,7 @@ namespace Herds
                     "No local signal information.");
                 membersTop += 80f;
             }
-            if (HerdsMod.Settings.enableAnimalMemory)
+            if (HerdsMod.Settings.enableAnimalMemory && WildlifeTabKnowledgePolicy.RevealsIndividualMemory(knowledge))
             {
                 Rect memory = new Rect(rect.x, membersTop, rect.width, 72f);
                 Widgets.DrawMenuSection(memory);
@@ -578,18 +609,30 @@ namespace Herds
         {
             if (animal == null) return;
             PreyProfile profile = PreyProfileDatabase.For(animal.def);
+            int knowledge = HuntingKnowledgeMapComponent.ColonyLevel(animal.def);
+            float knowledgeXp = HuntingKnowledgeMapComponent.ColonyExperience(animal.def);
             Rect rect = new Rect(0f, 0f, size.x, size.y).ContractedBy(12f);
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f), animal.LabelShortCap);
+            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f),
+                WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge)
+                    ? animal.LabelShortCap : "Unknown animal");
             Text.Font = GameFont.Small;
+            Widgets.FillableBar(new Rect(rect.x, rect.y + 32f, rect.width, 7f),
+                Mathf.Clamp01(knowledgeXp / 1200f));
             Widgets.DrawMenuSection(new Rect(rect.x, rect.y + 42f, rect.width, 126f));
-            string status = animal.Faction == Faction.OfPlayer ? "Colony animal" :
+            string status = !WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge) ? "Unidentified wildlife" :
+                animal.Faction == Faction.OfPlayer ? "Colony animal" :
                 profile?.socialType == PreySocialType.Flock ? "Solo bird" : "Independent animal";
             Widgets.Label(new Rect(rect.x + 12f, rect.y + 54f, rect.width - 24f, 24f), status);
             Widgets.Label(new Rect(rect.x + 12f, rect.y + 82f, rect.width - 24f, 72f),
-                "Lifestyle: " + (profile?.socialType.ToString() ?? "Unknown") +
-                "\nSurvival: " + DefenseStrategyLabel(profile?.defenseStrategy ?? PreyDefenseStrategy.Flight) +
-                "\nRefuge: " + RefugePreferenceLabel(profile?.refugePreference ?? PreyRefugePreference.None));
+                !WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge)
+                    ? "The colony must observe or track this animal before its wildlife profile can be identified."
+                    : "Lifestyle: " + (WildlifeTabKnowledgePolicy.RevealsSocialStructure(knowledge)
+                        ? profile?.socialType.ToString() ?? "Unknown" : "Unknown") +
+                      "\nSurvival: " + (WildlifeTabKnowledgePolicy.RevealsBehavior(knowledge)
+                        ? DefenseStrategyLabel(profile?.defenseStrategy ?? PreyDefenseStrategy.Flight) : "Unknown") +
+                      "\nRefuge: " + (WildlifeTabKnowledgePolicy.RevealsHabitat(knowledge)
+                        ? RefugePreferenceLabel(profile?.refugePreference ?? PreyRefugePreference.None) : "Unknown"));
             TooltipHandler.TipRegion(new Rect(rect.x, rect.y + 42f, rect.width, 126f),
                 animal.Faction == Faction.OfPlayer
                     ? "This animal follows colony care and sleeping assignments, so no wild group, den, or wildlife home is assigned."
@@ -859,7 +902,9 @@ namespace Herds
     {
         public static void Postfix(MainTabWindow_PawnTable __instance, ref float __result)
         {
-            if (__instance is MainTabWindow_Wildlife) __result += WildlifeMenuRegistry.RequiredHeight();
+            if (__instance is not MainTabWindow_Wildlife) return;
+            float menuWidth = Mathf.Max(1f, __instance.windowRect.width - Window.StandardMargin * 2f - 8f);
+            __result += WildlifeMenuRegistry.RequiredHeight(menuWidth);
         }
     }
 
@@ -869,8 +914,9 @@ namespace Herds
         public static void Postfix(MainTabWindow_PawnTable __instance, Rect rect)
         {
             if (__instance is not MainTabWindow_Wildlife) return;
-            WildlifeMenuRegistry.Draw(new Rect(rect.x + 4f, rect.y + 3f, rect.width - 8f,
-                WildlifeMenuRegistry.RequiredHeight()));
+            float menuWidth = rect.width - 8f;
+            WildlifeMenuRegistry.Draw(new Rect(rect.x + 4f, rect.y + 3f, menuWidth,
+                WildlifeMenuRegistry.RequiredHeight(menuWidth)));
         }
     }
 }

@@ -231,13 +231,22 @@ namespace Herds
                 "Requires Wildlife Stewardship and Circuitry",
                 "Requires Wildlife Telemetry and Microelectronics"
             };
+            string[] unlocks =
+            {
+                "Unlocks coordinated hunts, advanced tracking, camouflage, scent masking, snares, and specialist positioning.",
+                "Unlocks supplied off-map parties for scouting, tracking, hunting, capturing, tagging, and redirecting wildlife.",
+                "Unlocks reserves, migration corridors, hunting regulations, population goals, and colonist stewardship fieldwork.",
+                "Unlocks camera monitoring, field optics, tracking collars, automated surveys, and regional migration tracking.",
+                "Unlocks habitat-capacity, population-pressure, disease-risk, migration, and intervention forecasts."
+            };
             Rect outer = new Rect(0f, 84f, rect.width, rect.height - 84f);
-            Rect view = new Rect(0f, 0f, outer.width - 18f, projects.Length * 82f + 20f);
+            const float rowStep = 112f;
+            Rect view = new Rect(0f, 0f, outer.width - 18f, projects.Length * rowStep + 20f);
             Widgets.BeginScrollView(outer, ref scroll, view);
             for (int i = 0; i < projects.Length; i++)
             {
                 ResearchProjectDef project = DefDatabase<ResearchProjectDef>.GetNamedSilentFail(projects[i]);
-                Rect row = new Rect(0f, i * 82f, view.width, 74f);
+                Rect row = new Rect(0f, i * rowStep, view.width, rowStep - 8f);
                 Widgets.DrawMenuSection(row);
                 bool finished = project?.IsFinished == true;
                 GUI.color = finished ? new Color(0.55f, 0.9f, 0.55f) : new Color(0.85f, 0.6f, 0.4f);
@@ -246,8 +255,10 @@ namespace Herds
                 Text.Font = GameFont.Medium;
                 Widgets.Label(new Rect(105f, row.y + 6f, row.width - 115f, 28f), project?.LabelCap ?? projects[i]);
                 Text.Font = GameFont.Small;
-                Widgets.Label(new Rect(105f, row.y + 36f, row.width - 115f, 25f), requirements[i]);
-                if (project != null) TooltipHandler.TipRegion(row, project.description);
+                Widgets.Label(new Rect(105f, row.y + 36f, row.width - 115f, 22f), requirements[i]);
+                GUI.color = new Color(0.74f, 0.79f, 0.75f);
+                Widgets.Label(new Rect(105f, row.y + 59f, row.width - 115f, 42f), unlocks[i]);
+                GUI.color = Color.white;
             }
             Widgets.EndScrollView();
         }

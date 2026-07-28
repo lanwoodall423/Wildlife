@@ -10,6 +10,11 @@ using Verse.AI;
 
 namespace Herds
 {
+    internal static class NotableAnimalActionPolicy
+    {
+        internal static readonly string[] Order = { "Study", "Hunt", "Protect", "Capture" };
+    }
+
     public enum NotableAnimalIntent
     {
         Observe,
@@ -393,7 +398,7 @@ namespace Herds
                 float fear = map.GetComponent<WildlifeMemoryMapComponent>()?.FearFor(animal, colonist) ?? 0f;
                 map.GetComponent<HuntingKnowledgeMapComponent>()?.Learn(colonist, animal.def,
                     70f * Mathf.Clamp(1f + trust * 0.35f - fear * 0.15f, 0.8f, 1.35f), true);
-                AddHistory(record, colonist.LabelShortCap + " completed a close field study.");
+                AddHistory(record, colonist.LabelShortCap + " completed a safe-distance field study.");
                 WildlifeMemoryUtility.Remember(animal, colonist, AnimalMemoryKind.Studied);
                 WildlifeIdeologyUtility.Notify(map, WildlifeIdeologyEvent.Study, animal, colonist);
             }
@@ -524,18 +529,64 @@ namespace Herds
 
     public sealed class JobDriver_StudyNotableAnimal : JobDriver
     {
-        public override bool TryMakePreToilReservations(bool errorOnFailed) =>
-            pawn.Reserve(job.targetA, job, 1, -1, null, errorOnFailed);
+        internal const float MinimumStudyDistance = 18f;
+        internal const float MaximumStudyDistance = 28f;
+
+        public override bool TryMakePreToilReservations(bool errorOnFailed) => job.count == 1
+            ? pawn.Reserve(job.targetA, job, 1, -1, null, errorOnFailed)
+            : pawn.Reserve(job.targetB.Cell, job, 1, -1, null, errorOnFailed);
+
+        public static bool TryFindStudyCell(Pawn observer, Pawn animal, out IntVec3 result)
+        {
+            result = IntVec3.Invalid;
+            if (observer?.Spawned != true || animal?.Spawned != true || observer.Map != animal.Map)
+                return false;
+            Map map = animal.Map;
+            float minimumSquared = MinimumStudyDistance * MinimumStudyDistance;
+            float maximumSquared = MaximumStudyDistance * MaximumStudyDistance;
+            int count = GenRadial.NumCellsInRadius(MaximumStudyDistance);
+            int start = PositiveMod(observer.thingIDNumber + animal.thingIDNumber, count);
+            float best = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                IntVec3 cell = animal.Position + GenRadial.RadialPattern[(start + i) % count];
+                float distance = cell.DistanceToSquared(animal.Position);
+                if (distance < minimumSquared || distance > maximumSquared || !cell.InBounds(map) ||
+                    !cell.Standable(map) || cell.IsForbidden(observer) ||
+                    !GenSight.LineOfSight(cell, animal.Position, map) ||
+                    !observer.CanReach(cell, PathEndMode.OnCell, Danger.Some)) continue;
+                float score = observer.Position.DistanceToSquared(cell) +
+                    Mathf.Abs(distance - 484f) * 0.2f;
+                if (score >= best) continue;
+                best = score;
+                result = cell;
+            }
+            return result.IsValid;
+        }
+
+        private static int PositiveMod(int value, int modulus)
+        {
+            int result = value % modulus;
+            return result < 0 ? result + modulus : result;
+        }
 
         protected override IEnumerable<Toil> MakeNewToils()
         {
             this.FailOnDespawnedOrNull(TargetIndex.A);
-            yield return Toils_Goto.GotoThing(TargetIndex.A, PathEndMode.Touch);
+            yield return job.count == 1
+                ? Toils_Goto.GotoThing(TargetIndex.A, PathEndMode.Touch)
+                : Toils_Goto.GotoCell(TargetIndex.B, PathEndMode.OnCell);
             int proficiency = pawn.Map?.GetComponent<HuntingKnowledgeMapComponent>()?.WildlifeProficiencyLevel(pawn) ?? 0;
             int baseTicks = job.count == 1 ? 900 : 1200;
             Toil study = Toils_General.Wait(Mathf.RoundToInt(baseTicks * (1f - proficiency * 0.08f)), TargetIndex.A);
             study.socialMode = RandomSocialMode.Off;
             study.WithProgressBarToilDelay(TargetIndex.A);
+            if (job.count != 1)
+                study.AddFailCondition(() => job.targetA.Pawn?.Spawned != true ||
+                    !pawn.Position.InHorDistOf(job.targetA.Pawn.Position, MaximumStudyDistance) ||
+                    pawn.Position.DistanceToSquared(job.targetA.Pawn.Position) <
+                        MinimumStudyDistance * MinimumStudyDistance ||
+                    !GenSight.LineOfSight(pawn.Position, job.targetA.Pawn.Position, pawn.Map));
             yield return study;
             Toil finish = ToilMaker.MakeToil("CompleteNotableAnimalStudy");
             finish.initAction = () =>
@@ -594,14 +645,14 @@ namespace Herds
             int responseCount = showTrack ? 5 : 4;
             float gap = 4f;
             float width = (rect.width - gap * (responseCount - 1)) / responseCount;
-            DrawIntent(new Rect(0f, 201f, width, 38f), "Hunt", NotableAnimalIntent.Hunt);
-            DrawIntent(new Rect(width + gap, 201f, width, 38f), "Capture", NotableAnimalIntent.Capture);
-            DrawIntent(new Rect((width + gap) * 2f, 201f, width, 38f), "Protect", NotableAnimalIntent.Protect);
-            Rect studyRect = new Rect((width + gap) * 3f, 201f, width, 38f);
-            if (Widgets.ButtonText(studyRect, "Study", active: animal?.Spawned == true))
+            Rect studyRect = new Rect(0f, 201f, width, 38f);
+            if (Widgets.ButtonText(studyRect, NotableAnimalActionPolicy.Order[0], active: animal?.Spawned == true))
                 ChooseColonist(false);
             TooltipHandler.TipRegion(studyRect,
-                "Choose a colonist to approach and conduct a close field study. This increases Animal Knowledge, adds to the animal's story, and creates a personal memory of the observer.");
+                "Choose a colonist to observe from a safe distance with a clear line of sight. This increases Animal Knowledge without approaching closely enough to scare the animal.");
+            DrawIntent(new Rect(width + gap, 201f, width, 38f), NotableAnimalActionPolicy.Order[1], NotableAnimalIntent.Hunt);
+            DrawIntent(new Rect((width + gap) * 2f, 201f, width, 38f), NotableAnimalActionPolicy.Order[2], NotableAnimalIntent.Protect);
+            DrawIntent(new Rect((width + gap) * 3f, 201f, width, 38f), NotableAnimalActionPolicy.Order[3], NotableAnimalIntent.Capture);
             if (showTrack)
             {
                 bool canTrack = animal?.Spawned == true && HerdsDefOf.Herds_TrackingCollarItem != null &&
@@ -651,12 +702,16 @@ namespace Herds
             Pawn animal = record?.animal;
             if (animal?.Spawned != true) return;
             List<FloatMenuOption> options = animal.Map.mapPawns.FreeColonistsSpawned
-                .Where(colonist => !colonist.Downed && colonist.CanReach(animal, PathEndMode.Touch, Danger.Some))
+                .Where(colonist => !colonist.Downed && (fitCollar
+                    ? colonist.CanReach(animal, PathEndMode.Touch, Danger.Some)
+                    : JobDriver_StudyNotableAnimal.TryFindStudyCell(colonist, animal, out _)))
                 .OrderByDescending(colonist => colonist.skills?.GetSkill(SkillDefOf.Animals)?.Level ?? 0)
                 .Select(colonist => new FloatMenuOption(colonist.LabelShortCap, () =>
                 {
                     Job job = JobMaker.MakeJob(HerdsDefOf.Herds_StudyNotableAnimal, animal);
                     job.count = fitCollar ? 1 : 0;
+                    if (!fitCollar && JobDriver_StudyNotableAnimal.TryFindStudyCell(colonist,
+                        animal, out IntVec3 studyCell)) job.targetB = studyCell;
                     job.playerForced = true;
                     colonist.jobs.TryTakeOrderedJob(job, JobTag.Misc);
                     if (fitCollar) component.SetIntent(record, NotableAnimalIntent.Track);

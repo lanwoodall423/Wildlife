@@ -72,4 +72,10 @@
     <playerInterruptible>true</playerInterruptible>
     <joyKind>Social</joyKind>
   </JobDef>
+  <JobDef>
+    <defName>Herds_PerformStewardshipProject</defName>
+    <driverClass>Herds.JobDriver_PerformStewardshipProject</driverClass>
+    <reportString>performing wildlife stewardship fieldwork.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
 </Defs>

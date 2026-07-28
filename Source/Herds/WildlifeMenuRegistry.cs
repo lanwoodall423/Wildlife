@@ -19,6 +19,10 @@ namespace Herds
 
     public static class WildlifeMenuRegistry
     {
+        internal const int OverviewOrder = 0;
+        internal const int HorticultureOrder = 10;
+        internal const int AquacultureOrder = 20;
+        internal const int ExpeditionsOrder = 30;
         private const float ButtonWidth = 180f;
         private const float ButtonHeight = 32f;
         private const float Gap = 8f;
@@ -41,12 +45,13 @@ namespace Herds
             };
         }
 
-        public static float RequiredHeight()
+        public static float RequiredHeight(float width)
         {
-            int count = VisibleEntries().Count;
-            int columns = ColumnCount(Mathf.Max(360f, UI.screenWidth - 36f));
-            return Mathf.Max(40f, Mathf.CeilToInt(count / (float)columns) * (ButtonHeight + Gap));
+            return RequiredHeight(VisibleEntries().Count, width);
         }
+
+        internal static float RequiredHeight(int count, float width) =>
+            Mathf.Max(40f, Mathf.CeilToInt(count / (float)ColumnCount(width)) * (ButtonHeight + Gap));
 
         public static void Draw(Rect rect)
         {
@@ -79,16 +84,18 @@ namespace Herds
                 .ToList();
         }
 
+        internal static IReadOnlyList<WildlifeMenuEntry> VisibleEntriesForTesting() => VisibleEntries();
+
         private static void EnsureBuiltIns()
         {
             if (builtInsRegistered) return;
             builtInsRegistered = true;
             Register("wildlife.overview", "Wildlife Overview",
                 "Open the colony's wildlife status, recent outcomes, progression, and next recommended actions.",
-                0, null, () => Find.WindowStack.Add(new Window_WildlifeOverview(Find.CurrentMap)));
-            Register("wildlife.expeditions", "Wildlife Expeditions",
+                OverviewOrder, null, () => Find.WindowStack.Add(new Window_WildlifeOverview(Find.CurrentMap)));
+            Register("wildlife.expeditions", "Expeditions",
                 "Review every active wildlife expedition or send a new party.",
-                10,
+                ExpeditionsOrder,
                 () => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
                     WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition),
                 () => Find.WindowStack.Add(new Window_WildlifeExpeditions(Find.CurrentMap)));

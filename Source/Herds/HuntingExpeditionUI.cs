@@ -134,7 +134,10 @@ namespace Herds
             Text.Font = GameFont.Small;
             GUI.color = new Color(0.72f, 0.78f, 0.72f);
             Widgets.Label(new Rect(0f, 32f, rect.width, 22f),
-                "Reachable world cells expand with Wildlife Stewardship and Wildlife Telemetry. Scouting improves their information.");
+                "Reachable world cells expand with Wildlife Stewardship" +
+                (WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
+                    ? " and Wildlife Telemetry" : "") +
+                ". Scouting improves their information.");
             GUI.color = Color.white;
             List<ExpeditionDestination> destinations = component.Destinations();
             Rect header = new Rect(0f, 62f, rect.width, 28f);
@@ -195,9 +198,17 @@ namespace Herds
         }
 
         public Window_HuntingExpeditionSetup(Map map, ExpeditionDestination destination)
+            : this(map, destination, null, ExpeditionObjective.Hunt)
+        {
+        }
+
+        public Window_HuntingExpeditionSetup(Map map, ExpeditionDestination destination,
+            ThingDef targetSpecies, ExpeditionObjective objective)
         {
             this.map = map;
             initialDestination = destination;
+            plan.targetSpecies = targetSpecies;
+            plan.objective = objective;
             doCloseX = true;
             absorbInputAroundWindow = true;
             resizeable = true;

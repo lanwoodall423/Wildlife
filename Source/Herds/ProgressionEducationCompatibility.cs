@@ -21,14 +21,13 @@ namespace Herds
             ContentFinder<Texture2D>.Get("UI/WildlifeExpert"),
             ContentFinder<Texture2D>.Get("UI/WildlifeMaster")
         };
-        private static bool installed;
+        private static bool initialized;
 
-        public static bool Active => installed && ModsConfig.IsActive(PackageId);
+        public static bool Active => ModsConfig.IsActive(PackageId);
 
         public static void Initialize()
         {
-            installed = ModsConfig.IsActive(PackageId);
-            if (!installed) return;
+            if (!Active || initialized) return;
             Type patchType = AccessTools.TypeByName("ProgressionEducation.CharacterCardUtility_DoLeftSection_Patch");
             MethodInfo addSection = AccessTools.Method(patchType, "AddProficienciesSection");
             if (addSection == null)
@@ -38,6 +37,7 @@ namespace Herds
             }
             HerdsMod.Harmony.Patch(addSection,
                 postfix: new HarmonyMethod(typeof(ProgressionEducationKnowledgeCompatibility), nameof(AfterKnowledgeSectionAdded)));
+            initialized = true;
         }
 
         public static void AfterKnowledgeSectionAdded(object listObj, Pawn pawn)

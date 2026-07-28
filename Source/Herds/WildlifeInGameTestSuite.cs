@@ -98,10 +98,16 @@ namespace Herds
                     HerdsDefOf.Herds_GrazingGround != null &&
                     HerdsDefOf.Herds_ScentPost != null &&
                     HerdsDefOf.Herds_FeedingRemains != null,
-                    "Living Landscape feature definitions");
+                    "Landscape feature definitions");
                 Check("Defs", HerdsDefOf.Herds_StudyNotableAnimal != null, "Study Notable Animal job");
                 Check("Defs", HerdsDefOf.Herds_ObserveWildlifeMoment?.driverClass ==
                     typeof(JobDriver_ObserveWildlifeMoment), "Observe Wildlife Moment job");
+                Check("Defs", HerdsDefOf.Herds_PerformStewardshipProject?.driverClass ==
+                    typeof(JobDriver_PerformStewardshipProject),
+                    "Stewardship projects use colonist fieldwork");
+                Check("Defs", HerdsDefOf.Herds_WildlifeStory?.letterClass ==
+                    typeof(ChoiceLetter_WildlifeStory),
+                    "Colony Story notification uses Folklore routing letter");
                 Check("Defs", HerdsDefOf.Herds_EmbarkHuntingExpedition != null, "Wildlife embark job");
                 Check("Defs", HerdsDefOf.Herds_HuntingExpeditionMarker != null, "Wildlife expedition marker");
                 Check("Defs", HerdsDefOf.Herds_HuntingSpot != null, "Hunting Spot");
@@ -143,7 +149,7 @@ namespace Herds
                     Check("Components", map.GetComponent<WildlifeHuntCoordinator>() != null, "Hunt coordinator");
                     Check("Components", map.GetComponent<RegionalWildlifeMapComponent>() != null, "Regional wildlife component");
                     Check("Components", map.GetComponent<WildlifeLandscapeMapComponent>() != null,
-                        "Living Landscape component");
+                        "Landscape component");
                     Check("Components", map.GetComponent<HuntingExpeditionMapComponent>() != null, "Wildlife expedition component");
                     Check("Components", map.GetComponent<NotableWildlifeMapComponent>() != null, "Notable wildlife component");
                     Check("Components", map.GetComponent<WildlifeFieldJournalMapComponent>() != null, "Wildlife Field Journal component");
@@ -175,6 +181,30 @@ namespace Herds
                     Check("Landscape", landscape.Crossroads.All(marker =>
                         landscape.ActivityById(marker.activityId) != null),
                         "Wildlife Crossroad markers reference live activities");
+                    Check("Landscape",
+                        WildlifeLandscapeMapComponent.ObstructionEffectiveness(0) == 1f &&
+                        WildlifeLandscapeMapComponent.ObstructionEffectiveness(1) <= 0.6f &&
+                        WildlifeLandscapeMapComponent.ObstructionEffectiveness(3) <= 0.15f,
+                        "Colony construction sharply reduces Landscape effectiveness");
+                    Check("Landscape",
+                        WildlifeFieldJournalMapComponent.ProjectLabel(
+                            WildlifeStewardProjectKind.RanchDefense) ==
+                            "Protect Wildlife Habitat" &&
+                        WildlifeFieldJournalMapComponent.ProjectDescription(
+                            WildlifeStewardProjectKind.RanchDefense).Contains("habitat") &&
+                        WildlifeFieldJournalMapComponent.RestoreSpeciesEligible(
+                            new RegionalSpeciesRecord
+                            {
+                                population = 74f,
+                                previousPopulation = 100f
+                            }) &&
+                        !WildlifeFieldJournalMapComponent.RestoreSpeciesEligible(
+                            new RegionalSpeciesRecord
+                            {
+                                population = 80f,
+                                previousPopulation = 100f
+                            }),
+                        "Stewardship labels describe habitat protection and restoration requires significant decline");
                 });
 
                 Section("Prey", () =>
@@ -232,12 +262,39 @@ namespace Herds
                         "Selected wildlife signs expose an explicit colonist study menu");
                     Check("Fieldcraft", trails?.TrailLeads != null,
                         "Trail records are available for bridge and UI assessment");
+                    Check("Fieldcraft", JobDriver_StudyNotableAnimal.MinimumStudyDistance >= 18f &&
+                        JobDriver_StudyNotableAnimal.MaximumStudyDistance >
+                            JobDriver_StudyNotableAnimal.MinimumStudyDistance &&
+                        typeof(JobDriver_StudyNotableAnimal).GetMethod("TryFindStudyCell") != null,
+                        "Notable animal study uses a safe line-of-sight observation range");
+                    Check("Fieldcraft", NotableAnimalActionPolicy.Order.SequenceEqual(new[]
+                        { "Study", "Hunt", "Protect", "Capture" }),
+                        "Notable animal actions use the requested study, hunt, protect, capture order");
+                    Check("Fieldcraft", HuntingExpeditionMapComponent.TrailHuntBonus(
+                        new TrailHuntOpportunity { quality = 0f }) > 0f &&
+                        HuntingExpeditionMapComponent.TrailHuntBonus(
+                            new TrailHuntOpportunity { quality = 1f }) >
+                        HuntingExpeditionMapComponent.TrailHuntBonus(
+                            new TrailHuntOpportunity { quality = 0f }),
+                        "Trail hunt opportunities provide progressive expedition advantages");
                     Check("Fieldcraft", trails.TrailLeads.All(lead => lead?.species != null &&
                         Enum.IsDefined(typeof(WildlifeTrailState), lead.state) &&
                         (lead.targetAnimal == null || lead.targetAnimal.def == lead.species) &&
                         (lead.state != WildlifeTrailState.BeyondMap ||
                          lead.predictedCell.IsValid)),
                         "Trail integrity, quarry identity, and regional continuation state are valid");
+                    Check("Fieldcraft", trails.TrailLeads.Where(lead => lead?.targetAnimal != null)
+                        .All(lead => trails.LeadFor(lead.targetAnimal) == lead),
+                        "Trail lookup remains bound to the exact departed animal");
+                    HuntingExpeditionMapComponent trailExpeditions =
+                        map.GetComponent<HuntingExpeditionMapComponent>();
+                    Check("Fieldcraft", trailExpeditions.TrailHuntOpportunities.All(opportunity =>
+                            opportunity?.species != null && opportunity.targetAnimal != null &&
+                            opportunity.targetAnimal.def == opportunity.species) &&
+                        trailExpeditions.ActiveExpeditions.All(record =>
+                            record.trailTargetAnimal == null ||
+                            record.trailTargetAnimal.def == record.targetSpecies),
+                        "Temporary trail opportunities and expeditions preserve exact quarry identity");
                     Check("Fieldcraft",
                         typeof(WildlifeTrailMapComponent).GetMethod("Retains") != null &&
                         typeof(WildlifeTrailMapComponent).GetMethod("NotifyAnimalDeparture") != null &&
@@ -423,11 +480,20 @@ namespace Herds
                         "Biome Knowledge records are valid");
                     Check("Knowledge", ProgressionEducationKnowledgeCompatibility.Active ==
                         ModsConfig.IsActive("ferny.ProgressionEducation"),
-                        "Optional Bio Knowledge integration state matches the active mod");
+                        "Optional Progression: Education integration state matches the active mod");
                     Check("Knowledge", DefDatabase<ThingDef>.AllDefsListForReading
                         .Where(def => def.race?.Animal == true)
                         .All(def => HuntingKnowledgeMapComponent.ColonyExperience(def) >= 0f),
                         "Species knowledge values are nonnegative");
+                    Check("Knowledge", !WildlifeTabKnowledgePolicy.RevealsIdentity(0) &&
+                        WildlifeTabKnowledgePolicy.RevealsIdentity(1) &&
+                        !WildlifeTabKnowledgePolicy.RevealsBehavior(2) &&
+                        WildlifeTabKnowledgePolicy.RevealsBehavior(3) &&
+                        !WildlifeTabKnowledgePolicy.RevealsSignals(3) &&
+                        WildlifeTabKnowledgePolicy.RevealsSignals(4) &&
+                        !WildlifeTabKnowledgePolicy.RevealsIndividualMemory(4) &&
+                        WildlifeTabKnowledgePolicy.RevealsIndividualMemory(5),
+                        "Animal Wildlife tab reveals information progressively by colony knowledge");
                 });
 
                 Section("Regional", () =>
@@ -437,6 +503,18 @@ namespace Herds
                     Check("Regional", regional.Records.All(record =>
                         record.nearbyPopulation >= 0f && record.previousNearbyPopulation >= 0f),
                         "Nearby population estimates are nonnegative");
+                    Check("Regional",
+                        !WildlifePopulationPolicy.CanAddLocalAnimal(100000, 90000, 0, 10f, 20f, false) &&
+                        !WildlifePopulationPolicy.CanAddLocalAnimal(300000, 0, 3, 10f, 20f, false) &&
+                        WildlifePopulationPolicy.CanAddLocalAnimal(300000, 90000, 0, 10f, 20f, false),
+                        "Population policy prevents rapid replacement and excessive local spawning");
+                    Check("Regional", typeof(RoamingAnimalRecord).GetField("herdId") != null &&
+                        typeof(RegionalWildlifeMapComponent).GetMethod("NotifyLocalSpawn") != null &&
+                        typeof(RegionalWildlifeMapComponent).GetMethod("NotifyLocalCapture") != null &&
+                        typeof(RegionalWildlifeMapComponent).GetMethod("QueueDeparture", new[]
+                            { typeof(Pawn), typeof(string), typeof(IntVec3) }) != null &&
+                        typeof(RegionalWildlifeMapComponent).GetMethod("ShouldPreserveExit") != null,
+                        "Population lifecycle and roaming herd state are save-compatible");
                     Check("Regional", regional.RoamingAnimals.All(record =>
                         record?.animal?.RaceProps?.Animal == true && record.species == record.animal.def &&
                         System.Enum.IsDefined(typeof(RoamingAnimalState), record.state) &&
@@ -682,6 +760,63 @@ namespace Herds
                         }), "Available animal tabs follow the safe right-to-left ordering");
                     Check("UI", AccessTools.Method(typeof(AnimalNeedsTabStaleSelectionGuard), "Prefix") != null,
                         "Needs tab safely handles despawned or cleared animal selection");
+                    IReadOnlyList<WildlifeMenuEntry> wildlifeMenu =
+                        WildlifeMenuRegistry.VisibleEntriesForTesting();
+                    Check("UI", wildlifeMenu.Select(entry => entry.id).Distinct().Count() == wildlifeMenu.Count &&
+                        wildlifeMenu.SequenceEqual(wildlifeMenu.OrderBy(entry => entry.order)
+                            .ThenBy(entry => entry.label, StringComparer.OrdinalIgnoreCase)
+                            .ThenBy(entry => entry.id, StringComparer.Ordinal)),
+                        "Shared Wildlife menu entries are unique and use stable ordering");
+                    Check("UI", WildlifeMenuRegistry.RequiredHeight(4, 560f) == 80f,
+                        "Shared Wildlife menu reserves two rows when four buttons wrap at narrow width");
+                    Check("UI", Window_WildlifeOverview.OutcomeRowHeight(
+                            "A long wildlife outcome wraps across several lines without clipping its text.",
+                            120f) > 48f,
+                        "Recent Outcome rows grow for wrapped text");
+                    Check("UI", typeof(ChoiceLetter_WildlifeStory).GetMethod("OpenLetter") != null &&
+                        typeof(Window_WildlifeFieldJournal).GetConstructor(new[]
+                        { typeof(Map), typeof(int), typeof(int) }) != null,
+                        "Colony Story letters can reopen Folklore at a saved story tick");
+                    Check("UI", typeof(Window_WildlifeSignals).GetConstructor(new[]
+                        {
+                            typeof(Map), typeof(Pawn), typeof(ThingDef),
+                            typeof(UnityEngine.Vector2?), typeof(UnityEngine.Vector2?)
+                        }) != null,
+                        "Signal replay can restore viewer, species, and scroll state");
+                    Check("UI", AccessTools.Method(typeof(WildlifeUI), "Focus",
+                            new[] { typeof(Thing) }) != null &&
+                        AccessTools.Method(typeof(WildlifeUI), "Focus",
+                            new[] { typeof(IntVec3), typeof(Map) }) != null,
+                        "Focus actions share menu-closing target navigation");
+                    Check("UI", wildlifeMenu.FirstOrDefault()?.id == "wildlife.overview" &&
+                        wildlifeMenu.First().order == WildlifeMenuRegistry.OverviewOrder,
+                        "Wildlife Overview is the first shared Wildlife menu button");
+                    bool horticultureActive = ModsConfig.IsActive("lan.horticulture.novelseeds");
+                    MainButtonDef cultivarRegistry =
+                        DefDatabase<MainButtonDef>.GetNamedSilentFail("HNS_CultivarRegistry");
+                    Check("UI", wildlifeMenu.Any(entry => entry.id == "horticulture.novel-seeds") ==
+                            horticultureActive &&
+                        (!horticultureActive || cultivarRegistry?.tabWindowClass?.FullName ==
+                            "HorticultureNovelSeeds.MainTabWindow_CultivarRegistry"),
+                        "Optional Horticulture button reuses the Novel Seeds Cultivar Registry");
+                    bool aquacultureActive = ModsConfig.IsActive("lan.aquaculture.fishing");
+                    MainButtonDef aquacultureJournal =
+                        DefDatabase<MainButtonDef>.GetNamedSilentFail("AF_AquacultureJournal");
+                    Check("UI", wildlifeMenu.Any(entry => entry.id == "aquaculture.fish-journal") ==
+                            aquacultureActive &&
+                        (!aquacultureActive || aquacultureJournal?.tabWindowClass?.FullName ==
+                            "AquacultureFishing.MainTabWindow_AquacultureJournal"),
+                        "Optional Aquaculture button reuses the existing Fish Journal");
+                    List<string> expectedSharedButtons = new List<string> { "Wildlife Overview" };
+                    if (horticultureActive) expectedSharedButtons.Add("Horticulture");
+                    if (aquacultureActive) expectedSharedButtons.Add("Aquaculture");
+                    Check("UI", wildlifeMenu.Take(expectedSharedButtons.Count)
+                            .Select(entry => entry.label).SequenceEqual(expectedSharedButtons),
+                        "Shared Wildlife menu begins with the requested available buttons in order");
+                    WildlifeMenuEntry expeditionsEntry =
+                        wildlifeMenu.FirstOrDefault(entry => entry.id == "wildlife.expeditions");
+                    Check("UI", expeditionsEntry == null || expeditionsEntry.label == "Expeditions",
+                        "Wildlife expedition navigation uses the concise Expeditions label");
                     Type predatorTab = AccessTools.TypeByName("Packs.ITab_Pack");
                     List<ThingDef> predatorDefs = DefDatabase<ThingDef>.AllDefsListForReading.Where(def =>
                         def.race?.Animal == true && def.race.predator).ToList();

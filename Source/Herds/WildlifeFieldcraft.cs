@@ -170,10 +170,18 @@ namespace Herds
                 WildlifeTrailLead lead = HerdsMod.Settings.enableTrailReading
                     ? sign.Map.GetComponent<WildlifeTrailMapComponent>()?.Analyze(sign, pawn)
                     : null;
+                sign.Map.GetComponent<HuntingKnowledgeMapComponent>()?.LearnBiome(pawn,
+                    sign.Map.Biome, sign.signKind == WildlifeSignKind.BloodTrail ? 12f : 7f);
+                bool huntOpportunity = lead != null && sign.Map
+                    .GetComponent<HuntingExpeditionMapComponent>()?
+                    .TryCreateTrailHuntOpportunity(pawn, sign.species, lead.confidence) == true;
                 string result = pawn.LabelShortCap + " studied signs of " + sign.species.LabelCap + ".";
                 if (lead != null)
                     result += " A " + WildlifeTrailMapComponent.ConfidenceLabel(lead.confidence).ToLowerInvariant() +
                         " trail now points " + lead.direction.ToLowerInvariant() + ".";
+                if (huntOpportunity) result += " The trail opened a time-sensitive expedition hunt opportunity.";
+                WildlifeExperience.Record("Trail Study", pawn.LabelShortCap + " gained " +
+                    sign.species.label + " and " + sign.Map.Biome.label + " field experience.", sign);
                 Messages.Message(result, sign, MessageTypeDefOf.PositiveEvent, false);
                 sign.Map.GetComponent<WildlifeFieldJournalMapComponent>()?
                     .CompleteMomentTracking(pawn, sign);

@@ -82,6 +82,7 @@ namespace Herds
         public int discouragedUntilTick;
         public bool tagged;
         public bool notable;
+        public int herdId;
 
         public void ExposeData()
         {
@@ -99,6 +100,22 @@ namespace Herds
             Scribe_Values.Look(ref discouragedUntilTick, "discouragedUntilTick", 0);
             Scribe_Values.Look(ref tagged, "tagged", false);
             Scribe_Values.Look(ref notable, "notable", false);
+            Scribe_Values.Look(ref herdId, "herdId", 0);
+        }
+    }
+
+    internal static class WildlifePopulationPolicy
+    {
+        internal const int ReplacementCooldownTicks = 120000;
+
+        internal static bool CanAddLocalAnimal(int now, int lastLossTick, int localCount,
+            float nearbyPopulation, float regionalPopulation, bool mapInitializing)
+        {
+            if (mapInitializing) return true;
+            if (regionalPopulation < 1f) return false;
+            if (lastLossTick > 0 && now - lastLossTick < ReplacementCooldownTicks) return false;
+            int desired = Mathf.CeilToInt(Mathf.Clamp(nearbyPopulation * 0.28f, 1f, 14f));
+            return localCount < desired;
         }
     }
 
@@ -122,6 +139,8 @@ namespace Herds
         private List<RoamingAnimalRecord> roamingAnimals = new List<RoamingAnimalRecord>();
         private Dictionary<Pawn, float> juvenileLearning = new Dictionary<Pawn, float>();
         private readonly Dictionary<Pawn, string> pendingDepartureReasons = new Dictionary<Pawn, string>();
+        private readonly Dictionary<Pawn, int> pendingDepartureHerds = new Dictionary<Pawn, int>();
+        private Dictionary<string, int> populationLossTicks = new Dictionary<string, int>();
         private int nextRegionalTick;
         private int nextLearningTick;
         private int nextScavengeTick;
@@ -168,12 +187,14 @@ namespace Herds
             Scribe_Collections.Look(ref relationships, "animalRelationships", LookMode.Deep);
             Scribe_Collections.Look(ref carcassOwners, "carcassOwners", LookMode.Reference, LookMode.Reference);
             Scribe_Collections.Look(ref carcassCaches, "carcassCaches", LookMode.Reference, LookMode.Value);
+            Scribe_Collections.Look(ref populationLossTicks, "wildlifePopulationLossTicks", LookMode.Value, LookMode.Value);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 records = records?.Where(record => record?.species?.race?.Animal == true).ToList() ?? new List<RegionalSpeciesRecord>();
                 roamingAnimals = roamingAnimals?.Where(record => record?.animal != null &&
                     record.species?.race?.Animal == true).ToList() ?? new List<RoamingAnimalRecord>();
                 juvenileLearning = juvenileLearning ?? new Dictionary<Pawn, float>();
+                populationLossTicks = populationLossTicks ?? new Dictionary<string, int>();
                 relationships = relationships?.Where(record => record?.animal != null && !record.animal.Dead).ToList() ?? new List<AnimalRelationshipRecord>();
                 carcassOwners = carcassOwners ?? new Dictionary<Corpse, Pawn>();
                 carcassCaches = carcassCaches ?? new Dictionary<Corpse, IntVec3>();
@@ -298,17 +319,48 @@ namespace Herds
 
         public void QueueDeparture(Pawn animal, string reason)
         {
-            if (animal?.RaceProps?.Animal != true || animal.Faction != null) return;
-            pendingDepartureReasons[animal] = reason.NullOrEmpty() ? "Roaming beyond the map" : reason;
+            QueueDeparture(animal, reason, IntVec3.Invalid);
         }
+
+        public void QueueDeparture(Pawn animal, string reason, IntVec3 edge)
+        {
+            if (animal?.RaceProps?.Animal != true || animal.Faction != null) return;
+            string departureReason = reason.NullOrEmpty() ? "Roaming beyond the map" : reason;
+            HerdSnapshot herd = map.GetComponent<HerdMapComponent>()?.HerdFor(animal);
+            int herdId = herd?.members.Count > 1 ? herd.id : 0;
+            IEnumerable<Pawn> followers = herdId == 0 ? new[] { animal } : herd.members;
+            foreach (Pawn follower in followers)
+            {
+                if (!CanFollowMigration(follower)) continue;
+                pendingDepartureReasons[follower] = departureReason;
+                pendingDepartureHerds[follower] = herdId;
+                if (follower == animal || !edge.IsValid ||
+                    !follower.CanReach(edge, PathEndMode.OnCell, Danger.Deadly)) continue;
+                Job leave = JobMaker.MakeJob(JobDefOf.Goto, edge);
+                leave.exitMapOnArrival = true;
+                leave.expiryInterval = 12000;
+                follower.jobs.StartJob(leave, JobCondition.InterruptForced);
+            }
+        }
+
+        internal static bool CanFollowMigration(Pawn animal) =>
+            animal?.Spawned == true && !animal.Dead && !animal.Downed &&
+            !animal.InMentalState && animal.Faction == null && animal.RaceProps?.Animal == true;
 
         public bool ShouldPreserveExit(Pawn animal)
         {
             if (HerdsMod.Settings?.enablePersistentRoamingAnimals != true ||
-                animal?.Spawned != true || animal.Faction != null || !ShouldPersist(animal)) return false;
+                animal?.Spawned != true || animal.Faction != null) return false;
+            string reason = pendingDepartureReasons.TryGetValue(animal, out string pendingReason)
+                ? pendingReason : "Roaming beyond the colony map";
+            QueueDeparture(animal, reason, animal.Position);
+            if ((!pendingDepartureHerds.TryGetValue(animal, out int herdId) || herdId == 0) &&
+                !ShouldPersist(animal))
+                return false;
             RegisterRoamingDeparture(animal, pendingDepartureReasons.TryGetValue(animal,
-                out string reason) ? reason : "Roaming beyond the colony map");
+                out reason) ? reason : "Roaming beyond the colony map");
             pendingDepartureReasons.Remove(animal);
+            pendingDepartureHerds.Remove(animal);
             return true;
         }
 
@@ -316,25 +368,59 @@ namespace Herds
         {
             if (animal?.def == null) return;
             RegionalSpeciesRecord record = RecordFor(animal.def, true);
-            record.lastLocalCount = Mathf.Max(0, record.lastLocalCount - 1);
+            record.lastLocalCount = CountLocalWildlife(animal.def, animal);
             lastEmigrationTick = Find.TickManager?.TicksGame ?? 0;
             pendingDepartureReasons.Remove(animal);
+            pendingDepartureHerds.Remove(animal);
         }
 
         public void NotifyLocalDeath(Pawn animal)
         {
             if (animal?.def == null || animal.Faction != null) return;
             RegionalSpeciesRecord record = RecordFor(animal.def, true);
-            record.lastLocalCount = Mathf.Max(0, record.lastLocalCount - 1);
+            record.lastLocalCount = CountLocalWildlife(animal.def, animal);
             record.nearbyPopulation = Mathf.Max(record.lastLocalCount,
                 record.nearbyPopulation - 1f);
             record.population = Mathf.Max(record.nearbyPopulation,
                 record.population - 1f);
             RoamingAnimalRecord roaming = roamingAnimals.FirstOrDefault(value => value.animal == animal);
             if (roaming != null) roaming.state = RoamingAnimalState.Dead;
+            populationLossTicks[animal.def.defName] = Find.TickManager?.TicksGame ?? 0;
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("NearbyPopulationDeath",
                 "species=" + animal.def.defName + " nearby=" +
                 record.nearbyPopulation.ToString("0.0"), animal);
+        }
+
+        public void NotifyLocalCapture(Pawn animal)
+        {
+            if (animal?.def?.race?.Animal != true) return;
+            RegionalSpeciesRecord record = RecordFor(animal.def, true);
+            record.lastLocalCount = CountLocalWildlife(animal.def, animal);
+            record.nearbyPopulation = Mathf.Max(record.lastLocalCount, record.nearbyPopulation - 1f);
+            record.population = Mathf.Max(record.nearbyPopulation, record.population - 1f);
+            populationLossTicks[animal.def.defName] = Find.TickManager?.TicksGame ?? 0;
+            pendingDepartureReasons.Remove(animal);
+            pendingDepartureHerds.Remove(animal);
+        }
+
+        public void NotifyLocalSpawn(Pawn animal, bool respawningAfterLoad)
+        {
+            if (animal?.def?.race?.Animal != true || animal.Faction != null) return;
+            RegionalSpeciesRecord record = RecordFor(animal.def, true);
+            record.lastLocalCount = CountLocalWildlife(animal.def);
+            record.nearbyPopulation = Mathf.Max(record.nearbyPopulation, record.lastLocalCount);
+            record.population = Mathf.Max(record.population, record.nearbyPopulation);
+        }
+
+        public bool CanSpawnWildAnimal(PawnKindDef kind, bool mapInitializing)
+        {
+            if (kind?.race?.race?.Animal != true || HerdsMod.Settings?.enableRegionalPopulations != true) return true;
+            RegionalSpeciesRecord record = RecordFor(kind.race, false);
+            if (record == null) return true;
+            int now = Find.TickManager?.TicksGame ?? 0;
+            int lossTick = populationLossTicks.TryGetValue(kind.race.defName, out int value) ? value : 0;
+            return WildlifePopulationPolicy.CanAddLocalAnimal(now, lossTick,
+                CountLocalWildlife(kind.race), record.nearbyPopulation, record.population, mapInitializing);
         }
 
         public bool CanEncourageReturns => cachedBait + cachedWater + cachedReserves + cachedCorridors > 0;
@@ -583,7 +669,7 @@ namespace Herds
             if (HerdsMod.Settings?.enableRegionalPopulations != true ||
                 animal?.def?.race?.Animal != true || animal.Faction != null) return;
             EnsureCurrent();
-            QueueDeparture(animal, "Fled the map after being scared");
+            QueueDeparture(animal, "Fled the map after being scared", edge);
             lastEmigrationTick = Find.TickManager?.TicksGame ?? 0;
             lastMigrant = animal;
             lastMigrationEdge = edge;
@@ -626,7 +712,7 @@ namespace Herds
             if (!RCellFinder.TryFindRandomPawnEntryCell(out IntVec3 edge, map,
                 CellFinder.EdgeRoadChance_Animal) ||
                 !animal.CanReach(edge, PathEndMode.OnCell, Danger.Deadly)) return false;
-            QueueDeparture(animal, "DEV roaming test");
+            QueueDeparture(animal, "DEV roaming test", edge);
             Job leave = JobMaker.MakeJob(JobDefOf.Goto, edge);
             leave.exitMapOnArrival = true;
             leave.expiryInterval = 12000;
@@ -719,13 +805,14 @@ namespace Herds
             roaming.expectedReturnTick = now + duration;
             roaming.tagged = tagged;
             roaming.notable = notable;
+            roaming.herdId = pendingDepartureHerds.TryGetValue(animal, out int herdId) ? herdId : 0;
             roaming.state = reason.IndexOf("scared", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 reason.IndexOf("flee", StringComparison.OrdinalIgnoreCase) >= 0
                     ? RoamingAnimalState.Displaced
                     : GenLocalDate.Season(map) == Season.Fall
                         ? RoamingAnimalState.SeasonalMigration : RoamingAnimalState.RoamingNearby;
             RegionalSpeciesRecord species = RecordFor(animal.def, true);
-            species.lastLocalCount = Mathf.Max(0, species.lastLocalCount - 1);
+            species.lastLocalCount = CountLocalWildlife(animal.def, animal);
             species.nearbyPopulation = Mathf.Max(species.nearbyPopulation, species.lastLocalCount + 1);
             lastEmigrationTick = now;
             string text = animal.LabelShortCap + " left the colony map and is now " +
@@ -776,7 +863,7 @@ namespace Herds
                         CellFinder.EdgeRoadChance_Animal) &&
                         animal.CanReach(edge, PathEndMode.OnCell, Danger.Deadly))
                     {
-                        QueueDeparture(animal, "Roaming through its wider home range");
+                        QueueDeparture(animal, "Roaming through its wider home range", edge);
                         Job leave = JobMaker.MakeJob(JobDefOf.Goto, edge);
                         leave.exitMapOnArrival = true;
                         leave.expiryInterval = 12000;
@@ -797,7 +884,7 @@ namespace Herds
                 float desired = Mathf.Clamp(arrival.nearbyPopulation * 0.28f, 1f, 14f);
                 float landmarkAttraction = map.GetComponent<WildlifeLandmarkMapComponent>()?
                     .MigrationAttraction(arrival.species) ?? 0f;
-                if (present + 0.5f < desired &&
+                if (present + 0.5f < desired && CanAddRegionalArrival(arrival, now) &&
                     Rand.Chance(Mathf.Clamp01(0.38f + landmarkAttraction * 0.12f)))
                     SpawnOrdinaryArrival(arrival, now);
             }
@@ -832,17 +919,28 @@ namespace Herds
                     CellFinder.EdgeRoadChance_Animal)) continue;
                 try
                 {
-                    if (Find.WorldPawns.Contains(record.animal)) Find.WorldPawns.RemovePawn(record.animal);
-                    GenSpawn.Spawn(record.animal, entry, map, Rot4.Random);
-                    record.state = RoamingAnimalState.Present;
-                    record.lastSeenTick = now;
-                    record.returnCount++;
-                    species.lastLocalCount++;
+                    List<RoamingAnimalRecord> returning = record.herdId == 0
+                        ? new List<RoamingAnimalRecord> { record }
+                        : roamingAnimals.Where(value => value?.herdId == record.herdId &&
+                            IsValidReturnCandidate(value)).ToList();
+                    for (int memberIndex = 0; memberIndex < returning.Count; memberIndex++)
+                    {
+                        RoamingAnimalRecord member = returning[memberIndex];
+                        IntVec3 memberEntry = memberIndex == 0 ? entry :
+                            CellFinder.RandomClosewalkCellNear(entry, map, 5);
+                        if (Find.WorldPawns.Contains(member.animal)) Find.WorldPawns.RemovePawn(member.animal);
+                        GenSpawn.Spawn(member.animal, memberEntry, map, Rot4.Random);
+                        member.state = RoamingAnimalState.Present;
+                        member.lastSeenTick = now;
+                        member.returnCount++;
+                    }
+                    species.lastLocalCount = CountLocalWildlife(record.species);
                     lastImmigrationTick = now;
                     lastMigrant = record.animal;
                     lastMigrationEdge = entry;
                     migrationVisualUntil = now + 5000;
-                    string text = record.animal.LabelShortCap + " returned from " +
+                    string text = (returning.Count > 1 ? returning.Count + " " + record.species.label +
+                        " herd members" : record.animal.LabelShortCap.ToString()) + " returned from " +
                         record.direction.ToLowerInvariant() + " after " +
                         (now - record.leftTick).ToStringTicksToPeriod() + " away.";
                     Messages.Message(text, record.animal, MessageTypeDefOf.PositiveEvent, false);
@@ -861,6 +959,7 @@ namespace Herds
                         record.animal);
                     return true;
                 }
+
                 catch (Exception exception)
                 {
                     Log.Error("[Wildlife] Could not return roaming animal " +
@@ -870,6 +969,11 @@ namespace Herds
             return false;
         }
 
+        private static bool IsValidReturnCandidate(RoamingAnimalRecord record) =>
+            record?.animal != null && !record.animal.Dead && !record.animal.Spawned &&
+            !record.animal.Downed && !record.animal.InMentalState && record.animal.Faction == null &&
+            record.state != RoamingAnimalState.Present && record.state != RoamingAnimalState.Dead;
+
         private void SpawnOrdinaryArrival(RegionalSpeciesRecord record, int now)
         {
             PawnKindDef kind = DefDatabase<PawnKindDef>.AllDefsListForReading
@@ -878,7 +982,7 @@ namespace Herds
                 CellFinder.EdgeRoadChance_Animal)) return;
             Pawn pawn = PawnGenerator.GeneratePawn(kind, null);
             GenSpawn.Spawn(pawn, entry, map, Rot4.Random);
-            record.lastLocalCount++;
+            record.lastLocalCount = CountLocalWildlife(record.species);
             lastImmigrationTick = now;
             lastMigrant = pawn;
             lastMigrationEdge = entry;
@@ -914,7 +1018,7 @@ namespace Herds
             for (int i = 0; i < pawns.Count; i++)
             {
                 Pawn pawn = pawns[i];
-                if (pawn?.Spawned != true || pawn.Dead || pawn.Faction == Faction.OfPlayer || pawn.RaceProps?.Animal != true) continue;
+                if (pawn?.Spawned != true || pawn.Dead || pawn.Faction != null || pawn.RaceProps?.Animal != true) continue;
                 local[pawn.def] = local.TryGetValue(pawn.def, out int count) ? count + 1 : 1;
             }
             if (!regionalSeeded)
@@ -1178,7 +1282,7 @@ namespace Herds
         {
             if (records.Count == 0) return;
             RegionalSpeciesRecord arrival = records.Where(record => record.population >= 1f && record.lastLocalCount < 40).OrderByDescending(MigrationPressure).FirstOrDefault();
-            if (arrival != null && MigrationPressure(arrival) > 0.3f && Rand.Chance(Mathf.Clamp01(MigrationPressure(arrival) * 0.12f)))
+            if (arrival != null && CanAddRegionalArrival(arrival, now) && MigrationPressure(arrival) > 0.3f && Rand.Chance(Mathf.Clamp01(MigrationPressure(arrival) * 0.12f)))
             {
                 PawnKindDef kind = DefDatabase<PawnKindDef>.AllDefsListForReading.FirstOrDefault(def => def.race == arrival.species);
                 if (kind != null && RCellFinder.TryFindRandomPawnEntryCell(out IntVec3 cell, map, CellFinder.EdgeRoadChance_Animal))
@@ -1194,7 +1298,7 @@ namespace Herds
                             pawn.jobs.StartJob(route, JobCondition.InterruptForced);
                         }
                     }
-                    arrival.lastLocalCount++;
+                    arrival.lastLocalCount = CountLocalWildlife(arrival.species);
                     lastImmigrationTick = now;
                     lastMigrant = pawn; lastMigrationEdge = cell; migrationVisualUntil = now + 5000;
                     float migrationConfidence = HasOperationalMonitor(WildlifeToolKind.TelemetryStation) ? 0.12f : 0.35f;
@@ -1210,12 +1314,25 @@ namespace Herds
             Pawn emigrant = map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn => pawn?.Spawned == true && !pawn.Dead && pawn.Faction == null && pawn.def == departure.species && !pawn.Downed && !pawn.InMentalState);
             if (emigrant == null || !RCellFinder.TryFindRandomPawnEntryCell(out IntVec3 edge, map, CellFinder.EdgeRoadChance_Animal) || !emigrant.CanReach(edge, PathEndMode.OnCell, Danger.Deadly)) return;
             Job leave = JobMaker.MakeJob(JobDefOf.Goto, edge); leave.exitMapOnArrival = true; leave.expiryInterval = 10000;
-            QueueDeparture(emigrant, "Seasonal movement through the nearby region");
+            QueueDeparture(emigrant, "Seasonal movement through the nearby region", edge);
             emigrant.jobs.StartJob(leave, JobCondition.InterruptForced);
             lastEmigrationTick = now;
             lastMigrant = emigrant; lastMigrationEdge = edge; migrationVisualUntil = now + 5000;
             WildlifeExperience.Record("Migration", emigrant.LabelShortCap + " emigrated from the area.", emigrant);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("RegionalEmigration", "species=" + departure.species.defName + " pressure=" + MigrationPressure(departure).ToString("0.00"), emigrant);
+        }
+
+        private bool CanAddRegionalArrival(RegionalSpeciesRecord record, int now)
+        {
+            int lossTick = populationLossTicks.TryGetValue(record.species.defName, out int value) ? value : 0;
+            return WildlifePopulationPolicy.CanAddLocalAnimal(now, lossTick,
+                CountLocalWildlife(record.species), record.nearbyPopulation, record.population, false);
+        }
+
+        private int CountLocalWildlife(ThingDef species, Pawn excluded = null)
+        {
+            return map.mapPawns.AllPawnsSpawned.Count(pawn => pawn != excluded &&
+                pawn?.Spawned == true && !pawn.Dead && pawn.Faction == null && pawn.def == species);
         }
 
         private void UpdateLearning(int now)
@@ -1436,6 +1553,41 @@ namespace Herds
         }
     }
 
+    [HarmonyPatch(typeof(Pawn), nameof(Pawn.SpawnSetup))]
+    public static class NearbyWildlifeSpawnPatch
+    {
+        public static void Postfix(Pawn __instance, Map map, bool respawningAfterLoad)
+        {
+            map?.GetComponent<RegionalWildlifeMapComponent>()
+                ?.NotifyLocalSpawn(__instance, respawningAfterLoad);
+    }
+
+    [HarmonyPatch(typeof(Pawn), nameof(Pawn.SetFaction))]
+    public static class NearbyWildlifeCapturePatch
+    {
+        public static void Prefix(Pawn __instance, Faction newFaction, ref Map __state)
+        {
+            __state = __instance?.Spawned == true && __instance.Faction == null &&
+                newFaction == Faction.OfPlayer && __instance.RaceProps?.Animal == true ? __instance.Map : null;
+        }
+
+        public static void Postfix(Pawn __instance, Map __state)
+        {
+            __state?.GetComponent<RegionalWildlifeMapComponent>()?.NotifyLocalCapture(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(WildAnimalSpawner), "SpawnRandomWildAnimalAt")]
+    public static class RegionalWildAnimalSpawnPatch
+    {
+        public static bool Prefix(Map ___map, bool mapInit, PawnKindDef animalKind)
+        {
+            return ___map?.GetComponent<RegionalWildlifeMapComponent>()
+                ?.CanSpawnWildAnimal(animalKind, mapInit) ?? true;
+        }
+    }
+    }
+
     public static class PersistentRoamingDebug
     {
         [DebugAction("Wildlife", "Send unique animal roaming",
@@ -1496,7 +1648,9 @@ namespace Herds
                 new Color(0.55f, 0.48f, 0.25f),
                 "Season changes vegetation, habitat quality, reproduction, and migration." +
                 (seasonal.NullOrEmpty() ? "" : "\n\n" + seasonal));
-            DrawHeaderCard(new Rect(cardWidth + 8f, 56f, cardWidth, 66f), "Habitat", habitat, new Color(0.34f, 0.57f, 0.31f), "Habitat reflects vegetation, season, reserves, water, restoration, and managed burns. It affects carrying capacity, reproduction, regional population pressure, and migration.");
+            DrawHeaderCard(new Rect(cardWidth + 8f, 56f, cardWidth, 66f), "Habitat", habitat,
+                new Color(0.34f, 0.57f, 0.31f),
+                "Habitat reflects vegetation, season, reserves, water, restoration, managed burns, and conserved wildlife-shaped Landscape features. Better habitat raises carrying capacity, reproduction, and return migration.\n\nImprove habitat by preserving vegetation and Landscape features, establishing reserves and migration corridors, and operating water or habitat-restoration structures. Degrade it by clearing vegetation, building through Landscape features, removing water access, or concentrating disruptive colony activity in wildlife areas.");
             Rect roamerCard = new Rect((cardWidth + 8f) * 2f, 56f, cardWidth, 66f);
             DrawHeaderCard(roamerCard,
                 "Known Roamers", component.KnownRoamingCount.ToString(), new Color(0.30f, 0.48f, 0.58f),
@@ -1512,7 +1666,10 @@ namespace Herds
             Widgets.Label(populationHeader, "Population");
             Widgets.Label(trendHeader, "Trend");
             Widgets.Label(outlookHeader, "Outlook");
-            Widgets.Label(new Rect(rect.width - 282f, 132f, 130f, 24f), "Confidence");
+            Rect confidenceHeader = new Rect(rect.width - 282f, 132f, 130f, 24f);
+            Text.Anchor = TextAnchor.UpperCenter;
+            Widgets.Label(confidenceHeader, "Confidence");
+            Text.Anchor = TextAnchor.UpperLeft;
             if (hasStewardship) Widgets.Label(new Rect(rect.width - 142f, 132f, 134f, 24f), "Management");
             TooltipHandler.TipRegion(populationHeader, "The nearby population includes animals whose ranges overlap this map. Present animals are the currently visible subset.");
             TooltipHandler.TipRegion(trendHeader, "Change in the nearby population since the previous daily estimate.");
@@ -1557,13 +1714,19 @@ namespace Herds
                 Widgets.Label(populationRect, estimate);
                 Widgets.Label(trendRect, trend);
                 Widgets.Label(outlookRect, outlook);
+                Text.Anchor = TextAnchor.UpperCenter;
                 Widgets.Label(confidenceRect, record.confidence.ToStringPercent());
+                Text.Anchor = TextAnchor.UpperLeft;
                 TooltipHandler.TipRegion(populationRect, "Nearby is the population whose home ranges overlap this map and its immediate surroundings. Present is the subset currently visible. Animals regularly move between these states without changing the nearby population.");
                 TooltipHandler.TipRegion(trendRect, "Trend compares the current nearby population with the previous daily estimate. Habitat, hunting pressure, season, migration management, and the wider regional population affect it.");
                 TooltipHandler.TipRegion(outlookRect, "Outlook summarizes population balance and, after Applied Ecology is researched, predicts arrivals or departures from habitat, population pressure, and management policy." +
                     (traditionSummary.NullOrEmpty() ? "" : "\n\nAnimal traditions: " + traditionSummary) +
                     (landmarkSummary.NullOrEmpty() ? "" : "\n\nColony reputation: " + landmarkSummary));
-                TooltipHandler.TipRegion(confidenceRect, "Confidence measures how reliable the colony's estimate is. Surveys, camera traps, telemetry, and tracking collars increase it. Confidence narrows population ranges and determines whether forecasts and population alerts are reported; it does not change the underlying animal population.");
+                TooltipHandler.TipRegion(confidenceRect,
+                    "Confidence measures how reliable the colony's estimate is. Surveys" +
+                    (hasCameras ? ", camera traps" : "") +
+                    (hasTelemetry ? ", telemetry, and tracking collars" : "") +
+                    " increase it. Confidence narrows population ranges and determines whether forecasts and population alerts are reported; it does not change the underlying animal population.");
                 Rect policy = new Rect(row.xMax - 137f, row.y + 12f, 129f, 32f);
                 bool managementRelevant = hasStewardship && (HerdsMod.Settings.enableRegionalMigration || HerdsMod.Settings.enableHuntingRegulations || HerdsMod.Settings.enableWildlifeSteward);
                 if (managementRelevant && knowledge >= 3)
@@ -1741,7 +1904,11 @@ namespace Herds
                 Text.Anchor = TextAnchor.UpperLeft;
                 TooltipHandler.TipRegion(cell, index < 0
                     ? "Animals of this species currently sighted on the colony map."
-                    : "Estimated population in the " + directions[grid].ToLowerInvariant() + " neighboring world cell. Telemetry improves the estimate; arrows show predicted movement relative to this map.");
+                    : "Estimated population in the " + directions[grid].ToLowerInvariant() +
+                      " neighboring world cell." +
+                      (WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
+                          ? " Telemetry improves the estimate; arrows show predicted movement relative to this map."
+                          : " Continued surveys improve the estimate."));
             }
         }
     }
@@ -1803,7 +1970,8 @@ namespace Herds
                     record.animal.LabelShortCap + " • " + record.species.LabelCap);
                 string status = record.state == RoamingAnimalState.Present ? "Present on map" :
                     RegionalWildlifeMapComponent.StatePhrase(record.state).CapitalizeFirst() +
-                    " • " + (record.tagged ? "Telemetry: " : "Last seen: ") + record.direction;
+                    " • " + (record.tagged && WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
+                        ? "Telemetry: " : "Last seen: ") + record.direction;
                 Widgets.Label(new Rect(card.x + 13f, card.y + 34f, card.width - 285f, 24f), status);
                 GUI.color = new Color(0.72f, 0.78f, 0.74f);
                 string timing = record.state == RoamingAnimalState.Present
@@ -1820,34 +1988,11 @@ namespace Herds
                     record.reason + "\n\n" + WildlifeLifeUtility.PersonalityDescription(record.animal) +
                     "\n\nIt retains its memories, health, relationships, and history while away.");
 
-                Rect primary = new Rect(card.xMax - 260f, card.y + 12f, 120f, 31f);
-                Rect secondary = new Rect(card.xMax - 132f, card.y + 12f, 120f, 31f);
                 if (record.state == RoamingAnimalState.Present && record.animal.Spawned)
                 {
+                    Rect primary = new Rect(card.xMax - 132f, card.y + 12f, 120f, 31f);
                     if (Widgets.ButtonText(primary, "Select"))
-                    {
-                        Find.Selector.ClearSelection();
-                        Find.Selector.Select(record.animal);
-                        CameraJumper.TryJump(record.animal);
-                    }
-                }
-                else
-                {
-                    bool oldEnabled = GUI.enabled;
-                    GUI.enabled = oldEnabled && component.CanEncourageReturns;
-                    if (Widgets.ButtonText(primary, "Encourage Return"))
-                        component.EncourageReturn(record);
-                    GUI.enabled = oldEnabled;
-                    TooltipHandler.TipRegion(primary, component.CanEncourageReturns
-                        ? "Use active bait, water, reserves, or migration corridors to improve this animal's chance of returning."
-                        : "Requires an active wildlife bait, water source, reserve, or migration corridor.");
-                    GUI.enabled = oldEnabled && component.CanDiscourageReturns;
-                    if (Widgets.ButtonText(secondary, "Discourage"))
-                        component.DiscourageReturn(record);
-                    GUI.enabled = oldEnabled;
-                    TooltipHandler.TipRegion(secondary, component.CanDiscourageReturns
-                        ? "Use active predator deterrents to reduce this animal's return chance."
-                        : "Requires an active predator deterrent.");
+                        WildlifeUI.Show(record.animal);
                 }
                 if (record.tagged)
                     Widgets.Label(new Rect(card.xMax - 260f, card.y + 53f, 248f, 24f),

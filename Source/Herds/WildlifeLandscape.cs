@@ -298,7 +298,7 @@ namespace Herds
                 action = () => Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
                     "Clear " + LabelNoCount + "?", () =>
                     {
-                        WildlifeExperience.Record("Living Landscape",
+            WildlifeExperience.Record("Landscape",
                             "The colony cleared a " + LabelNoCount + ".", this);
                         WildlifeTestLog.Write("LivingLandscape",
                             "cleared kind=" + kind + " species=" +
@@ -588,7 +588,7 @@ namespace Herds
                     feature.LabelNoCount + " and learned how " +
                     (feature.species?.LabelCap.ToString() ?? "wildlife") +
                     " shapes this habitat.", feature, MessageTypeDefOf.PositiveEvent, false);
-                WildlifeExperience.Record("Living Landscape", pawn.LabelShortCap +
+                WildlifeExperience.Record("Landscape", pawn.LabelShortCap +
                     " studied a " + feature.LabelNoCount + ".", feature);
                 WildlifeTestLog.Write("LivingLandscape",
                     "studied kind=" + feature.kind + " species=" +
@@ -1008,7 +1008,7 @@ namespace Herds
                 "formed kind=" + kind + " species=" +
                 (species?.defName ?? "unknown") + " strength=" +
                 feature.strength.ToString("0.00"), null, feature);
-            WildlifeExperience.Record("Living Landscape",
+            WildlifeExperience.Record("Landscape",
                 (species?.LabelCap.ToString() ?? "Wildlife") + " established a " +
                 feature.LabelNoCount + ".", feature);
             if (HerdsMod.Settings.enableWildlifeAlerts &&
@@ -1044,7 +1044,8 @@ namespace Herds
             float bonus = 0f;
             foreach (WildlifeLandscapeFeature feature in Features)
                 bonus += WildlifeLandscapeUtility.HabitatWeight(feature.kind) *
-                    feature.strength * (feature.protectedByColony ? 1.35f : 1f);
+                    feature.strength * (feature.protectedByColony ? 1.35f : 1f) *
+                    Effectiveness(feature);
             return Mathf.Min(0.14f, bonus);
         }
 
@@ -1054,9 +1055,28 @@ namespace Herds
                 HerdsMod.Settings.enableLandscapeEffects != true || species == null) return 0f;
             float attraction = Features.Where(feature => feature.species == species)
                 .Sum(feature => feature.strength *
-                    (feature.protectedByColony ? 0.075f : 0.045f));
+                    (feature.protectedByColony ? 0.075f : 0.045f) * Effectiveness(feature));
             return Mathf.Min(0.35f, attraction);
         }
+
+        public float Effectiveness(WildlifeLandscapeFeature feature)
+        {
+            if (feature?.Spawned != true) return 0f;
+            int buildings = 0;
+            int cells = GenRadial.NumCellsInRadius(feature.InfluenceRadius);
+            for (int i = 0; i < cells; i++)
+            {
+                IntVec3 cell = feature.Position + GenRadial.RadialPattern[i];
+                if (!cell.InBounds(map)) continue;
+                Building building = cell.GetEdifice(map);
+                if (building?.Faction == Faction.OfPlayer) buildings++;
+            }
+            return ObstructionEffectiveness(buildings);
+        }
+
+        internal static float ObstructionEffectiveness(int buildings) =>
+            buildings <= 0 ? 1f : buildings == 1 ? 0.6f :
+            buildings == 2 ? 0.35f : 0.15f;
 
         public IntVec3 PreferredFeatureTarget(Pawn animal, IntVec3 center, int seed)
         {
@@ -1078,8 +1098,8 @@ namespace Herds
                 HerdsMod.Settings.enableLandscapeEffects != true ||
                 hunter == null || species == null) return 0f;
             return Mathf.Min(1.5f, Features.Where(feature => feature.species == species &&
-                feature.studiedBy.Contains(hunter)).Sum(feature => 0.35f +
-                    feature.strength * 0.3f));
+                feature.studiedBy.Contains(hunter)).Sum(feature => (0.35f +
+                    feature.strength * 0.3f) * Effectiveness(feature)));
         }
 
         public List<string> BridgeLines()
@@ -1424,7 +1444,7 @@ namespace Herds
             IReadOnlyList<WildlifeLandscapeActivity> forming =
                 component?.Activities ?? Array.Empty<WildlifeLandscapeActivity>();
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, rect.width, 32f), "Living Landscape");
+            Widgets.Label(new Rect(0f, 0f, rect.width, 32f), "Landscape");
             Text.Font = GameFont.Small;
             GUI.color = new Color(0.70f, 0.78f, 0.69f);
             Widgets.Label(new Rect(0f, 31f, rect.width, 42f),
@@ -1463,14 +1483,14 @@ namespace Herds
                 GUI.color = new Color(0.70f, 0.76f, 0.69f);
                 Widgets.Label(new Rect(row.x + 14f, row.y + 30f, row.width - 150f, 18f),
                     WildlifeLandscapeUtility.Condition(feature.strength) +
-                    (feature.protectedByColony ? " - Protected" : ""));
+                    (feature.protectedByColony ? " - Protected" : "") + " - " +
+                    Mathf.RoundToInt((component?.Effectiveness(feature) ?? 0f) * 100f) + "% effective");
                 GUI.color = Color.white;
                 Text.Font = GameFont.Small;
                 if (Widgets.ButtonText(new Rect(row.xMax - 118f, row.y + 11f, 104f, 34f),
                     "Focus"))
                 {
-                    CameraJumper.TryJumpAndSelect(feature);
-                    Close();
+                    WildlifeUI.Show(feature);
                 }
                 TooltipHandler.TipRegion(row, WildlifeLandscapeUtility.Effect(feature.kind));
                 y += 64f;
@@ -1507,8 +1527,7 @@ namespace Herds
                     if (marker != null && Widgets.ButtonText(
                         new Rect(row.xMax - 102f, row.y + 13f, 90f, 34f), "Focus"))
                     {
-                        CameraJumper.TryJumpAndSelect(marker);
-                        Close();
+                        WildlifeUI.Show(marker);
                     }
                     TooltipHandler.TipRegion(row,
                         WildlifeLandscapeUtility.Effect(activity.kind) +
