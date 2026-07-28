@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <ThoughtDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeHarmony</defName>
+    <durationDays>3</durationDays>
+    <stackLimit>2</stackLimit>
+    <stages><li><label>harmony with wildlife</label><description>Our actions showed understanding and respect for the wild lives around us.</description><baseMoodEffect>3</baseMoodEffect></li></stages>
+  </ThoughtDef>
+  <ThoughtDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeDishonored</defName>
+    <durationDays>4</durationDays>
+    <stackLimit>2</stackLimit>
+    <stages><li><label>wildlife dishonored</label><description>We treated a wild life as nothing more than a target.</description><baseMoodEffect>-5</baseMoodEffect></li></stages>
+  </ThoughtDef>
+  <ThoughtDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_TraditionalHunt</defName>
+    <durationDays>3</durationDays>
+    <stackLimit>2</stackLimit>
+    <stages><li><label>the old hunt</label><description>Our hunters practiced an honored tradition and brought home another story.</description><baseMoodEffect>4</baseMoodEffect></li></stages>
+  </ThoughtDef>
+  <ThoughtDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeCeremony</defName>
+    <durationDays>5</durationDays>
+    <stackLimit>1</stackLimit>
+    <stages><li><label>wildlife ceremony</label><description>We gathered to honor our place among the wildlife around us.</description><baseMoodEffect>6</baseMoodEffect></li></stages>
+  </ThoughtDef>
+  <ThoughtDef>
+    <defName>Herds_HeardWildlifeLegend</defName>
+    <durationDays>2</durationDays>
+    <stackLimit>1</stackLimit>
+    <stages><li><label>heard a wildlife legend</label><description>A story from the wild made the world beyond our walls feel alive.</description><baseMoodEffect>2</baseMoodEffect></li></stages>
+  </ThoughtDef>
+  <ThoughtDef>
+    <defName>Herds_InspiredByWildlifeMemorial</defName>
+    <durationDays>1</durationDays>
+    <stackLimit>1</stackLimit>
+    <stages><li><label>wildlife story remembered</label><description>A carefully preserved wildlife story reminded me that this colony has a history.</description><baseMoodEffect>3</baseMoodEffect></li></stages>
+  </ThoughtDef>
+  <ThoughtDef>
+    <defName>Herds_ProtectedAnimalDied</defName>
+    <durationDays>6</durationDays>
+    <stackLimit>2</stackLimit>
+    <stages>
+      <li>
+        <label>protected animal died</label>
+        <description>We promised to protect that animal, but it died under our watch.</description>
+        <baseMoodEffect>-6</baseMoodEffect>
+      </li>
+    </stages>
+  </ThoughtDef>
+</Defs>

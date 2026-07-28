@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <JobDef>
+    <defName>Herds_Hide</defName>
+    <driverClass>Herds.JobDriver_HideInRefuge</driverClass>
+    <reportString>seeking refuge.</reportString>
+    <checkOverrideOnDamage>Always</checkOverrideOnDamage>
+    <casualInterruptible>False</casualInterruptible>
+  </JobDef>
+</Defs>

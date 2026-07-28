@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef>
+    <defName>Herds_WildlifeSign</defName>
+    <label>wildlife sign</label>
+    <description>Fading evidence left by a passing animal. Skilled handlers can identify its species, direction, age, and group size.</description>
+    <thingClass>Herds.WildlifeSign</thingClass>
+    <category>Item</category><selectable>true</selectable><tickerType>Rare</tickerType>
+    <altitudeLayer>Filth</altitudeLayer><drawerType>MapMeshOnly</drawerType>
+    <graphicData><texPath>Things/Filth/Grainy</texPath><graphicClass>Graphic_Cluster</graphicClass><drawSize>(0.45,0.45)</drawSize><color>(0.30,0.22,0.13)</color></graphicData>
+    <useHitPoints>false</useHitPoints><statBases><MarketValue>0</MarketValue><Mass>0</Mass></statBases>
+  </ThingDef>
+</Defs>

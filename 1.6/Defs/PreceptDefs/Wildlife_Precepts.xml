@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <IssueDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeEthic</defName>
+    <label>wildlife ethic</label>
+    <iconPath>UI/Issues/AnimalSlaughter</iconPath>
+  </IssueDef>
+
+  <PreceptDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeEthic_Reverence</defName>
+    <issue>Herds_WildlifeEthic</issue>
+    <label>reverence</label>
+    <description>Wild creatures are lives worthy of respect. Study, aid, and protection are virtuous; killing wildlife is troubling.</description>
+    <impact>Medium</impact>
+    <displayOrderInIssue>30</displayOrderInIssue>
+    <associatedMemes><li>NaturePrimacy</li><li>AnimalPersonhood</li></associatedMemes>
+  </PreceptDef>
+
+  <PreceptDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeEthic_Stewardship</defName>
+    <issue>Herds_WildlifeEthic</issue>
+    <label>stewardship</label>
+    <description>People should understand and manage wildlife responsibly, protecting populations while taking what the colony needs.</description>
+    <impact>Low</impact>
+    <displayOrderInIssue>20</displayOrderInIssue>
+    <associatedMemes><li>NaturePrimacy</li></associatedMemes>
+  </PreceptDef>
+
+  <PreceptDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeEthic_Tradition</defName>
+    <issue>Herds_WildlifeEthic</issue>
+    <label>hunting tradition</label>
+    <description>The respectful pursuit of wild animals is an honored source of skill, food, and stories.</description>
+    <impact>Low</impact>
+    <displayOrderInIssue>10</displayOrderInIssue>
+  </PreceptDef>
+
+  <PreceptDef MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_WildlifeEthic_Indifferent</defName>
+    <issue>Herds_WildlifeEthic</issue>
+    <label>indifferent</label>
+    <description>Wildlife carries no special moral meaning.</description>
+    <impact>Low</impact>
+    <displayOrderInIssue>0</displayOrderInIssue>
+  </PreceptDef>
+</Defs>

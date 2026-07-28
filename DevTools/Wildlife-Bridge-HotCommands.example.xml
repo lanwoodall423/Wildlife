@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WildlifeBridgeModules version="4">
+  <Command name="HOT_ECOSYSTEM_BRIEF"
+           description="Compact live ecosystem composition.">
+    <Builtin name="SNAPSHOT" />
+    <Query source="animals"
+           where="Faction=null"
+           groupBy="def.defName"
+           limit="12"
+           prefix="wildSpecies" />
+  </Command>
+
+  <Command name="HOT_PREDATOR_AUDIT"
+           description="Live predators, jobs, and positions.">
+    <Query source="animals"
+           where="RaceProps.predator=true"
+           select="thingIDNumber,def.defName,CurJobDef.defName,Position"
+           limit="40"
+           prefix="predator" />
+  </Command>
+
+  <Command name="HOT_JOB_CENSUS"
+           description="What every animal on the map is currently doing.">
+    <Query source="animals"
+           groupBy="CurJobDef.defName"
+           limit="30"
+           prefix="animalJob" />
+  </Command>
+
+  <Command name="HOT_WILDLIFE_SAMPLE"
+           description="Compact live sample of individual wildlife state.">
+    <Query source="animals"
+           where="Faction=null"
+           select="thingIDNumber,def.defName,Position,CurJobDef.defName,health.summaryHealth.SummaryHealthPercent,ageTracker.AgeBiologicalYearsFloat"
+           sortBy="def.defName"
+           limit="80"
+           prefix="wildAnimal" />
+  </Command>
+
+  <Command name="HOT_INJURED_WILDLIFE"
+           description="Wildlife below full summarized health.">
+    <Query source="animals"
+           where="Faction=null&amp;&amp;health.summaryHealth.SummaryHealthPercent&lt;0.999"
+           select="thingIDNumber,def.defName,Position,health.summaryHealth.SummaryHealthPercent,CurJobDef.defName"
+           limit="60"
+           prefix="injured" />
+  </Command>
+
+  <Command name="HOT_COLONIST_CONTEXT"
+           description="Colonist positions, jobs, and relevant skills.">
+    <Query source="colonists"
+           select="thingIDNumber,Name,Position,CurJobDef.defName,skills.skills"
+           limit="20"
+           prefix="colonist" />
+  </Command>
+
+  <Command name="HOT_SPECIES_PROFILE"
+           description="Animal race definitions matching the argument.">
+    <Query source="animaldefs"
+           where="defName~$argument"
+           select="defName,race.predator,race.baseBodySize,race.baseHealthScale"
+           limit="50"
+           prefix="speciesDef" />
+  </Command>
+
+  <Command name="HOT_MAP_OBJECT_CENSUS"
+           description="Thing-class composition of the current map.">
+    <Query source="things"
+           groupBy="GetType"
+           limit="40"
+           prefix="thingClass" />
+  </Command>
+
+  <Command name="HOT_SIGN_KIND_CENSUS"
+           description="Wildlife-sign volume by kind.">
+    <Query source="things"
+           where="GetType~Herds.WildlifeSign"
+           groupBy="signKind"
+           limit="20"
+           prefix="signKind" />
+  </Command>
+
+  <Command name="HOT_SIGN_SPECIES_CENSUS"
+           description="Wildlife-sign volume by originating species.">
+    <Query source="things"
+           where="GetType~Herds.WildlifeSign"
+           groupBy="species.defName"
+           limit="40"
+           prefix="signSpecies" />
+  </Command>
+
+  <Command name="HOT_SIGN_SAMPLE"
+           description="Age, type, study state, and position of current signs.">
+    <Query source="things"
+           where="GetType~Herds.WildlifeSign"
+           select="thingIDNumber,species.defName,signKind,createdTick,groupSize,predator,studiedBy.Count,Position"
+           sortBy="createdTick"
+           descending="true"
+           limit="80"
+           prefix="sign" />
+  </Command>
+
+  <Command name="HOT_SIGNAL_AUDIT"
+           description="Current dialects, trust, listeners, and predator learning.">
+    <Builtin name="SIGNALS" />
+  </Command>
+
+  <Command name="HOT_SPECIES_LOOKUP"
+           description="Animals whose species def name contains the argument.">
+    <Query source="animals"
+           where="def.defName~$argument"
+           select="thingIDNumber,def.defName,Position,CurJobDef.defName"
+           limit="40"
+           prefix="animal" />
+  </Command>
+
+  <Command name="HOT_COMPONENT_AUDIT"
+           description="Loaded map component types.">
+    <Query source="components"
+           select="GetType"
+           limit="100"
+           prefix="component" />
+  </Command>
+
+  <!-- These collection queries become available with bridge kernel v4.1. -->
+  <Command name="HOT_REGIONAL_RECORDS"
+           description="Raw regional population model records.">
+    <Query source="component:Herds.RegionalWildlifeMapComponent/Records"
+           select="species.defName,population,previousPopulation,nearbyPopulation,previousNearbyPopulation,lastLocalCount,confidence,policy"
+           sortBy="nearbyPopulation"
+           descending="true"
+           limit="80"
+           prefix="regionalRecord" />
+  </Command>
+
+  <Command name="HOT_HERD_STATES"
+           description="Current prey groups, membership, leadership, and defense.">
+    <Query source="component:Herds.HerdMapComponent/AllHerds"
+           select="id,species.defName,members.Count,youngCount,center,movementTarget,defenseMode,leader.thingIDNumber,sentinel.thingIDNumber"
+           limit="100"
+           prefix="preyGroup" />
+  </Command>
+
+  <Command name="HOT_SIGNAL_RECORDS"
+           description="Raw persistent local dialect records.">
+    <Query source="component:Herds.WildlifeSignalCultureMapComponent/Dialects"
+           select="species.defName,credibility,humanTrust,tradition,trueSignals,falseSignals,lastKind,lastSignalTick"
+           limit="100"
+           prefix="dialectRecord" />
+  </Command>
+
+  <Command name="HOT_TRAIL_LEADS"
+           description="Player-reconstructed wildlife trails and their uncertainty.">
+    <Query source="component:Herds.WildlifeTrailMapComponent/TrailLeads"
+           select="species.defName,tracker.thingIDNumber,evidenceCells.Count,predictedCell,dominantKind,groupSize,confidence,predator,marked,direction,expiresTick"
+           sortBy="confidence"
+           descending="true"
+           limit="40"
+           prefix="trail" />
+  </Command>
+
+  <Command name="HOT_SOCIAL_MEMORIES"
+           description="Animal bonds, fears, rivalries, and their latest events.">
+    <Query source="component:Herds.WildlifeMemoryMapComponent/SocialMemories"
+           select="animal.thingIDNumber,animal.def.defName,otherAnimal.thingIDNumber,otherAnimal.def.defName,bond,fear,rivalry,positiveEvents,negativeEvents,lastEvent,lastTick"
+           sortBy="lastTick"
+           descending="true"
+           limit="60"
+           prefix="socialMemory" />
+  </Command>
+
+  <Command name="HOT_CREATE_SOCIAL_MEMORY"
+           description="Create a deterministic animal-to-animal memory for visual testing."
+           allowMutation="true">
+    <Invoke target="component:Herds.WildlifeMemoryMapComponent"
+            method="DebugCreateSocialMemory" />
+  </Command>
+
+  <Command name="HOT_CREATE_TRAIL"
+           description="Create and interpret a deterministic player-facing test trail."
+           allowMutation="true">
+    <Invoke target="component:Herds.WildlifeTrailMapComponent"
+            method="DebugCreateTrail" />
+  </Command>
+
+  <!-- Mutating commands are opt-in and may only invoke existing public methods. -->
+  <Command name="HOT_REFRESH_HERDS"
+           description="Refresh the prey simulation through its public debug API."
+           allowMutation="true">
+    <Invoke target="component:Herds.HerdMapComponent"
+            method="DebugRefresh" />
+  </Command>
+</WildlifeBridgeModules>

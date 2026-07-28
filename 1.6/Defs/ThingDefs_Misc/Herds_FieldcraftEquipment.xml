@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="ResourceBase">
+    <defName>Herds_CamouflageSupplies</defName><label>camouflage supplies</label>
+    <description>Mud pigments, vegetation ties, and scent-breaking materials consumed when preparing a fieldcraft hunt.</description>
+    <stackLimit>25</stackLimit><techLevel>Neolithic</techLevel>
+    <graphicData><texPath>Things/Item/Resource/Medicine/MedicineHerbal</texPath><graphicClass>Graphic_StackCount</graphicClass><drawSize>0.75</drawSize><color>(0.25,0.38,0.18)</color></graphicData>
+    <statBases><MarketValue>5</MarketValue><Mass>0.25</Mass><MaxHitPoints>35</MaxHitPoints><Flammability>1</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="ResourceBase">
+    <defName>Herds_FieldBinoculars</defName><label>field binoculars</label>
+    <description>Simple reusable optics that improve a hunt spotter's positioning and species study.</description>
+    <stackLimit>1</stackLimit><techLevel>Industrial</techLevel>
+    <graphicData><texPath>Things/Item/Resource/ComponentIndustrial</texPath><graphicClass>Graphic_StackCount</graphicClass><drawSize>0.65</drawSize><color>(0.18,0.22,0.18)</color></graphicData>
+    <statBases><MarketValue>75</MarketValue><Mass>0.8</Mass><MaxHitPoints>80</MaxHitPoints><Flammability>0.2</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_WildlifeSnare</defName><label>wildlife snare</label>
+    <description>A reusable early-game snare. Small and medium wildlife may be injured and held briefly; experienced or large prey often escape.</description>
+    <thingClass>Herds.Building_WildlifeSnare</thingClass><designationCategory>Security</designationCategory><uiOrder>2750</uiOrder>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Things/Building/Security/TrapSpikeArmed</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.8,0.8)</drawSize><color>(0.35,0.28,0.16)</color></graphicData>
+    <costList><WoodLog>25</WoodLog><Steel>5</Steel></costList>
+    <statBases><WorkToBuild>500</WorkToBuild><MaxHitPoints>90</MaxHitPoints><Flammability>0.8</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="ResourceBase">
+    <defName>Herds_TrackingCollarItem</defName><label>wildlife tracking collar</label>
+    <description>A rugged radio collar prepared for fitting to a nearby or safely restrained animal at a wildlife telemetry station.</description>
+    <stackLimit>10</stackLimit><techLevel>Industrial</techLevel>
+    <graphicData><texPath>Things/Item/Resource/ComponentIndustrial</texPath><graphicClass>Graphic_StackCount</graphicClass><drawSize>0.55</drawSize><color>(0.12,0.62,0.66)</color></graphicData>
+    <statBases><MarketValue>45</MarketValue><Mass>0.35</Mass><MaxHitPoints>70</MaxHitPoints><Flammability>0.15</Flammability></statBases>
+  </ThingDef>
+</Defs>

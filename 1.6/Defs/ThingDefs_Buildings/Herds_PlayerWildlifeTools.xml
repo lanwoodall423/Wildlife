@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_ObservationPost</defName>
+    <label>wildlife observation post</label>
+    <description>A simple hunting blind and observation point. Wildlife seen nearby remains documented for one day, revealing detailed behavior in its Wildlife tab.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass>
+    <designationCategory>Misc</designationCategory>
+    <uiOrder>2920</uiOrder>
+    <researchPrerequisites><li>Wildlife_Fieldcraft</li></researchPrerequisites>
+    <size>(2,2)</size>
+    <passability>Standable</passability>
+    <tickerType>Rare</tickerType>
+    <rotatable>false</rotatable>
+    <graphicData><texPath>Things/Building/Misc/AnimalBed/AnimalSleepSpot</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.7,1.7)</drawSize><color>(0.32,0.48,0.28)</color></graphicData>
+    <costList><WoodLog>50</WoodLog></costList>
+    <statBases><WorkToBuild>1100</WorkToBuild><MaxHitPoints>150</MaxHitPoints><Flammability>0.8</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_WildlifeBait</defName>
+    <label>wildlife bait</label>
+    <description>A low pile of feed that attracts prey, supporting active early-game hunting and wildlife observation. Animals gradually consume it.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass>
+    <designationCategory>Misc</designationCategory>
+    <uiOrder>2921</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Wildlife/Structures/WildlifeBait</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.9,0.9)</drawSize></graphicData>
+    <costList><Hay>20</Hay><WoodLog>5</WoodLog></costList>
+    <statBases><WorkToBuild>120</WorkToBuild><MaxHitPoints>40</MaxHitPoints><Flammability>1</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_PredatorDeterrent</defName>
+    <label>predator deterrent</label>
+    <description>A collection of noise-makers, reflective scraps, and human scent markers that discourages ordinary predators from approaching livestock.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass>
+    <designationCategory>Misc</designationCategory>
+    <uiOrder>2922</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Wildlife/Structures/PredatorDeterrent</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.08,1.08)</drawSize></graphicData>
+    <costList><WoodLog>40</WoodLog><Steel>10</Steel></costList>
+    <statBases><WorkToBuild>700</WorkToBuild><MaxHitPoints>100</MaxHitPoints><Flammability>0.7</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_WildlifeReserve</defName>
+    <label>wildlife reserve marker</label>
+    <description>Marks an area the colony intends to leave as wildlife habitat. Prey favor it for migration and homes, while ordinary predators are reluctant to establish themselves inside it.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass>
+    <designationCategory>Misc</designationCategory>
+    <uiOrder>2923</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Things/Building/Furniture/PenMarker</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.0,1.0)</drawSize><color>(0.29,0.46,0.24)</color></graphicData>
+    <costList><WoodLog>20</WoodLog></costList>
+    <statBases><WorkToBuild>350</WorkToBuild><MaxHitPoints>80</MaxHitPoints><Flammability>1</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_ScentMaskStation</defName>
+    <label>scent masking station</label>
+    <description>A primitive fieldcraft station containing mud, herbs, and smoke compounds. It provides twelve scent-masking applications for hunters.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass>
+    <designationCategory>Misc</designationCategory><uiOrder>2924</uiOrder>
+    <researchPrerequisites><li>Wildlife_Fieldcraft</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Things/Building/Misc/AnimalBed/AnimalSleepSpot</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.9,0.9)</drawSize><color>(0.30,0.25,0.16)</color></graphicData>
+    <costList><WoodLog>15</WoodLog><MedicineHerbal>3</MedicineHerbal></costList>
+    <statBases><WorkToBuild>300</WorkToBuild><MaxHitPoints>70</MaxHitPoints><Flammability>0.8</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_HuntingSpot</defName>
+    <label>hunting spot</label>
+    <description>Designates a fieldcraft planning point. Select it to organize colonists, prey, equipment, scent masking, pursuit policy, and risk for coordinated hunts.</description>
+    <thingClass>Herds.Building_HuntingSpot</thingClass>
+    <graphicData><texPath>Things/Building/Misc/PartySpot</texPath><graphicClass>Graphic_Single</graphicClass><color>(0.72,0.42,0.16)</color></graphicData>
+    <altitudeLayer>FloorEmplacement</altitudeLayer>
+    <statBases><WorkToBuild>0</WorkToBuild></statBases>
+    <rotatable>false</rotatable>
+    <scatterableOnMapGen>false</scatterableOnMapGen>
+    <useHitPoints>false</useHitPoints>
+    <designationCategory>Misc</designationCategory>
+    <uiOrder>2925</uiOrder>
+    <researchPrerequisites><li>Wildlife_Fieldcraft</li></researchPrerequisites>
+    <passability>Standable</passability>
+    <building><sowTag>SupportPlantsOnly</sowTag><canPlaceOverImpassablePlant>false</canPlaceOverImpassablePlant><ai_chillDestination>false</ai_chillDestination><wakeDormantPawnsOnConstruction>false</wakeDormantPawnsOnConstruction><artificialForMeditationPurposes>false</artificialForMeditationPurposes></building>
+  </ThingDef>
+</Defs>

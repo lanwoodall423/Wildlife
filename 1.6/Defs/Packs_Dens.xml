@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Packs_PredatorDen</defName>
+    <label>predator den</label>
+    <description>A home and resting place claimed by a predator group. Select it to inspect the resident group, its territory, and its current activity.</description>
+    <thingClass>Packs.Building_PredatorDen</thingClass>
+    <size>(1,1)</size>
+    <passability>Standable</passability>
+    <pathCost>0</pathCost>
+    <useHitPoints>true</useHitPoints>
+    <destroyable>true</destroyable>
+    <rotatable>false</rotatable>
+    <selectable>true</selectable>
+    <scatterableOnMapGen>false</scatterableOnMapGen>
+    <altitudeLayer>FloorEmplacement</altitudeLayer>
+    <drawerType>MapMeshAndRealTime</drawerType>
+    <graphicData>
+      <texPath>Wildlife/Structures/PredatorDen</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>Transparent</shaderType>
+      <drawSize>(0.92,0.92)</drawSize>
+      <color>(0.72,0.69,0.61,0.58)</color>
+    </graphicData>
+    <building>
+      <ai_chillDestination>false</ai_chillDestination>
+      <wakeDormantPawnsOnConstruction>false</wakeDormantPawnsOnConstruction>
+      <artificialForMeditationPurposes>false</artificialForMeditationPurposes>
+    </building>
+    <statBases>
+      <MaxHitPoints>140</MaxHitPoints>
+      <Flammability>0.4</Flammability>
+    </statBases>
+    <inspectorTabs>
+      <li>Packs.ITab_Pack</li>
+    </inspectorTabs>
+  </ThingDef>
+</Defs>

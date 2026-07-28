@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <PreceptDef ParentName="PreceptRoleMultiBase" MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_IdeoRole_MasterHunter</defName>
+    <label>master hunter</label>
+    <description>A proven hunter who leads field hunts and excels at stealth and decisive ranged attacks. This role adds effective hunting skill, improves expedition hunts, and increases Animal Knowledge gain by 50% and Biome Knowledge gain by 20%.</description>
+    <iconPath>UI/WildlifeExpert</iconPath>
+    <nameMaker>NamerRoleShooter</nameMaker>
+    <roleRequirements>
+      <li Class="RoleRequirement_MinSkillAny"><skills><Animals>8</Animals></skills></li>
+      <li Class="RoleRequirement_MinSkillAny"><skills><Shooting>8</Shooting></skills></li>
+    </roleRequirements>
+    <roleRequiredWorkTags><li>Hunting</li><li>Violent</li></roleRequiredWorkTags>
+    <roleTags><li>WildlifeMasterHunter</li></roleTags>
+    <roleEffects>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>HuntingStealth</statDef><modifier>0.25</modifier></li>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>ShootingAccuracyPawn</statDef><modifier>3</modifier></li>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>AimingDelayFactor</statDef><modifier>-0.15</modifier></li>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>MoveSpeed</statDef><modifier>0.15</modifier></li>
+    </roleEffects>
+    <displayOrderInImpact>3</displayOrderInImpact>
+  </PreceptDef>
+
+  <PreceptDef ParentName="PreceptRoleMultiBase" MayRequire="Ludeon.RimWorld.Ideology">
+    <defName>Herds_IdeoRole_MasterConservationist</defName>
+    <label>master conservationist</label>
+    <description>A specialist in animal care, habitat, migration, and field study. This role improves taming, gathering and tending, strengthens animal calls and non-hunting expeditions, increases Animal Knowledge gain by 65%, and increases Biome Knowledge gain by 75%.</description>
+    <iconPath>UI/WildlifeMaster</iconPath>
+    <nameMaker>NamerRoleAnimalsSpecialist</nameMaker>
+    <roleRequirements>
+      <li Class="RoleRequirement_MinSkillAny"><skills><Animals>8</Animals></skills></li>
+      <li Class="RoleRequirement_MinSkillAny"><skills><Intellectual>6</Intellectual></skills></li>
+    </roleRequirements>
+    <roleRequiredWorkTagAny><li>Animals</li></roleRequiredWorkTagAny>
+    <roleTags><li>WildlifeMasterConservationist</li></roleTags>
+    <roleEffects>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>TameAnimalChance</statDef><modifier>0.12</modifier></li>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>AnimalGatherSpeed</statDef><modifier>0.25</modifier></li>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>AnimalGatherYield</statDef><modifier>0.15</modifier></li>
+      <li Class="RoleEffect_PawnStatOffset"><statDef>MedicalTendQuality</statDef><modifier>0.08</modifier></li>
+    </roleEffects>
+    <displayOrderInImpact>4</displayOrderInImpact>
+  </PreceptDef>
+</Defs>

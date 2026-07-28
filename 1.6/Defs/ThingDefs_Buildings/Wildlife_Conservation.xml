@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_HabitatRestoration</defName><label>habitat restoration marker</label>
+    <description>Directs controlled planting, shelter retention, and habitat recovery. It raises regional carrying capacity and encourages wildlife.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass><designationCategory>Misc</designationCategory><uiOrder>2926</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Things/Building/Furniture/PenMarker</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize><color>(0.42,0.55,0.27)</color></graphicData>
+    <costList><WoodLog>25</WoodLog></costList><statBases><WorkToBuild>450</WorkToBuild><MaxHitPoints>80</MaxHitPoints><Flammability>1</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_WildlifeWaterSource</defName><label>wildlife water source</label>
+    <description>A maintained drinking basin that improves dry-season habitat and attracts regional wildlife.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass><designationCategory>Misc</designationCategory><uiOrder>2927</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Wildlife/Structures/WildlifeWaterSource</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.05,1.05)</drawSize></graphicData>
+    <costList><WoodLog>20</WoodLog><Steel>15</Steel></costList><statBases><WorkToBuild>650</WorkToBuild><MaxHitPoints>110</MaxHitPoints><Flammability>0.4</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_MigrationCorridor</defName><label>migration corridor marker</label>
+    <description>Marks a low-disturbance route through colony territory, making immigration and safe passage more likely.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass><designationCategory>Misc</designationCategory><uiOrder>2928</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Things/Building/Furniture/PenMarker</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1,1)</drawSize><color>(0.60,0.47,0.24)</color></graphicData>
+    <costList><WoodLog>15</WoodLog></costList><statBases><WorkToBuild>300</WorkToBuild><MaxHitPoints>70</MaxHitPoints><Flammability>1</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_ManagedBurnMarker</defName><label>managed burn area</label>
+    <description>Represents periodic low-intensity controlled burns and brush clearing. It improves long-term forage diversity without starting uncontrolled fires.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass><designationCategory>Misc</designationCategory><uiOrder>2929</uiOrder>
+    <researchPrerequisites><li>Wildlife_Stewardship</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>false</rotatable>
+    <graphicData><texPath>Wildlife/Structures/ManagedBurnArea</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.12,1.12)</drawSize></graphicData>
+    <costList><WoodLog>10</WoodLog></costList><statBases><WorkToBuild>250</WorkToBuild><MaxHitPoints>60</MaxHitPoints><Flammability>1</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_CameraTrap</defName><label>wildlife camera trap</label>
+    <description>An automated motion camera that records nearby species and improves local census confidence without a permanently assigned observer.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass><designationCategory>Misc</designationCategory><uiOrder>2930</uiOrder>
+    <researchPrerequisites><li>Wildlife_Telemetry</li></researchPrerequisites>
+    <size>(1,1)</size><passability>Standable</passability><tickerType>Rare</tickerType><rotatable>true</rotatable>
+    <graphicData><texPath>Things/Building/Misc/DropBeacon</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.55,0.55)</drawSize><color>(0.28,0.34,0.24)</color></graphicData>
+    <costList><Steel>35</Steel><ComponentIndustrial>1</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>1400</WorkToBuild><MaxHitPoints>90</MaxHitPoints><Flammability>0.2</Flammability></statBases>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_TelemetryStation</defName><label>wildlife telemetry station</label>
+    <description>A powered radio station that reads wildlife tracking collars, improves regional surveys, and provides earlier migration alerts.</description>
+    <thingClass>Herds.Building_WildlifeTool</thingClass><designationCategory>Misc</designationCategory><uiOrder>2931</uiOrder>
+    <researchPrerequisites><li>Wildlife_Telemetry</li></researchPrerequisites>
+    <size>(2,2)</size><passability>PassThroughOnly</passability><tickerType>Rare</tickerType><rotatable>true</rotatable>
+    <graphicData><texPath>Things/Building/Misc/CommsConsole</texPath><graphicClass>Graphic_Multi</graphicClass><drawSize>(1.5,1.5)</drawSize><color>(0.16,0.52,0.58)</color></graphicData>
+    <costList><Steel>100</Steel><ComponentIndustrial>3</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>4500</WorkToBuild><MaxHitPoints>180</MaxHitPoints><Flammability>0.25</Flammability></statBases>
+    <comps>
+      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>250</basePowerConsumption></li>
+    </comps>
+  </ThingDef>
+</Defs>

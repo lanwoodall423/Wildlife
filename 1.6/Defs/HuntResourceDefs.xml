@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <Herds.HuntResourceDef>
+    <defName>Herds_HuntResource_Camouflage</defName>
+    <label>Camouflage supplies</label>
+    <description>Consumed camouflage materials improve a hunter's fieldcraft.</description>
+    <thingDef>Herds_CamouflageSupplies</thingDef>
+    <use>ConsumablePerHunter</use>
+    <fieldcraftBonus>2.5</fieldcraftBonus>
+  </Herds.HuntResourceDef>
+  <Herds.HuntResourceDef>
+    <defName>Herds_HuntResource_Binoculars</defName>
+    <label>Field binoculars</label>
+    <description>A reusable optical aid for spotting and coordinating prey.</description>
+    <thingDef>Herds_FieldBinoculars</thingDef>
+    <use>ReusableSingle</use>
+    <fieldcraftBonus>2</fieldcraftBonus>
+  </Herds.HuntResourceDef>
+  <Herds.HuntResourceDef>
+    <defName>Herds_HuntResource_ScentMasking</defName>
+    <label>Scent masking</label>
+    <description>Applications supplied by a scent-masking station.</description>
+    <sourceBuildingDef>Herds_ScentMaskStation</sourceBuildingDef>
+    <use>ScentChargePerHunter</use>
+    <fieldcraftBonus>1.5</fieldcraftBonus>
+    <enabledByScentMasking>true</enabledByScentMasking>
+  </Herds.HuntResourceDef>
+</Defs>

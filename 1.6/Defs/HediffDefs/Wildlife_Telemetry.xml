@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <HediffDef>
+    <defName>Herds_TrackingCollar</defName>
+    <label>wildlife tracking collar</label>
+    <description>A lightweight radio collar used to monitor this animal's movement and contribution to regional migration.</description>
+    <hediffClass>HediffWithComps</hediffClass>
+    <isBad>false</isBad>
+    <scenarioCanAdd>false</scenarioCanAdd>
+    <stages><li><label>transmitting</label></li></stages>
+  </HediffDef>
+</Defs>

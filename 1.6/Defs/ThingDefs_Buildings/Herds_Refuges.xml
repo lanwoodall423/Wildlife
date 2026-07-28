@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_AnimalHideHole</defName>
+    <label>animal hide hole</label>
+    <description>A simple refuge where small prey can conceal themselves from predators.</description>
+    <thingClass>Herds.Building_HidingRefuge</thingClass>
+    <size>(1,1)</size>
+    <passability>Standable</passability>
+    <designationCategory>Misc</designationCategory>
+    <uiOrder>2910</uiOrder>
+    <researchPrerequisites><li>Wildlife_Fieldcraft</li></researchPrerequisites>
+    <useHitPoints>false</useHitPoints>
+    <rotatable>false</rotatable>
+    <altitudeLayer>FloorEmplacement</altitudeLayer>
+    <graphicData>
+      <texPath>Wildlife/Structures/AnimalHideHole</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(0.78,0.78)</drawSize>
+    </graphicData>
+    <costList>
+      <WoodLog>12</WoodLog>
+    </costList>
+    <statBases>
+      <WorkToBuild>600</WorkToBuild>
+    </statBases>
+    <comps>
+      <li Class="Herds.CompProperties_HidingRefuge">
+        <capacity>3</capacity>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_AnimalBurrow</defName>
+    <label>animal burrow</label>
+    <description>A small burrow dug and used by prey as a home, sleeping place, and emergency refuge.</description>
+    <thingClass>Herds.Building_HidingRefuge</thingClass>
+    <size>(1,1)</size>
+    <passability>Standable</passability>
+    <useHitPoints>false</useHitPoints>
+    <rotatable>false</rotatable>
+    <altitudeLayer>FloorEmplacement</altitudeLayer>
+    <selectable>true</selectable>
+    <graphicData>
+      <texPath>Wildlife/Structures/AnimalBurrow</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>Transparent</shaderType>
+      <drawSize>(0.52,0.52)</drawSize>
+      <color>(0.76,0.69,0.59,0.62)</color>
+    </graphicData>
+    <comps>
+      <li Class="Herds.CompProperties_HidingRefuge">
+        <capacity>3</capacity>
+      </li>
+    </comps>
+  </ThingDef>
+</Defs>

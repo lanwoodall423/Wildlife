@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+  <Operation Class="PatchOperationAdd">
+    <xpath>Defs/ThingDef[defName="Wolf_Timber"]</xpath>
+    <value>
+      <modExtensions>
+        <li Class="Packs.PackHunterExtension">
+          <socialStrategy>Pack</socialStrategy>
+          <huntingStyle>Pursuit</huntingStyle>
+        </li>
+      </modExtensions>
+    </value>
+  </Operation>
+  <Operation Class="PatchOperationAdd">
+    <xpath>Defs/ThingDef[defName="Wolf_Arctic"]</xpath>
+    <value>
+      <modExtensions>
+        <li Class="Packs.PackHunterExtension">
+          <socialStrategy>Pack</socialStrategy>
+          <huntingStyle>Pursuit</huntingStyle>
+        </li>
+      </modExtensions>
+    </value>
+  </Operation>
+</Patch>

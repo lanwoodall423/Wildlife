@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <WorldObjectDef>
+    <defName>Herds_HuntingExpeditionMarker</defName>
+    <label>wildlife expedition</label>
+    <description>A wildlife expedition operating beyond the colony map.</description>
+    <worldObjectClass>Herds.WorldObject_HuntingExpeditionMarker</worldObjectClass>
+    <texture>World/WorldObjects/Caravan</texture>
+    <expandingIcon>true</expandingIcon>
+    <expandingIconTexture>World/WorldObjects/Expanding/Caravan</expandingIconTexture>
+    <expandingIconPriority>95</expandingIconPriority>
+    <expandMore>true</expandMore>
+  </WorldObjectDef>
+</Defs>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef>
+    <defName>Herds_LandscapeCrossroad</defName>
+    <label>developing wild place</label>
+    <description>Subtle signs that repeated animal activity is beginning to reshape this place. The colony can learn from it, guide it, or deliberately leave it wild.</description>
+    <thingClass>Herds.WildlifeLandscapeCrossroad</thingClass>
+    <category>Item</category>
+    <selectable>true</selectable>
+    <tickerType>Never</tickerType>
+    <altitudeLayer>Filth</altitudeLayer>
+    <drawerType>MapMeshOnly</drawerType>
+    <useHitPoints>false</useHitPoints>
+    <statBases><MarketValue>0</MarketValue><Mass>0.01</Mass></statBases>
+    <graphicData>
+      <texPath>Wildlife/Landscape/LivingLandscapeBase</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(0.75,0.75)</drawSize>
+      <color>(0.48,0.43,0.27)</color>
+    </graphicData>
+  </ThingDef>
+
+  <ThingDef Name="Herds_LandscapeFeatureBase" Abstract="True">
+    <thingClass>Herds.WildlifeLandscapeFeature</thingClass>
+    <category>Item</category>
+    <selectable>true</selectable>
+    <tickerType>Rare</tickerType>
+    <altitudeLayer>Filth</altitudeLayer>
+    <drawerType>MapMeshOnly</drawerType>
+    <useHitPoints>false</useHitPoints>
+    <statBases><MarketValue>0</MarketValue><Mass>0</Mass></statBases>
+  </ThingDef>
+
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_GameTrail</defName><label>game trail</label>
+    <description>A route worn into the land by repeated animal movement.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.8,1.8)</drawSize><color>(0.48,0.36,0.21)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_GrazingGround</defName><label>grazing ground</label>
+    <description>A patch repeatedly cropped and maintained by grazing wildlife.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.45,1.45)</drawSize><color>(0.45,0.54,0.24)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_BrowsedGrove</defName><label>browsed grove</label>
+    <description>A woodland edge visibly shaped by browsing animals.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.2,1.2)</drawSize><color>(0.32,0.48,0.23)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_RootingWallow</defName><label>rooting wallow</label>
+    <description>Soft earth churned by rooting and wallowing animals.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.35,1.35)</drawSize><color>(0.33,0.24,0.16)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_SeedGrove</defName><label>seed grove</label>
+    <description>A small patch enriched by cached and dispersed seeds.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.35,1.35)</drawSize><color>(0.25,0.57,0.29)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_ShoreNest</defName><label>shore nesting site</label>
+    <description>A waterside nesting place repeatedly used by compatible birds.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.15,1.15)</drawSize><color>(0.67,0.58,0.35)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_WatersideWorks</defName><label>waterside works</label>
+    <description>A shoreline worksite where aquatic builders have rearranged wood and vegetation.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.35,1.35)</drawSize><color>(0.32,0.47,0.39)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_ScentPost</defName><label>territorial scent post</label>
+    <description>A natural landmark repeatedly marked by a territorial predator.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(0.8,0.8)</drawSize><color>(0.43,0.25,0.17)</color></graphicData>
+  </ThingDef>
+  <ThingDef ParentName="Herds_LandscapeFeatureBase">
+    <defName>Herds_FeedingRemains</defName><label>feeding remains</label>
+    <description>A persistent feeding place evidenced by scattered pale remains and disturbed ground.</description>
+    <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.0,1.0)</drawSize><color>(0.64,0.60,0.48)</color></graphicData>
+  </ThingDef>
+</Defs>

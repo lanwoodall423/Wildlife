@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <RulePackDef>
+    <defName>Herds_LogSignalAlarm</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] gave an alarm call.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalHumanDanger</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] gave a warning call about nearby humans.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalAllClear</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] gave an all-clear call.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalContact</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] gave a contact call to nearby animals.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalFood</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] called nearby animals toward food.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalWater</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] called nearby animals toward water.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalCoordination</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->[INITIATOR_nameDef] gave a hunting coordination call.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+</Defs>

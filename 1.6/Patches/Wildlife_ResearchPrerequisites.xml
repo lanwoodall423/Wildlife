@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+  <Operation Class="PatchOperationFindMod">
+    <mods>
+      <li>Vanilla Factions Expanded - Tribals</li>
+    </mods>
+    <match Class="PatchOperationAdd">
+      <xpath>Defs/ResearchProjectDef[defName="Wildlife_Fieldcraft"]</xpath>
+      <value>
+        <prerequisites>
+          <li>VFET_Hunting</li>
+        </prerequisites>
+      </value>
+    </match>
+  </Operation>
+  <Operation Class="PatchOperationConditional">
+    <xpath>Defs/ResearchProjectDef[defName="Wildlife_Fieldcraft"]/prerequisites/li[text()="RR_LateralThinking"]</xpath>
+    <match Class="PatchOperationRemove">
+      <xpath>Defs/ResearchProjectDef[defName="Wildlife_Fieldcraft"]/prerequisites/li[text()="RR_LateralThinking"]</xpath>
+    </match>
+  </Operation>
+</Patch>

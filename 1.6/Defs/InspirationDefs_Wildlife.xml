@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <InspirationDef>
+    <defName>Herds_WildlifeInsight</defName>
+    <label>wildlife insight</label>
+    <baseDurationDays>6</baseDurationDays>
+    <beginLetter>[PAWN_nameDef] has gained a profound insight into wildlife. [PAWN_pronoun] will track, hunt, tame, and study animals more effectively.</beginLetter>
+    <beginLetterDef>PositiveEvent</beginLetterDef>
+    <endMessage>{0} is no longer inspired by wildlife insight.</endMessage>
+    <baseInspectLine>Inspired: Wildlife insight</baseInspectLine>
+    <minAge>7</minAge>
+    <associatedSkills><li>Animals</li></associatedSkills>
+    <statFactors><HuntingStealth>1.3</HuntingStealth></statFactors>
+    <statOffsets><TameAnimalChance>0.15</TameAnimalChance><MoveSpeed>0.25</MoveSpeed></statOffsets>
+  </InspirationDef>
+
+  <TraitDef>
+    <defName>Herds_WildlifeAttuned</defName>
+    <commonality>0</commonality>
+    <degreeDatas>
+      <li>
+        <label>wildlife attuned</label>
+        <description>[PAWN_nameDef] has been shaped by years of close attention to animals, landscapes, and the stories people tell about them.</description>
+        <skillGains><Animals>2</Animals></skillGains>
+        <statOffsets><HuntingStealth>0.12</HuntingStealth><TameAnimalChance>0.06</TameAnimalChance></statOffsets>
+      </li>
+    </degreeDatas>
+  </TraitDef>
+</Defs>

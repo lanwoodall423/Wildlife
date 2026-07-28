@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="BuildingBase">
+    <defName>Herds_FolkloreCairn</defName>
+    <label>wildlife story cairn</label>
+    <description>A small cairn and carved marker dedicated to a remembered animal or wildlife story. Colonists can gather around it and pass the story on.</description>
+    <thingClass>Herds.Building_FolkloreCairn</thingClass>
+    <graphicData>
+      <texPath>Wildlife/Structures/AnimalBurrow</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(1.25,1.25)</drawSize>
+      <color>(0.48,0.43,0.29)</color>
+    </graphicData>
+    <size>(1,1)</size>
+    <passability>PassThroughOnly</passability>
+    <fillPercent>0.15</fillPercent>
+    <altitudeLayer>Building</altitudeLayer>
+    <designationCategory>Misc</designationCategory>
+    <minifiedDef>MinifiedThing</minifiedDef>
+    <thingCategories>
+      <li>BuildingsFurniture</li>
+    </thingCategories>
+    <constructionSkillPrerequisite>2</constructionSkillPrerequisite>
+    <costList><WoodLog>35</WoodLog></costList>
+    <researchPrerequisites><li>Wildlife_Fieldcraft</li></researchPrerequisites>
+    <statBases>
+      <WorkToBuild>900</WorkToBuild>
+      <MaxHitPoints>120</MaxHitPoints>
+      <Mass>8</Mass>
+      <Flammability>0.8</Flammability>
+      <Beauty>2</Beauty>
+    </statBases>
+    <comps>
+      <li Class="Herds.CompProperties_FolkloreDisplay"/>
+    </comps>
+  </ThingDef>
+</Defs>

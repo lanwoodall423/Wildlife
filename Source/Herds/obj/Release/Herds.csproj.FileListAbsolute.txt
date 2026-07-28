@@ -1,0 +1,13 @@
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Herds\1.6\Assemblies\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Herds\Source\obj\Release\Herds.csproj.AssemblyReference.cache
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Herds\Source\obj\Release\Herds.GeneratedMSBuildEditorConfig.editorconfig
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Herds\Source\obj\Release\Herds.csproj.CoreCompileInputs.cache
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Herds\Source\obj\Release\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\1.6\Assemblies\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\obj\Release\Herds.csproj.AssemblyReference.cache
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\obj\Release\Herds.GeneratedMSBuildEditorConfig.editorconfig
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\obj\Release\Herds.csproj.CoreCompileInputs.cache
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\obj\Release\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\DevTools\Staged\WildlifeCrossroads\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\DevTools\Staged\AnimalCallLog\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\Build\WildlifeMenu\Herds.dll

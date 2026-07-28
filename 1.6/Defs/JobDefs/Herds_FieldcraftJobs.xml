@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <JobDef>
+    <defName>Herds_ManObservationPost</defName>
+    <driverClass>Herds.JobDriver_ManObservationPost</driverClass>
+    <reportString>Manning observation post.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_FieldcraftHunt</defName><driverClass>Herds.JobDriver_FieldcraftHunt</driverClass>
+    <reportString>Approaching prey downwind.</reportString><playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_EmbarkHuntingExpedition</defName>
+    <driverClass>Herds.JobDriver_EmbarkHuntingExpedition</driverClass>
+    <reportString>Embarking on a wildlife expedition.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_StudyWildlifeSign</defName>
+    <driverClass>Herds.JobDriver_StudyWildlifeSign</driverClass>
+    <reportString>Studying wildlife signs.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_StudyLandscapeFeature</defName>
+    <driverClass>Herds.JobDriver_StudyLandscapeFeature</driverClass>
+    <reportString>studying a wildlife-shaped landscape.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_ObserveLandscapeCrossroad</defName>
+    <driverClass>Herds.JobDriver_ObserveLandscapeCrossroad</driverClass>
+    <reportString>observing a developing wild place.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_StewardLandscapeCrossroad</defName>
+    <driverClass>Herds.JobDriver_StewardLandscapeCrossroad</driverClass>
+    <reportString>stewarding a developing wild place.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_FollowWildlifeTrail</defName>
+    <driverClass>Herds.JobDriver_FollowWildlifeTrail</driverClass>
+    <reportString>Following a wildlife trail.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_StudyNotableAnimal</defName>
+    <driverClass>Herds.JobDriver_StudyNotableAnimal</driverClass>
+    <reportString>studying TargetA.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_ObserveWildlifeMoment</defName>
+    <driverClass>Herds.JobDriver_ObserveWildlifeMoment</driverClass>
+    <reportString>observing a wildlife moment.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_RetellWildlifeStory</defName>
+    <driverClass>Herds.JobDriver_RetellWildlifeStory</driverClass>
+    <reportString>sharing wildlife folklore.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+    <joyKind>Social</joyKind>
+  </JobDef>
+  <JobDef>
+    <defName>Herds_WildlifeCeremonyGather</defName>
+    <driverClass>Herds.JobDriver_WildlifeCeremonyGather</driverClass>
+    <reportString>attending a wildlife ceremony.</reportString>
+    <playerInterruptible>true</playerInterruptible>
+    <joyKind>Social</joyKind>
+  </JobDef>
+</Defs>
