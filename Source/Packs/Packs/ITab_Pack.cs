@@ -24,7 +24,7 @@ public sealed class ITab_Pack : ITab
             if (selected?.Spawned != true) return false;
             PackMapComponent component = selected.Map.GetComponent<PackMapComponent>();
             if (selected is Pawn pawn) return pawn.Faction == Faction.OfPlayer
-                ? pawn.RaceProps?.predator == true
+                ? HerdsCompatibility.IsPredator(pawn.def)
                 : component?.PackFor(pawn) != null;
             return selected is Building_PredatorDen den && component?.PackForDen(den) != null;
         }
@@ -37,7 +37,7 @@ public sealed class ITab_Pack : ITab
         Pawn selectedPawn = selected as Pawn;
         PackSnapshot pack = selectedPawn != null ? component?.PackFor(selectedPawn) : component?.PackForDen(selected as Building_PredatorDen);
         if (pack == null && selectedPawn?.Faction == Faction.OfPlayer &&
-            selectedPawn.RaceProps?.predator == true)
+            HerdsCompatibility.IsPredator(selectedPawn.def))
         {
             DrawTamedPredator(selectedPawn);
             return;

@@ -192,7 +192,8 @@ namespace Herds
 
         public void NotifyPredatorTargetsColonyAnimal(Pawn predator, Pawn prey)
         {
-            if (predator?.RaceProps?.predator != true || prey?.Faction != Faction.OfPlayer) return;
+            if (!WildlifeSpeciesClassification.IsPredator(predator?.def) ||
+                prey?.Faction != Faction.OfPlayer) return;
             Learn(predator, AnimalTraditionKind.EasyRanch, null, 0.38f, 0.85f);
         }
 
@@ -232,7 +233,7 @@ namespace Herds
 
         private bool SociallyLinked(Pawn teacher, Pawn listener)
         {
-            if (teacher.RaceProps.predator) return true;
+            if (WildlifeSpeciesClassification.IsPredator(teacher.def)) return true;
             HerdMapComponent herds = map.GetComponent<HerdMapComponent>();
             HerdSnapshot group = herds?.HerdFor(teacher);
             return group != null && group == herds.HerdFor(listener);

@@ -449,6 +449,8 @@ namespace Herds
             WildlifeProgression.RefreshDefGates();
             PreyProfileDatabase.Clear();
             WildlifeNicheDatabase.Clear();
+            foreach (ThingDef def in DefDatabase<ThingDef>.AllDefsListForReading)
+                if (def.race?.Animal == true) HerdsStartup.RefreshAnimalTabs(def);
             if (Current.Game?.Maps != null)
                 for (int i = 0; i < Current.Game.Maps.Count; i++) Current.Game.Maps[i].GetComponent<HerdMapComponent>()?.ForceRefresh();
             base.WriteSettings();

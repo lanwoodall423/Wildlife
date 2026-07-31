@@ -373,9 +373,7 @@ namespace Herds
                     MessageTypeDefOf.NeutralEvent, false);
                 return;
             }
-            Find.Selector.ClearSelection();
-            Find.Selector.Select(target);
-            CameraJumper.TryJump(target);
+            WildlifeUI.Focus(target);
         }
 
         public void NotifyExpedition(ThingDef species, ExpeditionObjective objective, bool success)
@@ -440,7 +438,7 @@ namespace Herds
             sign.species = mystery.species;
             sign.sourceAnimal = mystery.animal;
             sign.createdTick = Find.TickManager.TicksGame;
-            sign.predator = mystery.species.race.predator;
+            sign.predator = WildlifeSpeciesClassification.IsPredator(mystery.species);
             sign.signKind = sign.predator ? WildlifeSignKind.TerritoryMark : WildlifeSignKind.Tracks;
             sign.travelFrom = cell;
             sign.travelTo = map.Center;

@@ -73,20 +73,13 @@ namespace Herds
         {
             foreach (Gizmo gizmo in base.GetGizmos()) yield return gizmo;
             WildlifeTrailLead trail = HerdsMod.Settings.enableTrailReading
-                ? Map?.GetComponent<WildlifeTrailMapComponent>()?.LeadFor(species)
+                ? Map?.GetComponent<WildlifeTrailMapComponent>()?.LeadFor(sourceAnimal)
                 : null;
             if (trail != null)
-                yield return new Command_Action
-                {
-                    defaultLabel = "Trail Map",
-                    defaultDesc = "Open the reconstructed trail, review its evidence and confidence, or send a colonist to test its prediction.",
-                    icon = TexCommand.GatherSpotActive,
-                    action = () => Find.WindowStack.Add(new Window_WildlifeTrail(Map, trail))
-                };
-            if (!HerdsMod.Settings.enableSpeciesKnowledgeProgression || species == null) yield break;
+                yield break;
             yield return new Command_Action
             {
-                defaultLabel = "Study Wildlife", defaultDesc = "Choose a colonist to study this sign. They will gain animal knowledge and reconstruct a visible trail from nearby evidence. Each sign can be studied once per colonist.", icon = TexCommand.GatherSpotActive,
+                defaultLabel = "Study", defaultDesc = "Choose a colonist to study this sign and reconstruct the departed animal's trail.", icon = TexCommand.GatherSpotActive,
                 action = ShowStudyMenu
             };
         }
@@ -402,8 +395,8 @@ namespace Herds
             WildlifeSign sign = (WildlifeSign)ThingMaker.MakeThing(HerdsDefOf.Herds_WildlifeSign);
             sign.species = animal.def; sign.createdTick = Find.TickManager.TicksGame; sign.travelFrom = animal.Position - IntVec3.North; sign.travelTo = animal.Position;
             sign.sourceAnimal = animal;
-            sign.predator = animal.RaceProps.predator; sign.groupSize = map.GetComponent<HerdMapComponent>()?.HerdFor(animal)?.members.Count ?? 1;
-            sign.signKind = animal.health.summaryHealth.SummaryHealthPercent < 0.8f ? WildlifeSignKind.BloodTrail : animal.RaceProps.predator ? WildlifeSignKind.TerritoryMark : WildlifeSignKind.Tracks;
+            sign.predator = WildlifeSpeciesClassification.IsPredator(animal.def); sign.groupSize = map.GetComponent<HerdMapComponent>()?.HerdFor(animal)?.members.Count ?? 1;
+            sign.signKind = animal.health.summaryHealth.SummaryHealthPercent < 0.8f ? WildlifeSignKind.BloodTrail : sign.predator ? WildlifeSignKind.TerritoryMark : WildlifeSignKind.Tracks;
             GenSpawn.Spawn(sign, animal.Position, map);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("DevWildlifeSign", "kind=" + sign.signKind + " species=" + animal.def.defName, animal, sign);
             return sign;
@@ -435,7 +428,7 @@ namespace Herds
             sign.createdTick = Find.TickManager.TicksGame;
             sign.travelFrom = from.ClampInsideMap(map);
             sign.travelTo = cell;
-            sign.predator = animal.RaceProps.predator;
+            sign.predator = WildlifeSpeciesClassification.IsPredator(animal.def);
             sign.groupSize = map.GetComponent<HerdMapComponent>()?
                 .HerdFor(animal)?.members.Count ?? 1;
             sign.signKind = animal.health.summaryHealth.SummaryHealthPercent < 0.8f
@@ -508,7 +501,8 @@ namespace Herds
 
         public void SetDomesticRole(Pawn pawn, DomesticPredatorRole role)
         {
-            if (pawn?.Spawned != true || pawn.Faction != Faction.OfPlayer || pawn.RaceProps?.predator != true) return;
+            if (pawn?.Spawned != true || pawn.Faction != Faction.OfPlayer ||
+                !WildlifeSpeciesClassification.IsPredator(pawn.def)) return;
             domesticPredatorRoles.Remove(pawn);
             guardianAnchors.Remove(pawn);
             guardianRadii.Remove(pawn);
@@ -576,7 +570,7 @@ namespace Herds
                 sign.createdTick = now;
                 sign.travelFrom = old;
                 sign.travelTo = pawn.Position;
-                sign.predator = pawn.RaceProps.predator;
+                sign.predator = WildlifeSpeciesClassification.IsPredator(pawn.def);
                 sign.signKind = HerdsMod.Settings.enableWoundedTrackingAndRetreat && pawn.health.summaryHealth.SummaryHealthPercent < 0.8f ? WildlifeSignKind.BloodTrail : HerdsMod.Settings.enableTerritorialSigns && sign.predator && PositiveMod(pawn.thingIDNumber + now / 300, 4) == 0 ? WildlifeSignKind.TerritoryMark : (WildlifeSignKind)PositiveMod(pawn.thingIDNumber + now / 300, 3);
                 HerdSnapshot herd = map.GetComponent<HerdMapComponent>()?.HerdFor(pawn);
                 sign.groupSize = herd?.members.Count ?? 1;
@@ -606,7 +600,10 @@ namespace Herds
                 {
                     Pawn candidate = pawns[j];
                     if (candidate?.Spawned != true || candidate.Dead || candidate.Faction == Faction.OfPlayer) continue;
-                    bool validThreat = role == DomesticPredatorRole.RanchGuardian ? candidate.RaceProps.predator : role == DomesticPredatorRole.ColonyPatrol && candidate.Faction?.HostileTo(Faction.OfPlayer) == true;
+                    bool validThreat = role == DomesticPredatorRole.RanchGuardian
+                        ? WildlifeSpeciesClassification.IsPredator(candidate.def)
+                        : role == DomesticPredatorRole.ColonyPatrol &&
+                          candidate.Faction?.HostileTo(Faction.OfPlayer) == true;
                     if (!validThreat) continue;
                     float distance = candidate.Position.DistanceToSquared(anchor);
                     if (distance < best) { best = distance; threat = candidate; }
@@ -676,7 +673,7 @@ namespace Herds
         public static IEnumerable<Gizmo> Postfix(IEnumerable<Gizmo> values, Pawn __instance)
         {
             foreach (Gizmo gizmo in values) yield return gizmo;
-            if ((!HerdsMod.Settings.enableRanchGuardians && !HerdsMod.Settings.enableDomesticPredatorRoles) || __instance?.Spawned != true || __instance.Faction != Faction.OfPlayer || __instance.RaceProps?.Animal != true || !__instance.RaceProps.predator) yield break;
+            if ((!HerdsMod.Settings.enableRanchGuardians && !HerdsMod.Settings.enableDomesticPredatorRoles) || __instance?.Spawned != true || __instance.Faction != Faction.OfPlayer || __instance.RaceProps?.Animal != true || !WildlifeSpeciesClassification.IsPredator(__instance.def)) yield break;
             WildlifeFieldcraftMapComponent component = __instance.Map.GetComponent<WildlifeFieldcraftMapComponent>();
             Command_Action roleCommand = new Command_Action
             {

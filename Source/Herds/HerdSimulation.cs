@@ -1384,7 +1384,8 @@ namespace Herds
                     float detectionDistance = scentMasked ? 10f : concealed ? 14f : exposedDistance;
                     if (!attacker.Position.InHorDistOf(prey.Position, detectionDistance)) continue;
                 }
-                if (prey != null && (attacker.RaceProps.predator || attacker.HostileTo(prey)) && herdByPawn.TryGetValue(prey, out HerdSnapshot huntedGroup))
+                if (prey != null && (WildlifeSpeciesClassification.IsPredator(attacker.def) ||
+                    attacker.HostileTo(prey)) && herdByPawn.TryGetValue(prey, out HerdSnapshot huntedGroup))
                     RememberThreat(huntedGroup, attacker, now + 900);
             }
 
@@ -1547,7 +1548,9 @@ namespace Herds
                 for (int j = 0; j < pawns.Count; j++)
                 {
                     Pawn candidate = pawns[j];
-                    if (candidate?.Spawned != true || candidate.Dead || !candidate.RaceProps.predator || candidate.def == herd.species) continue;
+                    if (candidate?.Spawned != true || candidate.Dead ||
+                        !WildlifeSpeciesClassification.IsPredator(candidate.def) ||
+                        candidate.def == herd.species) continue;
                     if (candidate.Position.DistanceToSquared(herd.center) <= 1225) { nearbyPredator = candidate; break; }
                 }
                 if (nearbyPredator == null) continue;
@@ -1852,7 +1855,7 @@ namespace Herds
         }
 
         private static bool IsAerialPredator(Thing threat) =>
-            threat is Pawn pawn && pawn.RaceProps?.predator == true &&
+            threat is Pawn pawn && WildlifeSpeciesClassification.IsPredator(pawn.def) &&
             PreyProfileDatabase.IsBird(pawn.def) && !PreyProfileDatabase.IsFlightlessBird(pawn.def);
 
         private void PropagateAlarm(HerdSnapshot source, Thing threat, int now)
@@ -1938,7 +1941,8 @@ namespace Herds
             for (int pawnIndex = 0; pawnIndex < spawnedPawns.Count; pawnIndex++)
             {
                 Pawn candidate = spawnedPawns[pawnIndex];
-                if (candidate?.Spawned == true && !candidate.Dead && !candidate.Downed && candidate.RaceProps?.predator == true) hiddenThreatScratch.Add(candidate);
+                if (candidate?.Spawned == true && !candidate.Dead && !candidate.Downed &&
+                    WildlifeSpeciesClassification.IsPredator(candidate.def)) hiddenThreatScratch.Add(candidate);
             }
             float safeDistanceSquared = HerdsMod.Settings.hiddenPreySafeDistance * HerdsMod.Settings.hiddenPreySafeDistance;
             for (int i = hiddenRecords.Count - 1; i >= 0; i--)

@@ -77,13 +77,22 @@ namespace Herds
         new[] { typeof(Caravan), typeof(PlanetTile), typeof(PlanetTile), typeof(int?) })]
     public static class WildlifeExpeditionCaravanTravelCostPatch
     {
-        public static void Postfix(Caravan caravan, ref int __result)
+        public static void Postfix(Caravan caravan, PlanetTile start, PlanetTile end,
+            ref int __result)
         {
-            if (!WildlifeExpeditionCaravans.TryGet(caravan, out _, out HuntingExpeditionRecord record)) return;
-            float route = record.routePolicy == ExpeditionRoutePolicy.Fastest ? 0.82f :
-                record.routePolicy == ExpeditionRoutePolicy.Safest ? 1.12f : 1f;
-            float camp = record.bedrolls >= record.hunters.Count ? 0.94f : 1f;
-            __result = Mathf.Max(1, Mathf.RoundToInt(__result * route * camp));
+            float factor = 1f;
+            if (WildlifeExpeditionCaravans.TryGet(caravan,
+                out HuntingExpeditionMapComponent component, out HuntingExpeditionRecord record))
+            {
+                factor *= record.routePolicy == ExpeditionRoutePolicy.Fastest ? 0.82f :
+                    record.routePolicy == ExpeditionRoutePolicy.Safest ? 1.12f : 1f;
+                factor *= record.bedrolls >= record.hunters.Count ? 0.94f : 1f;
+                if (component.HasTrailPath(start, end)) factor *= 0.94f;
+            }
+            else if (Find.Maps.Any(map => map.GetComponent<HuntingExpeditionMapComponent>()?
+                .HasTrailPath(start, end) == true))
+                factor *= 0.94f;
+            __result = Mathf.Max(1, Mathf.RoundToInt(__result * factor));
         }
     }
 
@@ -166,7 +175,11 @@ namespace Herds
     public sealed class WorldDrawLayer_WildlifeExpeditionRoutes : WorldDrawLayer
     {
         public override bool Visible => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
-            Find.Maps.Any(map => map.GetComponent<HuntingExpeditionMapComponent>()?.ActiveExpeditions.Count > 0) && base.Visible;
+            Find.Maps.Any(map =>
+            {
+                HuntingExpeditionMapComponent component = map.GetComponent<HuntingExpeditionMapComponent>();
+                return component?.ActiveExpeditions.Count > 0 || component?.TrailPaths.Count > 0;
+            }) && base.Visible;
 
         public override IEnumerable Regenerate()
         {
@@ -181,6 +194,10 @@ namespace Herds
             {
                 HuntingExpeditionMapComponent component = map.GetComponent<HuntingExpeditionMapComponent>();
                 if (component == null) continue;
+                foreach (ExpeditionTrailPath path in component.TrailPaths)
+                    AddSegment(mesh, planetLayer.GetTileCenter((PlanetTile)path.fromTile),
+                        planetLayer.GetTileCenter((PlanetTile)path.toTile),
+                        new Color32(135, 104, 59, 205));
                 foreach (HuntingExpeditionRecord expedition in component.ActiveExpeditions)
                 {
                     if (expedition.routeTiles == null) continue;

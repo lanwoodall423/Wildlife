@@ -150,7 +150,7 @@ namespace Herds
                 sign.species = roamer.species;
                 sign.sourceAnimal = roamer.animal;
                 sign.createdTick = now;
-                sign.predator = roamer.species.race.predator;
+                sign.predator = WildlifeSpeciesClassification.IsPredator(roamer.species);
                 sign.groupSize = 1;
                 sign.signKind = roamer.tagged ? WildlifeSignKind.Tracks :
                     sign.predator ? WildlifeSignKind.TerritoryMark :
@@ -186,7 +186,7 @@ namespace Herds
                 lastWaveSeason == (int)season && lastWaveYear == year) return;
             RegionalWildlifeMapComponent regional = map.GetComponent<RegionalWildlifeMapComponent>();
             RegionalSpeciesRecord species = regional?.Records.Where(record =>
-                !record.species.race.predator && HuntingExpeditionMapComponent.IsHerdSpecies(record.species) &&
+                WildlifeSpeciesClassification.IsPrey(record.species) && HuntingExpeditionMapComponent.IsHerdSpecies(record.species) &&
                 record.nearbyPopulation >= 5f).OrderByDescending(record => record.nearbyPopulation).FirstOrDefault();
             if (species == null || !Rand.Chance(0.32f)) return;
             StartWave(species.species, Mathf.Clamp(Mathf.RoundToInt(species.nearbyPopulation * 0.35f), 3, 10), now);
@@ -370,7 +370,7 @@ namespace Herds
         {
             Map map = Find.CurrentMap;
             RegionalSpeciesRecord species = map?.GetComponent<RegionalWildlifeMapComponent>()?.Records
-                .FirstOrDefault(record => !record.species.race.predator);
+                .FirstOrDefault(record => WildlifeSpeciesClassification.IsPrey(record.species));
             if (species != null) map.GetComponent<WildlifeRegionalStoriesMapComponent>()?
                 .StartWave(species.species, 5, Find.TickManager.TicksGame);
         }

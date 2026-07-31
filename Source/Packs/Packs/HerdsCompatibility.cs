@@ -28,6 +28,12 @@ internal static class HerdsCompatibility
 	private static Func<Pawn, string> predatorSignalTooltip;
 	private static Func<Pawn, string> ecologicalRoleSummary;
 	private static Func<Pawn, string> ecologicalRoleTooltip;
+	private static Func<ThingDef, bool> isPredator;
+	private static Func<ThingDef, bool> isPrey;
+	private static Func<ThingDef, bool> hasPredatorOverride;
+	private static Func<ThingDef, bool> hasPreyOverride;
+	private static Action<ThingDef, bool, bool> setPredatorOverride;
+	private static Action<ThingDef, bool, bool> setPreyOverride;
 
 	public static bool Active
 	{
@@ -142,6 +148,43 @@ internal static class HerdsCompatibility
 			"No ecological landscape role is available.";
 	}
 
+	public static bool IsPredator(ThingDef species)
+	{
+		Initialize();
+		return isPredator?.Invoke(species) ?? species?.race?.predator == true;
+	}
+
+	public static bool IsPrey(ThingDef species)
+	{
+		Initialize();
+		return isPrey?.Invoke(species) ?? species?.race?.Animal == true &&
+			species.race.IsFlesh && !species.race.IsAnomalyEntity && !species.race.predator;
+	}
+
+	public static bool HasPredatorOverride(ThingDef species)
+	{
+		Initialize();
+		return hasPredatorOverride?.Invoke(species) == true;
+	}
+
+	public static bool HasPreyOverride(ThingDef species)
+	{
+		Initialize();
+		return hasPreyOverride?.Invoke(species) == true;
+	}
+
+	public static void SetPredatorOverride(ThingDef species, bool enabled, bool value)
+	{
+		Initialize();
+		setPredatorOverride?.Invoke(species, enabled, value);
+	}
+
+	public static void SetPreyOverride(ThingDef species, bool enabled, bool value)
+	{
+		Initialize();
+		setPreyOverride?.Invoke(species, enabled, value);
+	}
+
 	private static void Initialize()
 	{
 		if (initialized)
@@ -183,6 +226,21 @@ internal static class HerdsCompatibility
 				new Type[1] { typeof(Pawn) }, (Type[])null);
 			MethodInfo landscapeTooltip = AccessTools.Method(landscapeType, "RoleTooltip",
 				new Type[1] { typeof(Pawn) }, (Type[])null);
+				Type classificationType = AccessTools.TypeByName("Herds.WildlifeSpeciesClassification");
+				MethodInfo predatorMethod = AccessTools.Method(classificationType, "IsPredator",
+					new Type[1] { typeof(ThingDef) }, (Type[])null);
+				MethodInfo preyMethod = AccessTools.Method(classificationType, "IsPrey",
+					new Type[1] { typeof(ThingDef) }, (Type[])null);
+				MethodInfo hasPredatorMethod = AccessTools.Method(classificationType,
+					"HasPredatorOverride", new Type[1] { typeof(ThingDef) }, (Type[])null);
+				MethodInfo hasPreyMethod = AccessTools.Method(classificationType,
+					"HasPreyOverride", new Type[1] { typeof(ThingDef) }, (Type[])null);
+				MethodInfo setPredatorMethod = AccessTools.Method(classificationType,
+					"SetPredatorOverride", new Type[3]
+					{ typeof(ThingDef), typeof(bool), typeof(bool) }, (Type[])null);
+				MethodInfo setPreyMethod = AccessTools.Method(classificationType,
+					"SetPreyOverride", new Type[3]
+					{ typeof(ThingDef), typeof(bool), typeof(bool) }, (Type[])null);
 			if (methodInfo != null)
 			{
 				notifyThreat = (Action<Pawn, Thing, int>)Delegate.CreateDelegate(typeof(Action<Pawn, Thing, int>), methodInfo);
@@ -211,6 +269,20 @@ internal static class HerdsCompatibility
 				(Func<Pawn, string>)Delegate.CreateDelegate(typeof(Func<Pawn, string>), landscapeSummary);
 			if (landscapeTooltip != null) ecologicalRoleTooltip =
 				(Func<Pawn, string>)Delegate.CreateDelegate(typeof(Func<Pawn, string>), landscapeTooltip);
+				if (predatorMethod != null) isPredator =
+					(Func<ThingDef, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool>), predatorMethod);
+				if (preyMethod != null) isPrey =
+					(Func<ThingDef, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool>), preyMethod);
+				if (hasPredatorMethod != null) hasPredatorOverride =
+					(Func<ThingDef, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool>), hasPredatorMethod);
+				if (hasPreyMethod != null) hasPreyOverride =
+					(Func<ThingDef, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool>), hasPreyMethod);
+				if (setPredatorMethod != null) setPredatorOverride =
+					(Action<ThingDef, bool, bool>)Delegate.CreateDelegate(
+						typeof(Action<ThingDef, bool, bool>), setPredatorMethod);
+				if (setPreyMethod != null) setPreyOverride =
+					(Action<ThingDef, bool, bool>)Delegate.CreateDelegate(
+						typeof(Action<ThingDef, bool, bool>), setPreyMethod);
 		}
 		catch (Exception ex)
 		{

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <Herds.ExpeditionEventDef>
+    <defName>Wildlife_Event_RisingStorm</defName>
+    <label>Rising Storm</label>
+    <chance>0.16</chance>
+    <stages><li>OutboundTravel</li><li>Returning</li></stages>
+    <narrative>Dark weather closes over the route. The party can retreat, push through exposed ground, or shelter and lose time.</narrative>
+    <choices>
+      <li><label>Turn Back</label><description>Abandon the objective and return safely.</description><result>The party turned back before the storm closed the route.</result><turnBack>true</turnBack></li>
+      <li><label>Press On</label><description>Keep moving, accepting greater danger for a better chance to reach the target.</description><result>The party pressed through the storm.</result><delayTicks>2500</delayTicks><encounterModifier>0.06</encounterModifier><dangerModifier>0.09</dangerModifier></li>
+      <li><label>Make Shelter</label><description>Wait out the worst weather. The delay reduces immediate danger.</description><result>The party built shelter and waited for safer conditions.</result><delayTicks>9000</delayTicks><dangerModifier>-0.08</dangerModifier></li>
+    </choices>
+  </Herds.ExpeditionEventDef>
+
+  <Herds.ExpeditionEventDef>
+    <defName>Wildlife_Event_FreshCrossing</defName>
+    <label>Fresh Wildlife Crossing</label>
+    <chance>0.18</chance>
+    <stages><li>OutboundTravel</li><li>Tracking</li></stages>
+    <narrative>Fresh tracks cross the party's route. Following them may improve the expedition's position, but the detour is uncertain.</narrative>
+    <choices>
+      <li><label>Turn Back</label><description>End the expedition rather than risk the uncertain crossing.</description><result>The party abandoned the expedition at the crossing.</result><turnBack>true</turnBack></li>
+      <li><label>Press On</label><description>Ignore the crossing and maintain the planned route.</description><result>The party kept to its original route.</result></li>
+      <li><label>Read the Tracks</label><description>Spend time studying the crossing for knowledge and improved contact chances.</description><result>The party read the crossing and adjusted its search.</result><delayTicks>5000</delayTicks><encounterModifier>0.12</encounterModifier><successModifier>0.05</successModifier><knowledgeGain>14</knowledgeGain></li>
+    </choices>
+  </Herds.ExpeditionEventDef>
+
+  <Herds.ExpeditionEventDef>
+    <defName>Wildlife_Event_PredatorSign</defName>
+    <label>Predator Sign</label>
+    <chance>0.12</chance>
+    <stages><li>Tracking</li><li>Stalking</li></stages>
+    <narrative>A large predator has recently worked the same ground. The party must decide whether to withdraw, press on, or circle downwind.</narrative>
+    <choices>
+      <li><label>Turn Back</label><description>Leave the contested ground and return home.</description><result>The party withdrew from the predator's range.</result><turnBack>true</turnBack></li>
+      <li><label>Press On</label><description>Continue directly, improving contact at substantial risk.</description><result>The party pressed into the predator's range.</result><encounterModifier>0.10</encounterModifier><successModifier>0.04</successModifier><dangerModifier>0.14</dangerModifier></li>
+      <li><label>Circle Downwind</label><description>Take a slower route that lowers danger but sacrifices some opportunity.</description><result>The party circled downwind and avoided the freshest sign.</result><delayTicks>6500</delayTicks><encounterModifier>-0.04</encounterModifier><dangerModifier>-0.10</dangerModifier></li>
+    </choices>
+  </Herds.ExpeditionEventDef>
+</Defs>

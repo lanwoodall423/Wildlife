@@ -33,7 +33,8 @@ namespace Herds
 
             Pawn hostile = attacker as Pawn;
             if (hostile?.Spawned != true) return;
-            bool genuineThreat = hostile.HostileTo(Faction.OfPlayer) || hostile.RaceProps?.predator == true ||
+            bool genuineThreat = hostile.HostileTo(Faction.OfPlayer) ||
+                WildlifeSpeciesClassification.IsPredator(hostile.def) ||
                 hostile.InMentalState;
             if (!genuineThreat) return;
             List<Pawn> responders = animal.Map.mapPawns.FreeColonistsSpawned.Where(pawn =>

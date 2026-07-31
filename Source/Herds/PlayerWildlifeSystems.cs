@@ -149,7 +149,9 @@ namespace Herds
             for (int i = PositiveMod(now / 1200, 4); i < pawns.Count; i += 4)
             {
                 Pawn predator = pawns[i];
-                if (predator?.Spawned != true || predator.Dead || !predator.RaceProps.predator || predator.Faction == Faction.OfPlayer) continue;
+                if (predator?.Spawned != true || predator.Dead ||
+                    !WildlifeSpeciesClassification.IsPredator(predator.def) ||
+                    predator.Faction == Faction.OfPlayer) continue;
                 if (predator.Position.DistanceToSquared(colonyCenter) > 3600 || warningCooldowns.TryGetValue(predator.def.defName, out int until) && until > now) continue;
                 warningCooldowns[predator.def.defName] = now + 30000;
                 IntVec3 estimate = predator.Position + new IntVec3(skill >= 10 ? 0 : PositiveMod(predator.thingIDNumber, 21) - 10, 0, skill >= 10 ? 0 : PositiveMod(predator.thingIDNumber * 7, 21) - 10);
@@ -161,7 +163,8 @@ namespace Herds
 
         public void DebugPredatorWarning(Pawn predator)
         {
-            if (predator?.Spawned != true || !predator.RaceProps.predator) { Messages.Message("Choose a spawned predator.", MessageTypeDefOf.RejectInput, false); return; }
+            if (predator?.Spawned != true ||
+                !WildlifeSpeciesClassification.IsPredator(predator.def)) { Messages.Message("Choose a spawned predator.", MessageTypeDefOf.RejectInput, false); return; }
             int skill = map.GetComponent<WildlifeFieldcraftMapComponent>()?.BestTrackerSkill ?? 0;
             IntVec3 estimate = predator.Position + new IntVec3(skill >= 10 ? 0 : 10, 0, skill >= 10 ? 0 : -10);
             Messages.Message("DEV warning estimate: " + predator.def.LabelCap + " near the " + DirectionFromCenter(estimate) + ".", MessageTypeDefOf.ThreatSmall, false);
@@ -173,7 +176,9 @@ namespace Herds
             base.MapComponentDraw();
             if (!Prefs.DevMode || !FieldcraftDebug.WarningOverlay || Find.CurrentMap != map) return;
             IReadOnlyList<Pawn> pawns = map.mapPawns.AllPawnsSpawned;
-            for (int i = 0; i < pawns.Count; i++) if (pawns[i]?.Spawned == true && pawns[i].RaceProps.predator && pawns[i].Faction != Faction.OfPlayer) GenDraw.DrawRadiusRing(pawns[i].Position, 10f, Color.red);
+            for (int i = 0; i < pawns.Count; i++) if (pawns[i]?.Spawned == true &&
+                WildlifeSpeciesClassification.IsPredator(pawns[i].def) &&
+                pawns[i].Faction != Faction.OfPlayer) GenDraw.DrawRadiusRing(pawns[i].Position, 10f, Color.red);
         }
 
         private string DirectionFromCenter(IntVec3 cell)
@@ -992,9 +997,6 @@ namespace Herds
         {
             foreach (Gizmo gizmo in values) yield return gizmo;
             if (__instance?.Spawned != true) yield break;
-            if (HerdsMod.Settings.enableSpeciesKnowledgeProgression && !ProgressionEducationKnowledgeCompatibility.Active &&
-                __instance.Faction == Faction.OfPlayer && __instance.RaceProps.Humanlike)
-                yield return new Command_Action { defaultLabel = "Animal Knowledge", defaultDesc = "Review this colonist's personal knowledge and experience for each animal species.", icon = TexCommand.GatherSpotActive, action = () => Find.WindowStack.Add(new Window_SpeciesHuntingKnowledge(__instance)) };
             if (HerdsMod.Settings.enableWildlifeSteward && WildlifeProgression.Unlocked(WildlifeCapability.Stewardship) && __instance.Faction != Faction.OfPlayer && PreyProfileDatabase.IsEligible(__instance.def))
             {
                 WildlifeStewardMapComponent component = __instance.Map.GetComponent<WildlifeStewardMapComponent>();

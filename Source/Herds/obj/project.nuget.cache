@@ -1,11 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "1OU3AlhP8q8=",
+  "dgSpecHash": "DEBmdHjG2k8=",
   "success": true,
   "projectFilePath": "C:\\Games\\Steam\\steamapps\\common\\RimWorld\\Mods\\Wildlife\\Source\\Herds\\Herds.csproj",
-  "expectedPackageFiles": [
-    "C:\\Users\\Lan\\.nuget\\packages\\microsoft.netframework.referenceassemblies\\1.0.3\\microsoft.netframework.referenceassemblies.1.0.3.nupkg.sha512",
-    "C:\\Users\\Lan\\.nuget\\packages\\microsoft.netframework.referenceassemblies.net472\\1.0.3\\microsoft.netframework.referenceassemblies.net472.1.0.3.nupkg.sha512"
-  ],
+  "expectedPackageFiles": [],
   "logs": []
 }

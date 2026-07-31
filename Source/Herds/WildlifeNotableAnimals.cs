@@ -299,7 +299,7 @@ namespace Herds
                 sign.createdTick = now;
                 sign.travelFrom = record.lastKnownPosition.IsValid ? record.lastKnownPosition : record.animal.Position;
                 sign.travelTo = record.animal.Position;
-                sign.predator = record.animal.RaceProps.predator;
+                sign.predator = WildlifeSpeciesClassification.IsPredator(record.animal.def);
                 sign.signKind = sign.predator ? WildlifeSignKind.TerritoryMark : WildlifeSignKind.Tracks;
                 sign.legendary = true;
                 sign.legendTitle = record.title;
@@ -307,7 +307,8 @@ namespace Herds
             }
             if (Rand.Chance(0.45f))
                 MoteMaker.ThrowText(record.animal.DrawPos, map,
-                    record.animal.RaceProps.predator ? "A legendary call echoes." : "A legendary animal passes.");
+                    WildlifeSpeciesClassification.IsPredator(record.animal.def)
+                        ? "A legendary call echoes." : "A legendary animal passes.");
         }
 
         private void EvaluateCulturalStatus(NotableAnimalRecord record)
@@ -510,7 +511,8 @@ namespace Herds
             float age = pawn.RaceProps.lifeExpectancy <= 0f ? 0f :
                 pawn.ageTracker.AgeBiologicalYearsFloat / pawn.RaceProps.lifeExpectancy;
             return Mathf.Clamp01(age * 0.55f + Mathf.InverseLerp(0.2f, 3f, pawn.BodySize) * 0.25f +
-                (pawn.RaceProps.predator ? 0.18f : 0f) + pawn.health.hediffSet.hediffs.Count * 0.025f);
+                (WildlifeSpeciesClassification.IsPredator(pawn.def) ? 0.18f : 0f) +
+                pawn.health.hediffSet.hediffs.Count * 0.025f);
         }
 
         [DebugAction("Wildlife", "Make animal notable", actionType = DebugActionType.ToolMap,

@@ -73,7 +73,7 @@ namespace Herds
             string food = race.foodType.ToString().ToLowerInvariant();
             string identity = ((species.defName ?? "") + " " + (species.label ?? "") + " " +
                 (race.body?.defName ?? "")).ToLowerInvariant();
-            bool predator = race.predator;
+            bool predator = WildlifeSpeciesClassification.IsPredator(species);
             bool bird = PreyProfileDatabase.IsBird(species);
             bool flightless = PreyProfileDatabase.IsFlightlessBird(species);
             bool waterfowl = PreyProfileDatabase.IsWaterfowl(species);
@@ -223,8 +223,19 @@ namespace Herds
         public override void TickRare()
         {
             base.TickRare();
-            if (HerdsMod.Settings?.enableWildlifeLandscaping != true || protectedByColony) return;
+            if (HerdsMod.Settings?.enableWildlifeLandscaping != true) return;
             int now = Find.TickManager.TicksGame;
+            if (kind == WildlifeLandscapeKind.FeedingRemains)
+            {
+                float consumption = Map?.mapPawns.AllPawnsSpawned.Count(pawn =>
+                    pawn.RaceProps?.Animal == true && !pawn.Dead &&
+                    WildlifeNicheDatabase.RolesFor(pawn.def).Contains(WildlifeEcologicalRole.Scavenger) &&
+                    pawn.Position.DistanceToSquared(Position) <= InfluenceRadius * InfluenceRadius) ?? 0;
+                strength = Mathf.Max(0f, strength - (0.00045f + consumption * 0.00065f));
+                if (strength <= 0.02f) Destroy(DestroyMode.Vanish);
+                return;
+            }
+            if (protectedByColony) return;
             if (now - lastUsedTick < 600000) return;
             strength = Mathf.Max(0f, strength - 0.0002f);
             if (strength <= 0.02f && now - lastUsedTick > 1800000)
@@ -609,6 +620,8 @@ namespace Herds
             new Dictionary<Pawn, IntVec3>();
         private int nextScanTick;
         private int nextActivityId = 1;
+        private readonly Dictionary<WildlifeLandscapeFeature, float> grazingEffectiveness =
+            new Dictionary<WildlifeLandscapeFeature, float>();
         private int lastCrossroadLetterTick = -999999;
 
         public IReadOnlyList<WildlifeLandscapeActivity> Activities => activities;
@@ -618,6 +631,12 @@ namespace Herds
             map.listerThings.AllThings.OfType<WildlifeLandscapeCrossroad>();
 
         public WildlifeLandscapeMapComponent(Map map) : base(map) { }
+
+        public override void FinalizeInit()
+        {
+            base.FinalizeInit();
+            RefreshGrazingEffectiveness(Features);
+        }
 
         public override void ExposeData()
         {
@@ -653,6 +672,7 @@ namespace Herds
                 foreach (WildlifeLandscapeCrossroad marker in Crossroads.ToList())
                     marker.Destroy(DestroyMode.Vanish);
             List<WildlifeLandscapeFeature> features = Features.ToList();
+            RefreshGrazingEffectiveness(features);
             IReadOnlyList<Pawn> pawns = map.mapPawns.AllPawnsSpawned;
             Dictionary<ThingDef, int> localCounts = new Dictionary<ThingDef, int>();
             for (int i = 0; i < pawns.Count; i++)
@@ -1003,6 +1023,8 @@ namespace Herds
                 response == WildlifeCrossroadResponse.Stewarded ? 0.55f :
                 response == WildlifeCrossroadResponse.LeftWild ? 0.48f : 0.35f;
             GenSpawn.Spawn(feature, cell, map);
+            if (kind == WildlifeLandscapeKind.GrazingGround)
+                grazingEffectiveness[feature] = Effectiveness(feature);
             WildlifeTestLog.Count("landscape.formed." + kind);
             WildlifeTestLog.Write("LivingLandscape",
                 "formed kind=" + kind + " species=" +
@@ -1053,9 +1075,13 @@ namespace Herds
         {
             if (HerdsMod.Settings?.enableWildlifeLandscaping != true ||
                 HerdsMod.Settings.enableLandscapeEffects != true || species == null) return 0f;
-            float attraction = Features.Where(feature => feature.species == species)
+            bool scavenger = WildlifeNicheDatabase.RolesFor(species)
+                .Contains(WildlifeEcologicalRole.Scavenger);
+            float attraction = Features.Where(feature => feature.species == species ||
+                    (scavenger && feature.kind == WildlifeLandscapeKind.FeedingRemains))
                 .Sum(feature => feature.strength *
-                    (feature.protectedByColony ? 0.075f : 0.045f) * Effectiveness(feature));
+                    (feature.kind == WildlifeLandscapeKind.FeedingRemains ? 0.09f :
+                        feature.protectedByColony ? 0.075f : 0.045f) * Effectiveness(feature));
             return Mathf.Min(0.35f, attraction);
         }
 
@@ -1078,6 +1104,34 @@ namespace Herds
             buildings <= 0 ? 1f : buildings == 1 ? 0.6f :
             buildings == 2 ? 0.35f : 0.15f;
 
+        public float GrazingGrowthBonusAt(IntVec3 cell)
+        {
+            if (HerdsMod.Settings?.enableWildlifeLandscaping != true ||
+                HerdsMod.Settings.enableLandscapeEffects != true || !cell.InBounds(map) ||
+                grazingEffectiveness.Count == 0) return 0f;
+            float bonus = 0f;
+            foreach (KeyValuePair<WildlifeLandscapeFeature, float> entry in grazingEffectiveness)
+            {
+                WildlifeLandscapeFeature feature = entry.Key;
+                if (feature?.Spawned != true || feature.strength <= 0.02f ||
+                    feature.Position.DistanceToSquared(cell) > feature.InfluenceRadius * feature.InfluenceRadius)
+                    continue;
+                bonus = Mathf.Max(bonus, GrazingGrowthBonus(entry.Value));
+            }
+            return bonus;
+        }
+
+        private void RefreshGrazingEffectiveness(IEnumerable<WildlifeLandscapeFeature> features)
+        {
+            grazingEffectiveness.Clear();
+            foreach (WildlifeLandscapeFeature feature in features.Where(value =>
+                value?.Spawned == true && value.kind == WildlifeLandscapeKind.GrazingGround))
+                grazingEffectiveness[feature] = Effectiveness(feature);
+        }
+
+        internal static float GrazingGrowthBonus(float effectiveness) =>
+            Mathf.Clamp01(effectiveness) * 0.5f;
+
         public IntVec3 PreferredFeatureTarget(Pawn animal, IntVec3 center, int seed)
         {
             if (HerdsMod.Settings?.enableWildlifeLandscaping != true ||
@@ -1085,7 +1139,10 @@ namespace Herds
                 PositiveMod(seed + Find.TickManager.TicksGame / 2500, 4) != 0)
                 return IntVec3.Invalid;
             WildlifeLandscapeFeature feature = Features
-                .Where(value => value.species == animal.def &&
+                .Where(value => (value.species == animal.def ||
+                        (value.kind == WildlifeLandscapeKind.FeedingRemains &&
+                         WildlifeNicheDatabase.RolesFor(animal.def)
+                            .Contains(WildlifeEcologicalRole.Scavenger))) &&
                     value.Position.DistanceToSquared(center) <= 6400)
                 .OrderBy(value => value.Position.DistanceToSquared(center))
                 .FirstOrDefault();
@@ -1332,6 +1389,29 @@ namespace Herds
         }
     }
 
+    [HarmonyLib.HarmonyPatch(typeof(Plant), "get_GrowthRate")]
+    public static class GrazingGroundGrowthPatch
+    {
+        public static void Postfix(Plant __instance, ref float __result)
+        {
+            if (!ShouldQueryGrowthBonus(__instance?.Spawned == true, __result, __instance?.def)) return;
+            float bonus = __instance.Map.GetComponent<WildlifeLandscapeMapComponent>()?
+                .GrazingGrowthBonusAt(__instance.Position) ?? 0f;
+            __result = ApplyGrowthBonus(__result, true, bonus);
+        }
+
+        internal static bool ShouldQueryGrowthBonus(bool spawned, float growthRate, ThingDef def) =>
+            spawned && growthRate > 0f && IsGrass(def);
+
+        internal static float ApplyGrowthBonus(float growthRate, bool grass, float bonus) =>
+            growthRate > 0f && grass && bonus > 0f ? growthRate * (1f + bonus) : growthRate;
+
+        internal static bool IsGrass(ThingDef def) => def?.plant != null &&
+            (def == ThingDefOf.Plant_Grass ||
+             def.defName?.IndexOf("grass", StringComparison.OrdinalIgnoreCase) >= 0 ||
+             def.label?.IndexOf("grass", StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
     public static class WildlifeLandscapeUtility
     {
         public static string RoleSummary(ThingDef species)
@@ -1378,7 +1458,7 @@ namespace Herds
 
         public static string Effect(WildlifeLandscapeKind kind) =>
             kind == WildlifeLandscapeKind.GameTrail ? "Reused route; encourages local movement and return migration." :
-            kind == WildlifeLandscapeKind.GrazingGround ? "Maintained forage patch; improves habitat carrying capacity." :
+            kind == WildlifeLandscapeKind.GrazingGround ? "Maintained forage patch; increases grass growth within its effective area." :
             kind == WildlifeLandscapeKind.BrowsedGrove ? "Browsed woodland edge; attracts compatible herbivores." :
             kind == WildlifeLandscapeKind.RootingWallow ? "Disturbed fertile soil; attracts rooting omnivores." :
             kind == WildlifeLandscapeKind.SeedGrove ? "Cached and dispersed seed; strengthens shelter and forage habitat." :

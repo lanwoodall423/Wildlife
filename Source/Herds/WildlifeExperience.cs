@@ -40,8 +40,10 @@ namespace Herds
         internal static void CloseMenus()
         {
             foreach (Window window in Find.WindowStack.Windows.ToList())
-                if (window.layer == WindowLayer.Dialog || window is FloatMenu)
+                if (window is FloatMenu || window.GetType().Namespace == typeof(WildlifeUI).Namespace)
                     window.Close(false);
+            if (Find.MainTabsRoot?.OpenTab?.TabWindow is MainTabWindow_Wildlife)
+                Find.MainTabsRoot.EscapeCurrentTab(false);
         }
 
         internal static void Focus(Thing thing)
@@ -55,6 +57,9 @@ namespace Herds
         {
             if (!cell.IsValid || map == null) return;
             CloseMenus();
+            Thing target = cell.GetThingList(map).FirstOrDefault(thing => thing.def.selectable);
+            Find.Selector.ClearSelection();
+            if (target != null) Find.Selector.Select(target);
             CameraJumper.TryJump(cell, map);
         }
 
@@ -227,7 +232,8 @@ namespace Herds
 
             List<Pawn> animals = map.mapPawns.AllPawnsSpawned.Where(pawn => pawn.RaceProps?.Animal == true).ToList();
             int wild = animals.Count(pawn => pawn.Faction == null);
-            int predators = animals.Count(pawn => pawn.RaceProps.predator && pawn.Faction == null);
+            int predators = animals.Count(pawn =>
+                WildlifeSpeciesClassification.IsPredator(pawn.def) && pawn.Faction == null);
             int knownSpecies = DefDatabase<ThingDef>.AllDefsListForReading.Count(def => def.race?.Animal == true && HuntingKnowledgeMapComponent.ColonyExperience(def) > 0f);
             RegionalWildlifeMapComponent regional = HerdsMod.Settings.enableRegionalPopulations ? map.GetComponent<RegionalWildlifeMapComponent>() : null;
             int regionalSpecies = regional?.Records.Count(record => record.population > 0.05f && HuntingKnowledgeMapComponent.ColonyExperience(record.species) > 0f) ?? 0;
@@ -362,14 +368,6 @@ namespace Herds
                     accent = new Color(0.43f, 0.38f, 0.62f),
                     action = () => Find.WindowStack.Add(new Window_WildlifeSignals(map, null))
                 } : null;
-            OverviewNavigation trailLeads = HerdsMod.Settings.enableTrailReading
-                ? new OverviewNavigation
-                {
-                    title = "Trail Leads", detail = "Follow animals beyond the map",
-                    tooltip = "Study evidence left by animals that departed, then pursue time-sensitive regional leads.",
-                    accent = new Color(0.43f, 0.55f, 0.29f),
-                    action = () => Find.WindowStack.Add(new Window_WildlifeTrailBoard(map))
-                } : null;
             OverviewNavigation landscape = HerdsMod.Settings.enableWildlifeLandscaping
                 ? new OverviewNavigation
                 {
@@ -399,7 +397,7 @@ namespace Herds
                     accent = new Color(0.52f, 0.45f, 0.31f),
                     action = () => Find.WindowStack.Add(new Window_WildlifeProgression())
                 } : null;
-            return new[] { animalKnowledge, localWildlife, signalGuide, trailLeads,
+            return new[] { animalKnowledge, localWildlife, signalGuide,
                 landscape, fieldJournal, progression }.Where(item => item != null).ToList();
         }
 
@@ -419,14 +417,12 @@ namespace Herds
                 if (now >= nextTrailSuggestionTick)
                 {
                     nextTrailSuggestionTick = now + 120;
-                    cachedUrgentTrailCount = map?.listerThings
-                        .ThingsOfDef(HerdsDefOf.Herds_WildlifeSign)
-                        .OfType<WildlifeSign>().Count(sign => sign.predator ||
-                            sign.signKind == WildlifeSignKind.BloodTrail) ?? 0;
+                    cachedUrgentTrailCount = map?.GetComponent<WildlifeTrailMapComponent>()?
+                        .UrgentLeadCount ?? 0;
                 }
                 if (cachedUrgentTrailCount > 0)
                     return "Suggested next step: review " + cachedUrgentTrailCount +
-                        " urgent predator or blood-trail clue" +
+                        " urgent predator or blood-trail lead" +
                         (cachedUrgentTrailCount == 1 ? "" : "s") +
                         " in Trail Leads.";
             }

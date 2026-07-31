@@ -13,12 +13,12 @@ namespace Herds
 {
     internal static class WildlifeTabKnowledgePolicy
     {
-        internal static bool RevealsIdentity(int level) => level >= 1;
-        internal static bool RevealsSocialStructure(int level) => level >= 2;
-        internal static bool RevealsBehavior(int level) => level >= 3;
-        internal static bool RevealsHabitat(int level) => level >= 3;
-        internal static bool RevealsSignals(int level) => level >= 4;
-        internal static bool RevealsIndividualMemory(int level) => level >= 5;
+        internal static bool RevealsIdentity(int level) => level >= 0;
+        internal static bool RevealsSocialStructure(int level) => level >= 1;
+        internal static bool RevealsBehavior(int level) => level >= 1;
+        internal static bool RevealsHabitat(int level) => level >= 2;
+        internal static bool RevealsSignals(int level) => level >= 2;
+        internal static bool RevealsIndividualMemory(int level) => level >= 3;
     }
 
     [StaticConstructorOnStartup]
@@ -39,7 +39,7 @@ namespace Herds
                 }
                 WildlifeProgression.RefreshDefGates();
                 HerdsMod.Harmony.PatchAll(Assembly.GetExecutingAssembly());
-                ProgressionEducationKnowledgeCompatibility.Initialize();
+                WildlifeSharedKnowledgeIntegration.Register();
             });
         }
 
@@ -61,7 +61,8 @@ namespace Herds
             if (PreyProfileDatabase.IsEligible(def) && !def.inspectorTabs.Contains(typeof(ITab_Herd)))
                 def.inspectorTabs.Add(typeof(ITab_Herd));
             Type packTab = AccessTools.TypeByName("Packs.ITab_Pack");
-            if (def.race.predator && packTab != null && !def.inspectorTabs.Contains(packTab))
+            if (WildlifeSpeciesClassification.IsPredator(def) && packTab != null &&
+                !def.inspectorTabs.Contains(packTab))
                 def.inspectorTabs.Add(packTab);
             string[] order =
             {
@@ -82,6 +83,28 @@ namespace Herds
             def.inspectorTabs = ordered;
             if (def.inspectorTabsResolved != null)
                 def.inspectorTabsResolved = ordered.Select(InspectTabManager.GetSharedInstance).ToList();
+        }
+
+        public static void RefreshAnimalTabs(ThingDef def)
+        {
+            if (def?.race?.Animal != true) return;
+            Type packTab = AccessTools.TypeByName("Packs.ITab_Pack");
+            if (def.inspectorTabs == null) def.inspectorTabs = new List<Type>();
+            if (PreyProfileDatabase.IsEligible(def))
+            {
+                if (!def.inspectorTabs.Contains(typeof(ITab_Herd)))
+                    def.inspectorTabs.Add(typeof(ITab_Herd));
+            }
+            else def.inspectorTabs.Remove(typeof(ITab_Herd));
+            if (packTab != null)
+            {
+                if (WildlifeSpeciesClassification.IsPredator(def))
+                {
+                    if (!def.inspectorTabs.Contains(packTab)) def.inspectorTabs.Add(packTab);
+                }
+                else def.inspectorTabs.Remove(packTab);
+            }
+            ReorderAnimalTabs(def);
         }
     }
 
@@ -831,37 +854,59 @@ namespace Herds
             if (species?.race?.Animal != true || source == null) return source;
             int level = HuntingKnowledgeMapComponent.ColonyLevel(species);
             List<StatDrawEntry> visible = source.Where(entry => entry.LabelCap != "Animal Knowledge" && RequiredLevel(entry) <= level).ToList();
+            visible = DescriptionFirst(visible, entry => entry.LabelCap);
             string tier = HuntingKnowledgeMapComponent.LevelLabel(level);
-            string explanation = level >= 5
+            string explanation = level >= 3
                 ? "The colony has mastered this species; all known statistics are visible."
                 : "Observe, track, wound, tend, or hunt this species to reveal additional statistics. Current colony knowledge: " + HuntingKnowledgeMapComponent.ColonyExperience(species).ToString("0") + " XP.";
-            visible.Insert(0, new StatDrawEntry(StatCategoryDefOf.BasicsImportant, "Animal Knowledge", tier, explanation, 99999, "Animal Knowledge", null, false, true));
+            int knowledgeIndex = AnimalKnowledgeInsertIndex(visible.Select(entry => entry.LabelCap));
+            visible.Insert(knowledgeIndex, new StatDrawEntry(StatCategoryDefOf.BasicsImportant, "Animal Knowledge", tier, explanation, 99999, "Animal Knowledge", null, false, true));
             return visible;
+        }
+
+        internal static int AnimalKnowledgeInsertIndex(IEnumerable<string> labels)
+        {
+            List<string> values = labels?.ToList() ?? new List<string>();
+            int description = values.FindIndex(label =>
+                string.Equals(label, "Description", StringComparison.OrdinalIgnoreCase));
+            return description < 0 ? 0 : description + 1;
+        }
+
+        internal static List<T> DescriptionFirst<T>(IEnumerable<T> values, Func<T, string> label)
+        {
+            List<T> ordered = values?.ToList() ?? new List<T>();
+            int description = ordered.FindIndex(value =>
+                string.Equals(label(value), "Description", StringComparison.OrdinalIgnoreCase));
+            if (description <= 0) return ordered;
+            T item = ordered[description];
+            ordered.RemoveAt(description);
+            ordered.Insert(0, item);
+            return ordered;
         }
 
         internal static int RequiredLevel(StatDrawEntry entry)
         {
-            if (entry == null) return 5;
+            if (entry == null) return 3;
             StatCategoryDef category = entry.category;
             string name = entry.stat?.defName ?? entry.LabelCap ?? string.Empty;
             if (name.IndexOf("Leather", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("Meat", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 name.IndexOf("Wool", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("Milk", StringComparison.OrdinalIgnoreCase) >= 0) return 4;
+                name.IndexOf("Milk", StringComparison.OrdinalIgnoreCase) >= 0) return 3;
             if (name.Equals("Race", StringComparison.OrdinalIgnoreCase) || name.Equals("Sex", StringComparison.OrdinalIgnoreCase)) return 1;
             if (category == StatCategoryDefOf.Basics || category == StatCategoryDefOf.BasicsImportant || category == StatCategoryDefOf.BasicsPawn || category == StatCategoryDefOf.BasicsPawnImportant)
                 return name.Contains("Market") || name.Contains("Beauty") ? 2 : 1;
             if (category == StatCategoryDefOf.PawnFood) return 2;
             if (category == StatCategoryDefOf.PawnCombat || name.Contains("Melee") || name.Contains("Armor") || name.Contains("Dodge")) return 3;
             if (category == StatCategoryDefOf.PawnHealth || name.Contains("Immunity") || name.Contains("Bleed") || name.Contains("Toxic")) return 3;
-            if (category == StatCategoryDefOf.PawnResistances || category == StatCategoryDefOf.AnimalProductivity || name.Contains("Meat") || name.Contains("Leather") || name.Contains("Wool") || name.Contains("Milk")) return 4;
+            if (category == StatCategoryDefOf.PawnResistances || category == StatCategoryDefOf.AnimalProductivity || name.Contains("Meat") || name.Contains("Leather") || name.Contains("Wool") || name.Contains("Milk")) return 3;
             if (category == StatCategoryDefOf.Animals)
             {
                 if (name.Contains("Wildness") || name.Contains("Trainability") || name.Contains("BodySize") || name.Contains("MoveSpeed")) return 1;
                 return 2;
             }
             if (category == StatCategoryDefOf.PawnMisc) return 2;
-            return entry.stat == null ? 1 : 4;
+            return entry.stat == null ? 1 : 3;
         }
     }
 

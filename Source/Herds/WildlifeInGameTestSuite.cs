@@ -109,6 +109,14 @@ namespace Herds
                     typeof(ChoiceLetter_WildlifeStory),
                     "Colony Story notification uses Folklore routing letter");
                 Check("Defs", HerdsDefOf.Herds_EmbarkHuntingExpedition != null, "Wildlife embark job");
+                List<ExpeditionEventDef> expeditionEvents =
+                    DefDatabase<ExpeditionEventDef>.AllDefsListForReading;
+                Check("Defs", expeditionEvents.Count >= 3 && expeditionEvents.All(eventDef =>
+                        eventDef.chance > 0f && !eventDef.choices.NullOrEmpty() &&
+                        eventDef.choices.Any(choice => choice.turnBack) &&
+                        eventDef.choices.Any(choice => choice.label == "Press On") &&
+                        eventDef.choices.Any(choice => !choice.turnBack && choice.label != "Press On")),
+                    "Expandable expedition events provide Turn Back, Press On, and event-specific choices");
                 Check("Defs", HerdsDefOf.Herds_HuntingExpeditionMarker != null, "Wildlife expedition marker");
                 Check("Defs", HerdsDefOf.Herds_HuntingSpot != null, "Hunting Spot");
                 Check("Defs", HerdsDefOf.Herds_ObservationPost != null, "Observation Post");
@@ -174,6 +182,14 @@ namespace Herds
                         "Local species resolve only valid ecological roles");
                     WildlifeLandscapeMapComponent landscape =
                         map.GetComponent<WildlifeLandscapeMapComponent>();
+                    Check("Landscape", landscape.Features
+                            .Where(feature => feature.kind == WildlifeLandscapeKind.FeedingRemains)
+                            .All(feature => feature.strength > 0f &&
+                                WildlifeLandscapeUtility.Effect(feature.kind).Contains("feeding site")) &&
+                        typeof(WildlifeLandscapeFeature).GetMethod("TickRare") != null &&
+                        typeof(WildlifeLandscapeMapComponent).GetMethod("MigrationAttraction") != null &&
+                        typeof(WildlifeLandscapeMapComponent).GetMethod("PreferredFeatureTarget") != null,
+                        "Feeding remains attract scavengers and expose gradual consumption lifecycle behavior");
                     Check("Landscape", landscape.Activities.All(activity => activity.id > 0) &&
                         landscape.Activities.Select(activity => activity.id).Distinct().Count() ==
                         landscape.Activities.Count,
@@ -186,6 +202,21 @@ namespace Herds
                         WildlifeLandscapeMapComponent.ObstructionEffectiveness(1) <= 0.6f &&
                         WildlifeLandscapeMapComponent.ObstructionEffectiveness(3) <= 0.15f,
                         "Colony construction sharply reduces Landscape effectiveness");
+                    Check("Landscape",
+                        WildlifeLandscapeMapComponent.GrazingGrowthBonus(0f) == 0f &&
+                        WildlifeLandscapeMapComponent.GrazingGrowthBonus(0.5f) > 0f &&
+                        WildlifeLandscapeMapComponent.GrazingGrowthBonus(1f) >
+                            WildlifeLandscapeMapComponent.GrazingGrowthBonus(0.5f) &&
+                        GrazingGroundGrowthPatch.ApplyGrowthBonus(1f, true, 0.5f) > 1f &&
+                        GrazingGroundGrowthPatch.ApplyGrowthBonus(1f, true, 0f) == 1f &&
+                        GrazingGroundGrowthPatch.ApplyGrowthBonus(1f, false, 0.5f) == 1f &&
+                        GrazingGroundGrowthPatch.IsGrass(ThingDefOf.Plant_Grass) &&
+                        GrazingGroundGrowthPatch.ShouldQueryGrowthBonus(true, 1f, ThingDefOf.Plant_Grass) &&
+                        !GrazingGroundGrowthPatch.ShouldQueryGrowthBonus(true, 1f,
+                            DefDatabase<ThingDef>.GetNamed("Plant_Rice")) &&
+                        !GrazingGroundGrowthPatch.ShouldQueryGrowthBonus(false, 1f, ThingDefOf.Plant_Grass) &&
+                        !GrazingGroundGrowthPatch.ShouldQueryGrowthBonus(true, 0f, ThingDefOf.Plant_Grass),
+                        "Grazing Grounds scale grass growth with effectiveness and remove inactive bonuses");
                     Check("Landscape",
                         WildlifeFieldJournalMapComponent.ProjectLabel(
                             WildlifeStewardProjectKind.RanchDefense) ==
@@ -240,7 +271,9 @@ namespace Herds
                     Check("Predators", packs != null, "Pack component present");
                     Check("Predators", lines != null && lines.Count > 0, "Predator state API responds");
                     List<Pawn> wildPredators = map.mapPawns.AllPawnsSpawned
-                        .Where(pawn => pawn?.Dead == false && pawn.RaceProps?.predator == true && pawn.Faction != Faction.OfPlayer).ToList();
+                        .Where(pawn => pawn?.Dead == false &&
+                            WildlifeSpeciesClassification.IsPredator(pawn.def) &&
+                            pawn.Faction != Faction.OfPlayer).ToList();
                     Warn("Predators", wildPredators.Count > 0, "No wild predators available for live behavior checks");
                 });
 
@@ -262,6 +295,16 @@ namespace Herds
                         "Selected wildlife signs expose an explicit colonist study menu");
                     Check("Fieldcraft", trails?.TrailLeads != null,
                         "Trail records are available for bridge and UI assessment");
+                    List<WildlifeSign> availableLeadSigns = trails?.AvailableLeadSigns() ??
+                        new List<WildlifeSign>();
+                    int urgentLeadCount = WildlifeTrailMapComponent.CountUrgentLeads(
+                        availableLeadSigns);
+                    Check("Fieldcraft", trails?.UrgentLeadCount == urgentLeadCount &&
+                        WildlifeTrailMapComponent.CountUrgentLeads(
+                            availableLeadSigns.Concat(availableLeadSigns)) == urgentLeadCount &&
+                        urgentLeadCount <= availableLeadSigns.Select(sign =>
+                            sign.sourceAnimal).Distinct().Count(),
+                        "Wildlife Overview counts grouped Trail Leads rather than individual clues");
                     Check("Fieldcraft", JobDriver_StudyNotableAnimal.MinimumStudyDistance >= 18f &&
                         JobDriver_StudyNotableAnimal.MaximumStudyDistance >
                             JobDriver_StudyNotableAnimal.MinimumStudyDistance &&
@@ -278,11 +321,11 @@ namespace Herds
                             new TrailHuntOpportunity { quality = 0f }),
                         "Trail hunt opportunities provide progressive expedition advantages");
                     Check("Fieldcraft", trails.TrailLeads.All(lead => lead?.species != null &&
+                        lead.targetAnimal != null && !lead.targetAnimal.Spawned &&
                         Enum.IsDefined(typeof(WildlifeTrailState), lead.state) &&
-                        (lead.targetAnimal == null || lead.targetAnimal.def == lead.species) &&
-                        (lead.state != WildlifeTrailState.BeyondMap ||
-                         lead.predictedCell.IsValid)),
-                        "Trail integrity, quarry identity, and regional continuation state are valid");
+                        lead.targetAnimal.def == lead.species &&
+                        lead.state == WildlifeTrailState.BeyondMap && lead.predictedCell.IsValid),
+                        "Every trail represents one exact animal that has already left the map");
                     Check("Fieldcraft", trails.TrailLeads.Where(lead => lead?.targetAnimal != null)
                         .All(lead => trails.LeadFor(lead.targetAnimal) == lead),
                         "Trail lookup remains bound to the exact departed animal");
@@ -430,6 +473,14 @@ namespace Herds
                         record.foodNutrition >= 0f && record.dailyNutrition >= 0f &&
                         record.expectedReturnTick >= record.stageStartedTick),
                         "Active expedition timing and supply state survives save data");
+                    Check("Expeditions", expeditions.TrailPaths.All(path => path != null &&
+                            path.fromTile >= 0 && path.toTile >= 0 && path.fromTile != path.toTile &&
+                            path.targetSpecies != null) &&
+                        expeditions.TrailPaths.Select(path =>
+                            Math.Min(path.fromTile, path.toTile) + ":" +
+                            Math.Max(path.fromTile, path.toTile)).Distinct().Count() ==
+                            expeditions.TrailPaths.Count,
+                        "Permanent trail paths contain unique valid world-tile edges");
                     Check("Expeditions", expeditions.History.Count <= 20,
                         "Completed expedition history remains bounded");
                     if (near != null)
@@ -453,9 +504,30 @@ namespace Herds
                     HuntingKnowledgeMapComponent knowledge = map.GetComponent<HuntingKnowledgeMapComponent>();
                     List<string> lines = knowledge.DebugOverviewLines();
                     Check("Knowledge", lines != null, "Animal Knowledge state API responds");
+                    Check("Knowledge", !WildlifeKnowledgeStatPatch.IsPlayerPawn(null) &&
+                        map.mapPawns.FreeColonists.All(WildlifeKnowledgeStatPatch.IsPlayerPawn) &&
+                        map.mapPawns.AllPawnsSpawned.Where(pawn => pawn.Faction?.def?.isPlayer != true)
+                            .All(pawn => !WildlifeKnowledgeStatPatch.IsPlayerPawn(pawn)),
+                        "Knowledge stat evaluation identifies player pawns without the player-faction singleton");
+                    Check("Knowledge",
+                        WildlifeSpeciesClassification.Resolve(false, false, true) == false &&
+                        WildlifeSpeciesClassification.Resolve(false, true, true) &&
+                        !WildlifeSpeciesClassification.Resolve(true, true, false) &&
+                        DefDatabase<ThingDef>.AllDefsListForReading.Where(def =>
+                            def.race?.Animal == true).All(def =>
+                            WildlifeSpeciesClassification.IsPredator(def) ||
+                            !WildlifeSpeciesClassification.IsPredator(def)) &&
+                        typeof(SpeciesBehaviorOverride).GetField("hasPredatorOverride") != null &&
+                        typeof(SpeciesBehaviorOverride).GetField("hasPreyOverride") != null,
+                        "Per-species Predator and Prey overrides preserve defaults and support loaded mod species");
                     Check("Knowledge", HuntingKnowledgeMapComponent.LevelForExperience(0f) == 0 &&
-                        HuntingKnowledgeMapComponent.LevelForExperience(35f) == 1 &&
-                        HuntingKnowledgeMapComponent.LevelForExperience(1200f) == 5,
+                        HuntingKnowledgeMapComponent.LevelForExperience(119.99f) == 0 &&
+                        HuntingKnowledgeMapComponent.LevelForExperience(120f) == 1 &&
+                        HuntingKnowledgeMapComponent.LevelForExperience(299.99f) == 1 &&
+                        HuntingKnowledgeMapComponent.LevelForExperience(300f) == 2 &&
+                        HuntingKnowledgeMapComponent.LevelForExperience(649.99f) == 2 &&
+                        HuntingKnowledgeMapComponent.LevelForExperience(650f) == 3 &&
+                        HuntingKnowledgeMapComponent.LevelForExperience(1200f) == 3,
                         "Biome Knowledge tiers use valid progression thresholds");
                     Check("Knowledge",
                         HuntingKnowledgeMapComponent.WildlifeProficiencyLabel(0) == "Novice" &&
@@ -485,14 +557,13 @@ namespace Herds
                         .Where(def => def.race?.Animal == true)
                         .All(def => HuntingKnowledgeMapComponent.ColonyExperience(def) >= 0f),
                         "Species knowledge values are nonnegative");
-                    Check("Knowledge", !WildlifeTabKnowledgePolicy.RevealsIdentity(0) &&
-                        WildlifeTabKnowledgePolicy.RevealsIdentity(1) &&
-                        !WildlifeTabKnowledgePolicy.RevealsBehavior(2) &&
-                        WildlifeTabKnowledgePolicy.RevealsBehavior(3) &&
-                        !WildlifeTabKnowledgePolicy.RevealsSignals(3) &&
-                        WildlifeTabKnowledgePolicy.RevealsSignals(4) &&
-                        !WildlifeTabKnowledgePolicy.RevealsIndividualMemory(4) &&
-                        WildlifeTabKnowledgePolicy.RevealsIndividualMemory(5),
+                    Check("Knowledge", WildlifeTabKnowledgePolicy.RevealsIdentity(0) &&
+                        !WildlifeTabKnowledgePolicy.RevealsBehavior(0) &&
+                        WildlifeTabKnowledgePolicy.RevealsBehavior(1) &&
+                        !WildlifeTabKnowledgePolicy.RevealsSignals(1) &&
+                        WildlifeTabKnowledgePolicy.RevealsSignals(2) &&
+                        !WildlifeTabKnowledgePolicy.RevealsIndividualMemory(2) &&
+                        WildlifeTabKnowledgePolicy.RevealsIndividualMemory(3),
                         "Animal Wildlife tab reveals information progressively by colony knowledge");
                 });
 
@@ -628,6 +699,13 @@ namespace Herds
                     Check("Journal", journal.Project == null ||
                         journal.Project.species?.race?.Animal == true && journal.Project.progress >= 0f,
                         "Active stewardship project state is valid");
+                    Check("Journal", !WildlifeFieldJournalMapComponent.ValidProject(null) &&
+                        !WildlifeFieldJournalMapComponent.ProjectReady(null) &&
+                        !WildlifeFieldJournalMapComponent.ValidProject(
+                            new WildlifeStewardProjectRecord { progress = 1f }) &&
+                        !WildlifeFieldJournalMapComponent.ProjectReady(
+                            new WildlifeStewardProjectRecord { progress = 1f }),
+                        "Invalid legacy stewardship projects are rejected before completion");
                     Check("Journal", Enum.GetValues(typeof(WildlifeStewardProjectKind)).Length >= 7,
                         "Expanded wildlife management goals are registered");
                     WildlifeMysteryMapComponent mysteries = map.GetComponent<WildlifeMysteryMapComponent>();
@@ -652,6 +730,17 @@ namespace Herds
                     WildlifeMemoryMapComponent memory = map.GetComponent<WildlifeMemoryMapComponent>();
                     Check("Memory", memory != null && memory.DebugOverviewLines().Count == 2,
                         "Animal memory and folklore state API responds");
+                    string detailedStory = WildlifeMemoryMapComponent.ContextSentence("Muffalo",
+                        new[] { "Kim", "Lee" }, "the north pasture");
+                    string fallbackStory = WildlifeMemoryMapComponent.ContextSentence(null,
+                        null, null);
+                    Check("Memory", detailedStory.Contains("Muffalo") &&
+                        detailedStory.Contains("Kim") && detailedStory.Contains("Lee") &&
+                        detailedStory.Contains("north pasture") &&
+                        fallbackStory.Contains("identity was not preserved") &&
+                        fallbackStory.Contains("names were not preserved") &&
+                        fallbackStory.Contains("unrecorded place"),
+                        "Colony Stories include animal, pawn, and location narrative with fallbacks");
                     Check("Memory", memory.Memories.All(value => value?.animal?.RaceProps?.Animal == true &&
                         value.colonist?.Faction == Faction.OfPlayer && value.trust >= 0f && value.trust <= 1f &&
                         value.fear >= 0f && value.fear <= 1f && value.hostility >= 0f && value.hostility <= 1f &&
@@ -725,6 +814,11 @@ namespace Herds
 
                 Section("UI", () =>
                 {
+                    Check("UI", SpeciesKnowledgeStatsPatch.AnimalKnowledgeInsertIndex(
+                            new[] { "Description", "Market Value" }) == 1 &&
+                        SpeciesKnowledgeStatsPatch.AnimalKnowledgeInsertIndex(
+                            new[] { "Market Value" }) == 0,
+                        "Unlocked Description appears before Animal Knowledge in Stats");
                     ThingDef preyDef = DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(PreyProfileDatabase.IsEligible);
                     Check("UI", preyDef?.inspectorTabs?.Contains(typeof(ITab_Herd)) == true, "Prey Wildlife tab registered");
                     Check("UI", DefDatabase<ThingDef>.AllDefsListForReading.Where(def => def.race?.Animal == true)
@@ -819,7 +913,8 @@ namespace Herds
                         "Wildlife expedition navigation uses the concise Expeditions label");
                     Type predatorTab = AccessTools.TypeByName("Packs.ITab_Pack");
                     List<ThingDef> predatorDefs = DefDatabase<ThingDef>.AllDefsListForReading.Where(def =>
-                        def.race?.Animal == true && def.race.predator).ToList();
+                        def.race?.Animal == true &&
+                        WildlifeSpeciesClassification.IsPredator(def)).ToList();
                     Warn("UI", predatorDefs.Count == 0 || predatorDefs.Any(def => def.inspectorTabs?.Contains(predatorTab) == true),
                         "Predator Wildlife tab is not registered on any predator");
                     Check("UI", typeof(WITab_Nature).IsSubclassOf(typeof(WITab)), "World-map Nature tab loaded");
@@ -856,7 +951,8 @@ namespace Herds
                     " regional:" + Bool(HerdsMod.Settings.enableRegionalPopulations) +
                     " knowledge:" + Bool(HerdsMod.Settings.enableWildlifeKnowledge));
                 lines.Add("metrics=prey:" + map.mapPawns.AllPawnsSpawned.Count(pawn => PreyProfileDatabase.IsEligible(pawn.def)) +
-                    " predators:" + map.mapPawns.AllPawnsSpawned.Count(pawn => pawn.RaceProps?.predator == true) +
+                    " predators:" + map.mapPawns.AllPawnsSpawned.Count(pawn =>
+                        WildlifeSpeciesClassification.IsPredator(pawn.def)) +
                     " signs:" + map.listerThings.ThingsOfDef(HerdsDefOf.Herds_WildlifeSign).Count +
                     " knownTiles:" + map.GetComponent<HuntingExpeditionMapComponent>().KnownCellRecords.Count +
                     " activeExpeditions:" + map.GetComponent<HuntingExpeditionMapComponent>().ActiveExpeditions.Count);

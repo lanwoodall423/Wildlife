@@ -170,6 +170,9 @@ namespace Herds
         public bool interactiveEncounterPending;
         public bool interactiveEncounterResolved;
         public int interactiveEncounterResumeTick;
+        public ExpeditionEventDef pendingEvent;
+        public int nextEventCheckTick;
+        public int eventCount;
         [Unsaved] public bool interactiveEncounterWindowOpen;
         public List<string> resources = new List<string>();
         public List<string> log = new List<string>();
@@ -238,6 +241,9 @@ namespace Herds
             Scribe_Values.Look(ref interactiveEncounterPending, "interactiveEncounterPending", false);
             Scribe_Values.Look(ref interactiveEncounterResolved, "interactiveEncounterResolved", false);
             Scribe_Values.Look(ref interactiveEncounterResumeTick, "interactiveEncounterResumeTick", 0);
+            Scribe_Defs.Look(ref pendingEvent, "pendingExpeditionEvent");
+            Scribe_Values.Look(ref nextEventCheckTick, "nextExpeditionEventCheckTick", 0);
+            Scribe_Values.Look(ref eventCount, "expeditionEventCount", 0);
             Scribe_Collections.Look(ref resources, "resources", LookMode.Value);
             Scribe_Collections.Look(ref log, "log", LookMode.Value);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
@@ -285,6 +291,7 @@ namespace Herds
         public Dictionary<ThingDef, int> provisions = new Dictionary<ThingDef, int>();
         public bool useBedrolls = true;
         public bool allowAlternatives = true;
+        public Pawn trailTargetAnimal;
         public HashSet<string> resources = new HashSet<string>();
     }
 
@@ -315,6 +322,7 @@ namespace Herds
         private List<ExpeditionSpecialistRecord> specialists = new List<ExpeditionSpecialistRecord>();
         private List<string> history = new List<string>();
         private List<TrailHuntOpportunity> trailHuntOpportunities = new List<TrailHuntOpportunity>();
+        private List<ExpeditionTrailPath> trailPaths = new List<ExpeditionTrailPath>();
         private int nextId = 1;
         private int lastEcologyTick;
 
@@ -323,6 +331,7 @@ namespace Herds
         public IReadOnlyList<HuntingExpeditionRecord> ActiveExpeditions => expeditions;
         public Map HomeMap => map;
         public IReadOnlyList<TrailHuntOpportunity> TrailHuntOpportunities => trailHuntOpportunities;
+        public IReadOnlyList<ExpeditionTrailPath> TrailPaths => trailPaths;
 
         public override void FinalizeInit()
         {
@@ -343,6 +352,7 @@ namespace Herds
             Scribe_Collections.Look(ref specialists, "expeditionSpecialists", LookMode.Deep);
             Scribe_Collections.Look(ref history, "expeditionHistory", LookMode.Value);
             Scribe_Collections.Look(ref trailHuntOpportunities, "trailHuntOpportunities", LookMode.Deep);
+            Scribe_Collections.Look(ref trailPaths, "expeditionTrailPaths", LookMode.Deep);
             Scribe_Values.Look(ref nextId, "nextExpeditionId", 1);
             Scribe_Values.Look(ref lastEcologyTick, "lastExpeditionEcologyTick", 0);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
@@ -352,6 +362,7 @@ namespace Herds
                 specialists ??= new List<ExpeditionSpecialistRecord>();
                 history ??= new List<string>();
                 trailHuntOpportunities ??= new List<TrailHuntOpportunity>();
+                trailPaths ??= new List<ExpeditionTrailPath>();
             }
         }
 
@@ -499,12 +510,10 @@ namespace Herds
             if (tracker?.Spawned != true || species?.race?.Animal != true ||
                 HerdsMod.Settings?.enableOffMapHuntingExpeditions != true ||
                 !WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition)) return false;
-            int skill = tracker.skills?.GetSkill(SkillDefOf.Animals)?.Level ?? 0;
             int knowledge = map.GetComponent<HuntingKnowledgeMapComponent>()?.Level(tracker, species) ?? 0;
-            float chance = Mathf.Clamp01(0.12f + confidence * 0.32f + skill * 0.012f + knowledge * 0.04f);
-            if (!Rand.Chance(chance)) return false;
             int now = Find.TickManager.TicksGame;
-            TrailHuntOpportunity opportunity = ActiveTrailHuntOpportunity(species, map.Biome);
+            TrailHuntOpportunity opportunity = trailHuntOpportunities.FirstOrDefault(value =>
+                value?.targetAnimal == targetAnimal && value.expiresTick > now);
             if (opportunity == null)
             {
                 opportunity = new TrailHuntOpportunity { species = species, biome = map.Biome };
@@ -518,18 +527,24 @@ namespace Herds
             string text = tracker.LabelShortCap + " found a time-sensitive " + species.label +
                 " hunt lead. A Wildlife Expedition launched within one day will have better encounter, success, and safety conditions.";
             Messages.Message(text, tracker, MessageTypeDefOf.PositiveEvent, false);
-            ExpeditionDestination destination = Destinations()
-                .OrderByDescending(value => value.biome == opportunity.biome)
-                .ThenBy(value => value.distance).FirstOrDefault();
-            if (destination != null)
-                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                    text + "\n\nPlan that exact-animal hunt now?",
-                    () => Find.WindowStack.Add(new Window_HuntingExpeditionSetup(map,
-                        destination, species, ExpeditionObjective.Hunt)),
-                    destructive: false,
-                    title: "Trail Expedition Opportunity"));
             WildlifeExperience.Record("Trail Hunt Opportunity", text, tracker);
             return true;
+        }
+
+        public ExpeditionDestination NearbyTrailDestination(Pawn targetAnimal)
+        {
+            List<PlanetTile> neighbors = new List<PlanetTile>();
+            Find.WorldGrid.GetTileNeighbors(map.Tile, neighbors);
+            return neighbors.Select(tile => (int)tile).Where(CanExpeditionTo)
+                .Select(tileId => DestinationForTile(tileId))
+                .OrderBy(destination => Mathf.Abs(Gen.HashCombineInt(destination.tileId,
+                    targetAnimal?.thingIDNumber ?? 0)))
+                .FirstOrDefault();
+        }
+
+        public void ForgetTrailOpportunity(Pawn targetAnimal)
+        {
+            trailHuntOpportunities.RemoveAll(value => value?.targetAnimal == targetAnimal);
         }
 
         public int MaxRange => int.MaxValue;
@@ -656,6 +671,21 @@ namespace Herds
                 reason = "The expedition plan is incomplete.";
                 return false;
             }
+            if (plan.trailTargetAnimal != null)
+            {
+                ExpeditionDestination trailDestination = NearbyTrailDestination(plan.trailTargetAnimal);
+                TrailHuntOpportunity validatedTrailOpportunity = trailHuntOpportunities.FirstOrDefault(value =>
+                    value?.targetAnimal == plan.trailTargetAnimal &&
+                    MatchesTrailOpportunity(value, plan.trailTargetAnimal.def));
+                if (validatedTrailOpportunity == null || trailDestination == null ||
+                    plan.objective != ExpeditionObjective.Hunt ||
+                    plan.targetSpecies != plan.trailTargetAnimal.def || plan.unknownTarget ||
+                    plan.destination.tileId != trailDestination.tileId)
+                {
+                    reason = "This trail expedition must hunt its exact animal at the nearby trail destination.";
+                    return false;
+                }
+            }
             if (!CanExpeditionTo(plan.destination.tileId))
             {
                 reason = "Choose an unoccupied, passable world tile.";
@@ -720,7 +750,9 @@ namespace Herds
                 resources = plan.resources.ToList()
             };
             TrailHuntOpportunity trailOpportunity = plan.objective == ExpeditionObjective.Hunt
-                ? ActiveTrailHuntOpportunity(plan.targetSpecies, plan.destination.biome) : null;
+                ? trailHuntOpportunities.FirstOrDefault(value =>
+                    value?.targetAnimal == plan.trailTargetAnimal &&
+                    MatchesTrailOpportunity(value, plan.targetSpecies)) : null;
             if (!MatchesTrailOpportunity(trailOpportunity, plan.targetSpecies))
                 trailOpportunity = null;
             if (trailOpportunity != null)
@@ -735,6 +767,7 @@ namespace Herds
                 record.log.Add("The expedition followed a fresh trail-study lead.");
             }
             record.routeTiles = BuildRoute(record.destinationTile);
+            if (trailOpportunity != null) AddTrailPath(record.routeTiles, record.targetSpecies);
             record.log.Add("Assembling at the colony edge.");
             expeditions.Add(record);
             map.Tile.Layer.SetDirty<WorldDrawLayer_WildlifeExpeditionRoutes>();
@@ -754,6 +787,22 @@ namespace Herds
         internal static float TrailHuntBonus(TrailHuntOpportunity opportunity) =>
             opportunity == null ? 0f : Mathf.Lerp(0.08f, 0.18f,
                 Mathf.Clamp01(opportunity.quality));
+
+        public bool HasTrailPath(int fromTile, int toTile) =>
+            trailPaths.Any(path => path?.Connects(fromTile, toTile) == true);
+
+        private void AddTrailPath(List<int> route, ThingDef species)
+        {
+            if (route == null) return;
+            for (int i = 0; i + 1 < route.Count; i++)
+                if (!HasTrailPath(route[i], route[i + 1]))
+                    trailPaths.Add(new ExpeditionTrailPath
+                    {
+                        fromTile = route[i], toTile = route[i + 1],
+                        createdTick = Find.TickManager.TicksGame, targetSpecies = species
+                    });
+            map.Tile.Layer.SetDirty<WorldDrawLayer_WildlifeExpeditionRoutes>();
+        }
 
         public bool PawnOnExpedition(Pawn pawn) =>
             pawn != null && expeditions.Any(record => record.Party.Contains(pawn));
@@ -920,6 +969,7 @@ namespace Herds
                 return;
             }
             if (now < record.interactiveEncounterResumeTick) return;
+            if (TryExpeditionEvent(record, now)) return;
             if (record.stage == ExpeditionStage.Embarking)
             {
                 List<Pawn> awayHunters = record.hunters.Where(pawn => pawn != null && !pawn.Spawned && !pawn.Dead).ToList();
@@ -1233,28 +1283,32 @@ namespace Herds
                     return true;
                 }
             }
-            float decisionChance = Mathf.Clamp01(0.18f + BestFieldcraft(record) * 0.018f +
-                (1f - encounterDestination.knowledge.confidence) * 0.16f +
-                (record.objective == ExpeditionObjective.Scout ? 0.12f : 0f));
-            if (Mathf.Abs(seed) % 100 >= Mathf.RoundToInt(decisionChance * 100f))
-            {
-                record.interactiveEncounterResolved = true;
+            record.interactiveEncounterResolved = true;
+            return false;
+        }
+
+        private bool TryExpeditionEvent(HuntingExpeditionRecord record, int now)
+        {
+            if (!HerdsMod.Settings.enableInteractiveExpeditionEncounters ||
+                record.stage == ExpeditionStage.Embarking ||
+                record.stage == ExpeditionStage.AwaitingRescue ||
+                record.eventCount >= 2 || now < record.nextEventCheckTick)
                 return false;
-            }
-            string biome = encounterDestination.biome?.label?.ToLowerInvariant() ?? string.Empty;
-            int encounterKind = Mathf.Abs(seed / 100) % 7;
-            record.interactiveEncounter = encounterKind == 0 ? "Injured Animal" :
-                encounterKind == 1 ? "Abandoned Kill" :
-                encounterKind == 2 ? "Predator Territory" :
-                encounterKind == 3 ? "Sudden Weather" :
-                biome.Contains("forest") || biome.Contains("jungle") ? "Fresh Trail" :
-                biome.Contains("desert") || biome.Contains("arid") ? "Fading Water Signs" :
-                biome.Contains("ice") || biome.Contains("tundra") ? "Exposed Animal" : "Territorial Signs";
+            record.nextEventCheckTick = now + 12000;
+            BiomeDef biome = Destination(record.destinationTile, record.distance).biome;
+            List<ExpeditionEventDef> candidates = DefDatabase<ExpeditionEventDef>.AllDefsListForReading
+                .Where(def => def.Applies(record, biome)).ToList();
+            if (candidates.Count == 0) return false;
+            int seed = Gen.HashCombineInt(record.id * 7919, now / 12000 + record.eventCount * 101);
+            ExpeditionEventDef eventDef = candidates[Mathf.Abs(seed) % candidates.Count];
+            float chance = Mathf.Clamp01(eventDef.chance + record.riskTolerance * 0.04f);
+            if (!Rand.ChanceSeeded(chance, seed)) return false;
+            record.pendingEvent = eventDef;
+            record.interactiveEncounter = eventDef.LabelCap;
             record.interactiveEncounterPending = true;
             record.interactiveEncounterWindowOpen = false;
-            record.log.Add("Field decision required: " + record.interactiveEncounter + ".");
-            if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("ExpeditionDecision",
-                "id=" + record.id + " event=" + record.interactiveEncounter + " state=pending");
+            record.eventCount++;
+            record.log.Add("Expedition event: " + eventDef.LabelCap + ".");
             ShowInteractiveEncounter(record);
             return true;
         }
@@ -1274,6 +1328,11 @@ namespace Herds
                 ResolveRoamingEncounter(record, choice);
                 return;
             }
+            if (record.pendingEvent != null)
+            {
+                ResolveExpeditionEvent(record, choice);
+                return;
+            }
             string result;
             if (choice == 0)
             {
@@ -1290,6 +1349,7 @@ namespace Herds
                 record.interactiveEncounterResumeTick = Find.TickManager.TicksGame + 5000;
                 result = "The party followed the signs, improving its chances of finding game but accepting greater danger.";
             }
+
             else if (choice == 1)
             {
                 ExpeditionDestination destination = Destination(record.destinationTile, record.distance);
@@ -1316,6 +1376,37 @@ namespace Herds
             WildlifeExperience.Record("Expedition Decision", result, record.spot);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("ExpeditionDecision",
                 "id=" + record.id + " event=" + record.interactiveEncounter + " choice=" + choice);
+        }
+
+        private void ResolveExpeditionEvent(HuntingExpeditionRecord record, int choiceIndex)
+        {
+            ExpeditionEventDef eventDef = record.pendingEvent;
+            if (eventDef?.choices == null || choiceIndex < 0 || choiceIndex >= eventDef.choices.Count)
+                return;
+            ExpeditionEventChoiceDef choice = eventDef.choices[choiceIndex];
+            int now = Find.TickManager.TicksGame;
+            record.biomeEncounterModifier += choice.encounterModifier;
+            record.biomeSuccessModifier += choice.successModifier;
+            record.biomeDangerModifier += choice.dangerModifier;
+            record.interactiveEncounterResumeTick = now + Mathf.Max(0, choice.delayTicks);
+            record.expectedReturnTick += Mathf.Max(0, choice.delayTicks);
+            if (choice.knowledgeGain > 0f && record.targetSpecies != null)
+                foreach (Pawn hunter in record.hunters.Where(pawn => pawn != null))
+                    map.GetComponent<HuntingKnowledgeMapComponent>()?
+                        .Learn(hunter, record.targetSpecies, choice.knowledgeGain);
+            if (choice.injureParty) ApplyPartyInjury(record, false);
+            string result = choice.result.NullOrEmpty() ?
+                "The party chose " + choice.label + "." : choice.result;
+            record.log.Add(result);
+            record.pendingEvent = null;
+            record.interactiveEncounterPending = false;
+            record.interactiveEncounterWindowOpen = false;
+            WildlifeExperience.Record("Expedition Decision", result, record.spot);
+            if (choice.turnBack)
+            {
+                record.result = result;
+                BeginTravel(record, ExpeditionStage.Returning, now);
+            }
         }
 
         private void ResolveRoamingEncounter(HuntingExpeditionRecord record, int choice)

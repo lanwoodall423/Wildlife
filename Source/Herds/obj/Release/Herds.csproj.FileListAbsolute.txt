@@ -11,3 +11,4 @@ C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\obj\Release\
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\DevTools\Staged\WildlifeCrossroads\Herds.dll
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\DevTools\Staged\AnimalCallLog\Herds.dll
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Herds\Build\WildlifeMenu\Herds.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\DevTools\Staged\20260730174121964\Herds.dll

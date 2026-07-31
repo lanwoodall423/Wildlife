@@ -468,7 +468,8 @@ namespace Herds
         public float AlarmResponseFactor(ThingDef preySpecies, Thing threat)
         {
             if (HerdsMod.Settings?.enablePredatorSignalLearning != true ||
-                threat is not Pawn predator || predator.RaceProps?.predator != true) return 1f;
+                threat is not Pawn predator ||
+                !WildlifeSpeciesClassification.IsPredator(predator.def)) return 1f;
             PredatorSignalKnowledgeRecord record = predatorKnowledge.FirstOrDefault(value =>
                 value.predatorSpecies == predator.def && value.preySpecies == preySpecies);
             return 1f - (record?.understanding ?? 0f) * 0.22f;
@@ -747,7 +748,7 @@ namespace Herds
         {
             if (HerdsMod.Settings?.enablePredatorSignalLearning != true || !truthful) return;
             Pawn predator = subject as Pawn;
-            if (predator?.RaceProps?.predator != true || predator.Map != map) return;
+            if (!WildlifeSpeciesClassification.IsPredator(predator?.def) || predator.Map != map) return;
             PredatorSignalKnowledgeRecord record = predatorKnowledge.FirstOrDefault(value =>
                 value.predatorSpecies == predator.def && value.preySpecies == preySpecies);
             if (record == null)
@@ -901,7 +902,7 @@ namespace Herds
                     break;
                 case WildlifeSignalKind.Coordination:
                     consistent = signal.subject?.Spawned == true && (reactions > 0 ||
-                        signal.speaker?.RaceProps?.predator == true);
+                        WildlifeSpeciesClassification.IsPredator(signal.speaker?.def));
                     observed = reactions > 0 ? reactions + " hunter(s) coordinated on the target" :
                         consistent ? "Predator coordination remained active" : "No hunt target response";
                     break;
@@ -946,7 +947,7 @@ namespace Herds
                 kind = WildlifeSignalKind.Alarm;
             Pawn speaker = map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn =>
                 pawn?.Spawned == true && !pawn.Dead && pawn.Faction != Faction.OfPlayer &&
-                pawn.RaceProps?.Animal == true && !pawn.RaceProps.predator);
+                pawn.RaceProps?.Animal == true && WildlifeSpeciesClassification.IsPrey(pawn.def));
             if (speaker == null) return new List<string> { "scenario=no_prey" };
             Thing subject = null;
             bool truthful = true;
@@ -956,7 +957,7 @@ namespace Herds
                 subject = kind == WildlifeSignalKind.HumanDanger
                     ? map.mapPawns.FreeColonistsSpawned.FirstOrDefault()
                     : map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn =>
-                        pawn?.Spawned == true && pawn.RaceProps?.predator == true &&
+                        pawn?.Spawned == true && WildlifeSpeciesClassification.IsPredator(pawn.def) &&
                         pawn.Faction != Faction.OfPlayer);
                 if (subject != null) herds?.NotifyThreat(speaker, subject, 750);
                 else truthful = false;
@@ -966,14 +967,14 @@ namespace Herds
             else if (kind == WildlifeSignalKind.Coordination)
             {
                 Pawn predator = map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn =>
-                    pawn?.Spawned == true && pawn.RaceProps?.predator == true &&
+                    pawn?.Spawned == true && WildlifeSpeciesClassification.IsPredator(pawn.def) &&
                     pawn.Faction != Faction.OfPlayer);
                 if (predator != null)
                 {
                     speaker = predator;
                     subject = map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn =>
                         pawn?.Spawned == true && !pawn.Dead && pawn != predator &&
-                        pawn.RaceProps?.Animal == true && !pawn.RaceProps.predator);
+                        pawn.RaceProps?.Animal == true && WildlifeSpeciesClassification.IsPrey(pawn.def));
                 }
             }
             else if (kind == WildlifeSignalKind.Food || kind == WildlifeSignalKind.Water)
@@ -1073,7 +1074,7 @@ namespace Herds
                 {
                     Pawn candidate = pawns[j];
                     if (candidate == animals[i] || candidate?.Spawned != true || candidate.Dead) continue;
-                    bool danger = candidate.RaceProps?.predator == true || candidate.HostileTo(animals[i]);
+                    bool danger = WildlifeSpeciesClassification.IsPredator(candidate.def) || candidate.HostileTo(animals[i]);
                     if (danger && candidate.Position.DistanceToSquared(animals[i].Position) <= radiusSquared)
                         return candidate;
                 }
@@ -1511,7 +1512,6 @@ namespace Herds
                     Vector2 savedSpeciesScroll = speciesScroll;
                     Vector2 savedDetailScroll = detailScroll;
                     WildlifeUI.CloseMenus();
-                    Find.CameraDriver.JumpToCurrentMapLoc(trace.cell);
                     signals.Replay(trace);
                     Find.WindowStack.Add(new Window_WildlifeSignals(map, savedObserver,
                         savedSpecies, savedSpeciesScroll, savedDetailScroll));

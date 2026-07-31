@@ -148,7 +148,7 @@ public sealed class PacksMod : Mod
 		if (thingDef2 == null)
 		{
 			Text.Anchor = TextAnchor.MiddleCenter;
-			Widgets.Label(rect6, "Select an animal to configure its predator behavior.");
+			Widgets.Label(rect6, "Select an animal to configure its Wildlife classifications and behavior.");
 			Text.Anchor = TextAnchor.UpperLeft;
 			return;
 		}
@@ -161,7 +161,29 @@ public sealed class PacksMod : Mod
 		Text.Font = GameFont.Medium;
 		listing_Standard.Label(thingDef2.LabelCap);
 		Text.Font = GameFont.Small;
-		listing_Standard.Label(thingDef2.race.predator ? "Predator" : "Not classified as a predator by RimWorld");
+		listing_Standard.Label("Wildlife Classification");
+		bool predator = HerdsCompatibility.IsPredator(thingDef2);
+		bool prey = HerdsCompatibility.IsPrey(thingDef2);
+		bool oldPredator = predator;
+		bool oldPrey = prey;
+		listing_Standard.CheckboxLabeled("Predator", ref predator,
+			"Overrides Wildlife's predator classification for this loaded species.");
+		listing_Standard.CheckboxLabeled("Prey", ref prey,
+			"Overrides Wildlife's prey classification independently; a species may be both.");
+		if (predator != oldPredator)
+		{
+			HerdsCompatibility.SetPredatorOverride(thingDef2, true, predator);
+			PacksSettings.ClearSpeciesCaches();
+		}
+		if (prey != oldPrey)
+		{
+			HerdsCompatibility.SetPreyOverride(thingDef2, true, prey);
+			PacksSettings.ClearSpeciesCaches();
+		}
+		listing_Standard.Label((HerdsCompatibility.HasPredatorOverride(thingDef2) ||
+			HerdsCompatibility.HasPreyOverride(thingDef2))
+			? "Classification override saved for this species."
+			: "Using the species definition's default classifications.");
 		listing_Standard.GapLine();
 		listing_Standard.Label("Social Strategy");
 		if (Widgets.ButtonText(listing_Standard.GetRect(34f), config.socialStrategy.ToString()))
@@ -179,7 +201,7 @@ public sealed class PacksMod : Mod
 		}
 		if (config.socialStrategy != PredatorSocialStrategy.Disabled)
 		{
-			if (!thingDef2.race.predator)
+			if (!HerdsCompatibility.IsPredator(thingDef2))
 			{
 				listing_Standard.Label("This animal can use predator grouping, but vanilla AI will not independently select live prey unless another mod gives it predator behavior.");
 			}
@@ -238,6 +260,7 @@ public sealed class PacksMod : Mod
 
 	public override void WriteSettings()
 	{
+		PacksSettings.ClearSpeciesCaches();
 		PacksStartup.ApplyWildGroupSizes();
 		PacksStartup.RefreshTabs();
 		if (Current.Game?.Maps != null)

@@ -682,7 +682,7 @@ namespace Herds
             return new ObservationMetrics
             {
                 wild = wild.Count,
-                predators = wild.Count(pawn => pawn.RaceProps.predator),
+                predators = wild.Count(pawn => WildlifeSpeciesClassification.IsPredator(pawn.def)),
                 signs = map.listerThings.ThingsOfDef(HerdsDefOf.Herds_WildlifeSign).Count,
                 memories = map.GetComponent<WildlifeMemoryMapComponent>()?.Memories.Count ?? 0,
                 notable = map.GetComponent<NotableWildlifeMapComponent>()?.ActiveCount ?? 0,
@@ -764,7 +764,7 @@ namespace Herds
                 ["sea"] = GenLocalDate.Season(map).ToString(),
                 ["col"] = map.mapPawns.FreeColonistsSpawnedCount.ToString(),
                 ["w"] = wild.Count.ToString(),
-                ["pr"] = wild.Count(pawn => pawn.RaceProps.predator).ToString(),
+                ["pr"] = wild.Count(pawn => WildlifeSpeciesClassification.IsPredator(pawn.def)).ToString(),
                 ["sp"] = wild.Select(pawn => pawn.def).Distinct().Count().ToString(),
                 ["g"] = groups.Count.ToString(),
                 ["th"] = groups.Count(group => group.defenseMode != HerdDefenseMode.None).ToString(),
@@ -855,7 +855,8 @@ namespace Herds
                 "colony=colonists:" + map.mapPawns.FreeColonistsSpawnedCount +
                     " tameAnimals:" + animals.Count(pawn => pawn.Faction == Faction.OfPlayer),
                 "wildlife=wild:" + animals.Count(pawn => pawn.Faction == null) +
-                    " predators:" + animals.Count(pawn => pawn.Faction == null && pawn.RaceProps.predator) +
+                    " predators:" + animals.Count(pawn => pawn.Faction == null &&
+                        WildlifeSpeciesClassification.IsPredator(pawn.def)) +
                     " species:" + animals.Select(pawn => pawn.def).Distinct().Count(),
                 "regional=species:" + (regional?.Records.Count ?? 0) + " roaming:" + (regional?.RoamingAnimals.Count ?? 0) +
                     " event:" + (regional?.ActiveSeasonalEvent ?? "none"),
@@ -1044,7 +1045,9 @@ namespace Herds
                     def.label.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0))
                 .OrderBy(def => def.defName).Take(60)
                 .Select(def => "def=" + def.defName + " label:" + Clean(def.label) +
-                    " predator:" + def.race.predator + " body:" + def.race.baseBodySize.ToString("0.00") +
+                    " predator:" + WildlifeSpeciesClassification.IsPredator(def) +
+                    " prey:" + WildlifeSpeciesClassification.IsPrey(def) +
+                    " body:" + def.race.baseBodySize.ToString("0.00") +
                     " wildness:" + def.GetStatValueAbstract(StatDefOf.Wildness).ToString("0.00")).ToList();
         }
 
@@ -1065,7 +1068,7 @@ namespace Herds
                 .Select(pawn => "animal=" + pawn.thingIDNumber + " label:" + Clean(pawn.LabelShort) +
                     " species:" + pawn.def.defName + " status:" +
                     (pawn.Faction == Faction.OfPlayer ? "tame" : pawn.Faction == null ? "wild" : "faction") +
-                    " predator:" + (pawn.RaceProps.predator ? "yes" : "no") +
+                    " predator:" + (WildlifeSpeciesClassification.IsPredator(pawn.def) ? "yes" : "no") +
                     " pos:" + pawn.Position.x + "," + pawn.Position.z +
                     " job:" + (pawn.CurJobDef?.defName ?? "none")).ToList();
         }
@@ -1078,7 +1081,7 @@ namespace Herds
             {
                 "animal=" + pawn.thingIDNumber + " label:" + Clean(pawn.LabelShort) + " species:" + pawn.def.defName,
                 "status=" + (pawn.Faction == Faction.OfPlayer ? "tame" : "wild") +
-                    " predator:" + (pawn.RaceProps.predator ? "yes" : "no") +
+                    " predator:" + (WildlifeSpeciesClassification.IsPredator(pawn.def) ? "yes" : "no") +
                     " health:" + pawn.health.summaryHealth.SummaryHealthPercent.ToString("0.00"),
                 "position=" + pawn.Position.x + "," + pawn.Position.z +
                     " job=" + (pawn.CurJobDef?.defName ?? "none"),
@@ -1093,7 +1096,7 @@ namespace Herds
             WildlifeSignalCultureMapComponent signals =
                 map.GetComponent<WildlifeSignalCultureMapComponent>();
             if (HerdsMod.Settings.enableWildlifeSignalCulture)
-                lines.Add(pawn.RaceProps.predator
+                lines.Add(WildlifeSpeciesClassification.IsPredator(pawn.def)
                     ? "signals=" + Clean(signals?.PredatorSummary(pawn.def))
                     : "signals=" + Clean(signals?.SignalSummary(pawn.def)));
             WildlifeMemoryMapComponent memory = map.GetComponent<WildlifeMemoryMapComponent>();
@@ -1230,7 +1233,7 @@ namespace Herds
                      value.species.label.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0))
                 .OrderByDescending(value => value.createdTick).FirstOrDefault();
             if (lead == null) return new List<string> { "trail=not_found", "query=" + Clean(search) };
-            Find.WindowStack.Add(new Window_WildlifeTrail(map, lead));
+            Find.WindowStack.Add(new Window_WildlifeTrailBoard(map));
             return new List<string>
             {
                 "openedTrail=species:" + lead.species.defName + " confidence:" +

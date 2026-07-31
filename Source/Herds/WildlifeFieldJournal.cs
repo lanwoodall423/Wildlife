@@ -210,6 +210,7 @@ namespace Herds
                 momentHistory = momentHistory?.Where(value => value?.species?.race?.Animal == true)
                     .OrderByDescending(value => value.tick).Take(20).ToList() ??
                     new List<WildlifeMomentOutcomeRecord>();
+                if (project != null && !ValidProject(project)) project = null;
                 if (wildlifeMomentVersion < 1)
                 {
                     wildlifeMomentVersion = 1;
@@ -281,7 +282,7 @@ namespace Herds
         public int JournalStage(ThingDef species)
         {
             int level = HuntingKnowledgeMapComponent.ColonyLevel(species);
-            return level <= 0 ? 0 : level == 1 ? 1 : level == 2 ? 2 : level == 3 ? 3 : level >= 4 ? 5 : 4;
+            return level <= 0 ? 0 : level == 1 ? 1 : level == 2 ? 2 : 5;
         }
 
         public string JournalStageLabel(ThingDef species)
@@ -299,8 +300,8 @@ namespace Herds
                 "\n• Identity and basic behavior: " + Mark(level >= 1) +
                 "\n• Tracks and signs: " + Mark(level >= 2) +
                 "\n• Habitat and feeding preferences: " + Mark(level >= 3) +
-                "\n• Seasonal activity and preferred bait: " + Mark(level >= 4) +
-                "\n• Complete field entry: " + Mark(level >= 4) +
+                "\n• Seasonal activity and preferred bait: " + Mark(level >= 3) +
+                "\n• Complete field entry: " + Mark(level >= 3) +
                 "\n\nCompleted entries permanently improve colony hunting and wildlife field outcomes.";
         }
 
@@ -854,7 +855,8 @@ namespace Herds
                 Messages.Message(text, MessageTypeDefOf.PositiveEvent, false);
                 WildlifeExperience.Record("Field Journal", text);
                 WildlifeMemoryUtility.Folklore(map, known[i].LabelCap + " Field Notes",
-                    "The colony completed its field record of " + known[i].label + ".");
+                    "The colony completed its field record of " + known[i].label + ".",
+                    species: known[i]);
             }
         }
 
@@ -990,7 +992,9 @@ namespace Herds
                     storyTitle = OpportunityLabel(completed.kind) + ": " + completed.species.LabelCap;
                     storyTick = Find.TickManager.TicksGame;
                     WildlifeMemoryUtility.Folklore(map, storyTitle,
-                        text, completed.animal, completed.response != WildlifeMomentResponse.Hunt);
+                        text, completed.animal, completed.response != WildlifeMomentResponse.Hunt,
+                        new[] { completed.responder ?? learner }, completed.focusCell,
+                        completed.species);
                 }
             }
             else text = !completed.failureReason.NullOrEmpty()
@@ -1301,7 +1305,11 @@ namespace Herds
 
         private void FinishProjectIfReady()
         {
-            if (project?.progress < 1f) return;
+            if (!ProjectReady(project))
+            {
+                if (project != null && !ValidProject(project)) project = null;
+                return;
+            }
             completedProjects++;
             map.GetComponent<RegionalWildlifeMapComponent>()?.ApplyExpeditionImpact(project.species,
                 project.kind == WildlifeStewardProjectKind.PopulationControl ||
@@ -1310,10 +1318,17 @@ namespace Herds
             Messages.Message(text, MessageTypeDefOf.PositiveEvent, false);
             WildlifeExperience.Record("Steward Project", text);
             WildlifeMemoryUtility.Folklore(map, ProjectLabel(project.kind),
-                "The colony completed " + ProjectLabel(project.kind).ToLowerInvariant() + " for " + project.species.label + ".");
+                "The colony completed " + ProjectLabel(project.kind).ToLowerInvariant() +
+                " for " + project.species.label + ".", species: project.species);
             WildlifeIdeologyUtility.Notify(map, WildlifeIdeologyEvent.Protect);
             project = null;
         }
+
+        internal static bool ValidProject(WildlifeStewardProjectRecord value) =>
+            value?.species?.race?.Animal == true;
+
+        internal static bool ProjectReady(WildlifeStewardProjectRecord value) =>
+            ValidProject(value) && value.progress >= 1f;
 
         public static string OpportunityLabel(WildlifeOpportunityKind kind) =>
             kind == WildlifeOpportunityKind.Migration ? "Passing Migration" :
@@ -1870,7 +1885,7 @@ namespace Herds
             List<ThingDef> species = component.Entries.Select(entry => entry.species).Where(def => def != null)
                 .OrderBy(def => def.label).ToList();
             if (kind == WildlifeStewardProjectKind.SuppressPredators)
-                species = species.Where(def => def.race.predator).ToList();
+                species = species.Where(WildlifeSpeciesClassification.IsPredator).ToList();
             else if (kind == WildlifeStewardProjectKind.MigrationCorridor ||
                 kind == WildlifeStewardProjectKind.ProtectMigration)
                 species = species.Where(HuntingExpeditionMapComponent.IsHerdSpecies).ToList();

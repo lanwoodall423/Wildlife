@@ -176,7 +176,7 @@ namespace Herds
             if (season == Season.Spring) return bird ? "Nesting" : "Breeding season";
             if (season == Season.Summer) return animal.ageTracker.Adult ? "Foraging" : "Growing";
             if (season == Season.Fall) return bird ? "Preparing to migrate" : "Building reserves";
-            if (season == Season.Winter) return animal.RaceProps.predator ? "Winter ranging" : "Winter sheltering";
+            if (season == Season.Winter) return WildlifeSpeciesClassification.IsPredator(animal.def) ? "Winter ranging" : "Winter sheltering";
             return "Seasonally active";
         }
 
@@ -271,7 +271,7 @@ namespace Herds
 
         private bool InjuredAnimalSeeksHelp()
         {
-            Pawn animal = WildAnimals().Where(pawn => !pawn.RaceProps.predator &&
+            Pawn animal = WildAnimals().Where(pawn => WildlifeSpeciesClassification.IsPrey(pawn.def) &&
                 pawn.health.summaryHealth.SummaryHealthPercent < 0.72f && !pawn.Downed)
                 .OrderBy(pawn => pawn.health.summaryHealth.SummaryHealthPercent).FirstOrDefault();
             if (animal == null) return false;
@@ -301,7 +301,7 @@ namespace Herds
 
         private bool TerritorialDispute()
         {
-            List<Pawn> predators = WildAnimals().Where(pawn => pawn.RaceProps.predator &&
+            List<Pawn> predators = WildAnimals().Where(pawn => WildlifeSpeciesClassification.IsPredator(pawn.def) &&
                 !pawn.Downed).Take(12).ToList();
             for (int i = 0; i < predators.Count; i++)
                 for (int j = i + 1; j < predators.Count; j++)
@@ -336,7 +336,7 @@ namespace Herds
         {
             Plant crop = map.listerThings.AllThings.OfType<Plant>()
                 .FirstOrDefault(plant => plant?.Spawned == true && plant.sown);
-            Pawn raider = WildAnimals().Where(pawn => !pawn.RaceProps.predator &&
+            Pawn raider = WildAnimals().Where(pawn => WildlifeSpeciesClassification.IsPrey(pawn.def) &&
                 pawn.RaceProps.foodType != FoodTypeFlags.CarnivoreAnimal &&
                 pawn.CanReach(crop?.Position ?? IntVec3.Invalid, PathEndMode.OnCell, Danger.Deadly))
                 .OrderBy(pawn => pawn.Position.DistanceToSquared(crop?.Position ?? pawn.Position)).FirstOrDefault();

@@ -591,22 +591,67 @@ namespace Herds
                 Disposition(value) + " — remembers " + value.lastEvent.ToLowerInvariant() + "."));
         }
 
-        public void RecordFolklore(string title, string story, Pawn animal = null, bool positive = true)
+        public void RecordFolklore(string title, string story, Pawn animal = null, bool positive = true,
+            IEnumerable<Pawn> involvedPawns = null, IntVec3? location = null, ThingDef species = null)
         {
             if (HerdsMod.Settings?.enableWildlifeFolklore != true || title.NullOrEmpty() || story.NullOrEmpty()) return;
-            if (folklore.Any(value => value.title == title && value.story == story)) return;
+            ThingDef subjectSpecies = animal?.def ?? species;
+            string narrative = ColonyStoryNarrative(story, animal, subjectSpecies,
+                involvedPawns, location);
+            if (folklore.Any(value => value.title == title && value.story == narrative)) return;
             folklore.Insert(0, new WildlifeFolkloreRecord
             {
                 title = title,
-                story = story,
+                story = narrative,
                 animal = animal,
-                species = animal?.def,
+                species = subjectSpecies,
                 createdTick = Find.TickManager.TicksGame,
                 positive = positive
             });
             if (folklore.Count > 40) folklore.RemoveRange(40, folklore.Count - 40);
             WildlifeIdeologyUtility.Notify(map, WildlifeIdeologyEvent.Folklore, animal);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("Folklore", "title=" + title + " positive=" + positive, animal);
+        }
+
+        internal string ColonyStoryNarrative(string story, Pawn animal, ThingDef species,
+            IEnumerable<Pawn> involvedPawns, IntVec3? location)
+        {
+            List<Pawn> participants = involvedPawns?.Where(value => value != null).Distinct().ToList() ??
+                new List<Pawn>();
+            if (participants.Count == 0 && animal != null)
+                participants = memories.Where(value => value?.animal == animal && value.colonist != null)
+                    .OrderByDescending(value => value.lastTick).Select(value => value.colonist)
+                    .Distinct().Take(3).ToList();
+            string animalText = animal?.LabelShortCap.ToString() ?? species?.LabelCap.ToString();
+            IntVec3 cell = location ?? (animal?.SpawnedOrAnyParentSpawned == true
+                ? animal.PositionHeld : IntVec3.Invalid);
+            string locationText = LocationText(cell);
+            return story.TrimEnd() + " " + ContextSentence(animalText,
+                participants.Select(value => value.LabelShortCap.ToString()), locationText);
+        }
+
+        private string LocationText(IntVec3 cell)
+        {
+            if (!cell.IsValid || map == null || !cell.InBounds(map)) return null;
+            Zone zone = map.zoneManager?.ZoneAt(cell);
+            if (zone != null && !zone.label.NullOrEmpty()) return zone.label;
+            Room room = cell.GetRoom(map);
+            if (room?.PsychologicallyOutdoors == false && room.Role != null)
+                return "the " + room.Role.label;
+            return cell.GetTerrain(map)?.LabelCap.ToString();
+        }
+
+        internal static string ContextSentence(string animal, IEnumerable<string> pawns,
+            string location)
+        {
+            List<string> names = pawns?.Where(value => !value.NullOrEmpty()).Distinct().ToList() ??
+                new List<string>();
+            string subject = animal.NullOrEmpty() ? "wildlife whose identity was not preserved" : animal;
+            string witnesses = names.Count == 0 ? "colonists whose names were not preserved" :
+                names.Count == 1 ? names[0] : string.Join(", ", names.Take(names.Count - 1)) +
+                " and " + names.Last();
+            string place = location.NullOrEmpty() ? "at an unrecorded place" : "at " + location;
+            return "The telling remembers " + witnesses + " with " + subject + " " + place + ".";
         }
 
         public string DebugCreateSocialMemory()
@@ -996,8 +1041,11 @@ namespace Herds
             animal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>()?
                 .SocialAffinity(animal, otherAnimal) ?? 0f;
 
-        public static void Folklore(Map map, string title, string story, Pawn animal = null, bool positive = true) =>
-            map?.GetComponent<WildlifeMemoryMapComponent>()?.RecordFolklore(title, story, animal, positive);
+        public static void Folklore(Map map, string title, string story, Pawn animal = null,
+            bool positive = true, IEnumerable<Pawn> involvedPawns = null,
+            IntVec3? location = null, ThingDef species = null) =>
+            map?.GetComponent<WildlifeMemoryMapComponent>()?.RecordFolklore(title, story,
+                animal, positive, involvedPawns, location, species);
     }
 
     public static class WildlifeIdeologyUtility

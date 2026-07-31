@@ -71,6 +71,10 @@ namespace Herds
     {
         public string defName;
         public bool enabled;
+        public bool hasPredatorOverride;
+        public bool predator;
+        public bool hasPreyOverride;
+        public bool prey;
         public PreySocialType socialType;
         public PreyDefenseStrategy defenseStrategy;
         public PreyRefugePreference refugePreference;
@@ -84,6 +88,10 @@ namespace Herds
         {
             Scribe_Values.Look(ref defName, "defName");
             Scribe_Values.Look(ref enabled, "enabled");
+            Scribe_Values.Look(ref hasPredatorOverride, "hasPredatorOverride");
+            Scribe_Values.Look(ref predator, "predator");
+            Scribe_Values.Look(ref hasPreyOverride, "hasPreyOverride");
+            Scribe_Values.Look(ref prey, "prey");
             Scribe_Values.Look(ref socialType, "socialType");
             Scribe_Values.Look(ref defenseStrategy, "defenseStrategy");
             Scribe_Values.Look(ref refugePreference, "refugePreference");
@@ -117,6 +125,81 @@ namespace Herds
                 preferredGroupSize = profile.preferredGroupSize
             };
         }
+    }
+
+    public static class WildlifeSpeciesClassification
+    {
+        private static SpeciesBehaviorOverride OverrideFor(ThingDef species) =>
+            HerdsMod.Settings?.speciesOverrides?.FirstOrDefault(value =>
+                value?.defName == species?.defName);
+
+        public static bool IsPredator(ThingDef species)
+        {
+            if (species?.race?.Animal != true) return false;
+            SpeciesBehaviorOverride value = OverrideFor(species);
+            return Resolve(species.race.predator, value?.hasPredatorOverride == true,
+                value?.predator == true);
+        }
+
+        public static bool IsPrey(ThingDef species)
+        {
+            if (species?.race?.Animal != true) return false;
+            SpeciesBehaviorOverride value = OverrideFor(species);
+            return Resolve(DefaultPrey(species), value?.hasPreyOverride == true,
+                value?.prey == true);
+        }
+
+        public static bool HasPredatorOverride(ThingDef species) =>
+            OverrideFor(species)?.hasPredatorOverride == true;
+
+        public static bool HasPreyOverride(ThingDef species) =>
+            OverrideFor(species)?.hasPreyOverride == true;
+
+        public static void SetPredatorOverride(ThingDef species, bool enabled, bool value) =>
+            SetOverride(species, enabled, value, true);
+
+        public static void SetPreyOverride(ThingDef species, bool enabled, bool value) =>
+            SetOverride(species, enabled, value, false);
+
+        private static void SetOverride(ThingDef species, bool enabled, bool value, bool predator)
+        {
+            if (species?.race?.Animal != true || HerdsMod.Settings == null) return;
+            HerdsMod.Settings.speciesOverrides ??= new List<SpeciesBehaviorOverride>();
+            SpeciesBehaviorOverride item = OverrideFor(species);
+            if (item == null)
+            {
+                item = SpeciesBehaviorOverride.FromProfile(PreyProfileDatabase.DefaultFor(species));
+                HerdsMod.Settings.speciesOverrides.Add(item);
+            }
+            if (predator)
+            {
+                item.hasPredatorOverride = enabled;
+                item.predator = value;
+            }
+            else
+            {
+                item.hasPreyOverride = enabled;
+                item.prey = value;
+            }
+            PreyProfileDatabase.Clear();
+            WildlifeNicheDatabase.Clear();
+            HerdsStartup.RefreshAnimalTabs(species);
+            if (Current.Game?.Maps != null)
+                for (int i = 0; i < Current.Game.Maps.Count; i++)
+                    Current.Game.Maps[i].GetComponent<HerdMapComponent>()?.ForceRefresh();
+        }
+
+        internal static bool DefaultPrey(ThingDef species)
+        {
+            PreyBehaviorExtension extension = species?.GetModExtension<PreyBehaviorExtension>();
+            if (extension != null)
+                return extension.forcePrey && species.race?.Animal == true;
+            return species?.race?.Animal == true && species.race.IsFlesh &&
+                !species.race.IsAnomalyEntity && !species.race.predator;
+        }
+
+        internal static bool Resolve(bool fallback, bool hasOverride, bool value) =>
+            hasOverride ? value : fallback;
     }
 
     public static class PreyProfileDatabase
@@ -163,7 +246,7 @@ namespace Herds
                 return new PreyProfile
                 {
                     race = race,
-                    eligible = extension.forcePrey && race.race?.Animal == true,
+                    eligible = WildlifeSpeciesClassification.IsPrey(race),
                     socialType = extensionBird ? PreySocialType.Flock : extension.socialType,
                     defenseStrategy = extension.defenseStrategy,
                     refugePreference = extension.refugePreference,
@@ -175,7 +258,7 @@ namespace Herds
                 };
             }
 
-            bool eligible = race.race?.Animal == true && race.race.IsFlesh && !race.race.IsAnomalyEntity && !race.race.predator;
+            bool eligible = WildlifeSpeciesClassification.IsPrey(race);
             float bodySize = race.race?.baseBodySize ?? 1f;
             bool herd = race.race?.herdAnimal == true;
             bool bird = IsBird(race);

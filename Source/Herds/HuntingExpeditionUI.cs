@@ -30,6 +30,11 @@ namespace Herds
                 DrawRoamingEncounter(rect);
                 return;
             }
+            if (record?.pendingEvent != null)
+            {
+                DrawDefinedEvent(rect);
+                return;
+            }
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width, 34f), "Expedition Encounter");
             Text.Font = GameFont.Small;
@@ -45,6 +50,23 @@ namespace Herds
                 "Gain regional confidence and Animal Knowledge with a short delay.", 1);
             DrawChoice(new Rect(0f, 308f, rect.width, 58f), "Take a Careful Detour",
                 "Reduce danger, but lose time and some chance of finding game.", 2);
+        }
+
+        private void DrawDefinedEvent(Rect rect)
+        {
+            ExpeditionEventDef eventDef = record.pendingEvent;
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(0f, 0f, rect.width, 34f), eventDef.LabelCap);
+            Text.Font = GameFont.Small;
+            Rect report = new Rect(0f, 44f, rect.width, 96f);
+            Widgets.DrawMenuSection(report);
+            Widgets.Label(report.ContractedBy(12f), eventDef.narrative ?? eventDef.description);
+            for (int i = 0; i < eventDef.choices.Count; i++)
+            {
+                ExpeditionEventChoiceDef choice = eventDef.choices[i];
+                DrawChoice(new Rect(0f, 154f + i * 66f, rect.width, 58f),
+                    choice.label, choice.description, i);
+            }
         }
 
         private void DrawRoamingEncounter(Rect rect)
@@ -204,11 +226,18 @@ namespace Herds
 
         public Window_HuntingExpeditionSetup(Map map, ExpeditionDestination destination,
             ThingDef targetSpecies, ExpeditionObjective objective)
+            : this(map, destination, targetSpecies, objective, null)
+        {
+        }
+
+        public Window_HuntingExpeditionSetup(Map map, ExpeditionDestination destination,
+            ThingDef targetSpecies, ExpeditionObjective objective, Pawn trailTargetAnimal)
         {
             this.map = map;
             initialDestination = destination;
             plan.targetSpecies = targetSpecies;
             plan.objective = objective;
+            plan.trailTargetAnimal = trailTargetAnimal;
             doCloseX = true;
             absorbInputAroundWindow = true;
             resizeable = true;
@@ -223,6 +252,14 @@ namespace Herds
             }
             HuntingExpeditionMapComponent component = map.GetComponent<HuntingExpeditionMapComponent>();
             EnsureInitialized(component);
+            bool trailExpedition = plan.trailTargetAnimal != null;
+            if (trailExpedition)
+            {
+                plan.objective = ExpeditionObjective.Hunt;
+                plan.destination = initialDestination;
+                plan.targetSpecies = plan.trailTargetAnimal.def;
+                plan.unknownTarget = false;
+            }
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width, 32f), "Plan Wildlife Expedition");
             Text.Font = GameFont.Small;
@@ -230,19 +267,24 @@ namespace Herds
             Widgets.Label(new Rect(0f, 30f, rect.width, 24f), "Choose a real world cell, objective, party, route, and supplies. Predictions remain uncertain until the area is surveyed.");
             GUI.color = Color.white;
 
-            DrawChoiceRow(new Rect(0f, 58f, rect.width, 34f), "1. Objective", ObjectiveLabel(plan.objective), "Change", ShowObjectiveMenu);
+            DrawChoiceRow(new Rect(0f, 58f, rect.width, 34f), "1. Objective", ObjectiveLabel(plan.objective),
+                trailExpedition ? "Trail Hunt" : "Change", ShowObjectiveMenu, !trailExpedition);
             string destination = plan.destination == null ? "No destination selected" :
                 plan.destination.knowledge.discoveryLevel <= 0
                     ? "Unknown region • " + plan.destination.distance + " tile" + (plan.destination.distance == 1 ? "" : "s") + " away"
                     : component.TileKnowledgeLabel(plan.destination) +
                         (plan.destination.knowledge.discovery.NullOrEmpty() ? "" : " • " + plan.destination.knowledge.discovery);
-            DrawChoiceRow(new Rect(0f, 96f, rect.width, 34f), "2. Destination", destination, "World Map", () => ShowDestinationMenu(component));
+            DrawChoiceRow(new Rect(0f, 96f, rect.width, 34f), "2. Destination", destination,
+                trailExpedition ? "Nearby Trail" : "World Map", () => ShowDestinationMenu(component),
+                !trailExpedition);
             string target = plan.objective == ExpeditionObjective.Scout ? "Not required for scouting" :
                 plan.unknownTarget ? "Unknown — search for suitable wildlife" :
                 plan.targetSpecies == null ? "No target selected" :
                 plan.targetSpecies.LabelCap + " • " + PopulationLabel(component, plan.destination, plan.targetSpecies);
-            DrawChoiceRow(new Rect(0f, 134f, rect.width, 34f), "3. Target", target, plan.objective == ExpeditionObjective.Scout ? "Not Required" : "Choose Animal", () => ShowTargetMenu(component),
-                plan.objective != ExpeditionObjective.Scout);
+            DrawChoiceRow(new Rect(0f, 134f, rect.width, 34f), "3. Target", target,
+                trailExpedition ? "Exact Animal" : plan.objective == ExpeditionObjective.Scout
+                    ? "Not Required" : "Choose Animal", () => ShowTargetMenu(component),
+                !trailExpedition && plan.objective != ExpeditionObjective.Scout);
 
             Widgets.DrawLightHighlight(new Rect(0f, 174f, rect.width, 30f));
             Widgets.Label(new Rect(8f, 178f, rect.width - 310f, 24f), "4. Expedition Party — " + selectedHunters.Count + " hunter" + (selectedHunters.Count == 1 ? "" : "s") + ", " + selectedPackAnimals.Count + " pack animal" + (selectedPackAnimals.Count == 1 ? "" : "s"));
@@ -920,10 +962,10 @@ namespace Herds
             }
 
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, rect.width - 230f, 32f), "Wildlife Expeditions");
+            Widgets.Label(new Rect(0f, 0f, rect.width - 460f, 32f), "Wildlife Expeditions");
             Text.Font = GameFont.Small;
             GUI.color = new Color(0.68f, 0.78f, 0.69f);
-            Widgets.Label(new Rect(0f, 32f, rect.width - 230f, 24f),
+            Widgets.Label(new Rect(0f, 32f, rect.width - 460f, 24f),
                 component.ActiveExpeditions.Count + " active field part" +
                 (component.ActiveExpeditions.Count == 1 ? "y" : "ies"));
             GUI.color = Color.white;
@@ -935,6 +977,15 @@ namespace Herds
                 WildlifeWorldMapController.BeginNewExpeditionSelection(component, this);
             }
             TooltipHandler.TipRegion(send, "Open the World Map, choose a valid tile, then plan and supply a new expedition.");
+
+            bool hasTrails = map.GetComponent<WildlifeTrailMapComponent>()?.TrailLeads
+                .Any(lead => lead?.species != null) == true;
+            if (hasTrails && Widgets.ButtonText(new Rect(rect.width - 448f, 2f, 220f, 38f),
+                "Trail Leads"))
+            {
+                Close(false);
+                Find.WindowStack.Add(new Window_WildlifeTrailBoard(map));
+            }
 
             if (Widgets.ButtonText(new Rect(0f, 62f, 120f, 30f), "Active", active: showHistory))
             {

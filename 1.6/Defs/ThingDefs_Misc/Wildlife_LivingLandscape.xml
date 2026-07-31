@@ -38,7 +38,7 @@
   </ThingDef>
   <ThingDef ParentName="Herds_LandscapeFeatureBase">
     <defName>Herds_GrazingGround</defName><label>grazing ground</label>
-    <description>A patch repeatedly cropped and maintained by grazing wildlife.</description>
+    <description>A patch repeatedly cropped and maintained by grazing wildlife. Grass grows faster within its effective area.</description>
     <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.45,1.45)</drawSize><color>(0.45,0.54,0.24)</color></graphicData>
   </ThingDef>
   <ThingDef ParentName="Herds_LandscapeFeatureBase">
@@ -73,7 +73,7 @@
   </ThingDef>
   <ThingDef ParentName="Herds_LandscapeFeatureBase">
     <defName>Herds_FeedingRemains</defName><label>feeding remains</label>
-    <description>A persistent feeding place evidenced by scattered pale remains and disturbed ground.</description>
+    <description>Scattered remains that attract scavengers while food remains. Wildlife gradually consumes the site until it disappears.</description>
     <graphicData><texPath>Wildlife/Landscape/LivingLandscapeBase</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(1.0,1.0)</drawSize><color>(0.64,0.60,0.48)</color></graphicData>
   </ThingDef>
 </Defs>

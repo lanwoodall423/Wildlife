@@ -107,7 +107,7 @@ namespace Herds
         public int Level(Pawn colonist, ThingDef species)
         {
             float xp = For(colonist, species, false)?.experience ?? 0f;
-            return xp >= 1200f ? 5 : xp >= 650f ? 4 : xp >= 300f ? 3 : xp >= 120f ? 2 : xp >= 35f ? 1 : 0;
+            return LevelForExperience(xp);
         }
 
         public float ColonyExperienceFor(ThingDef species)
@@ -126,11 +126,11 @@ namespace Herds
 
         public static int ColonyLevel(ThingDef species)
         {
-            float xp = ColonyExperience(species);
-            return xp >= 1200f ? 5 : xp >= 650f ? 4 : xp >= 300f ? 3 : xp >= 120f ? 2 : xp >= 35f ? 1 : 0;
+            return LevelForExperience(ColonyExperience(species));
         }
 
-        public float TacticalBonus(Pawn colonist, ThingDef species) => Level(colonist, species) * 0.8f;
+        public float TacticalBonus(Pawn colonist, ThingDef species) =>
+            KnowledgeFramework.KnowledgeRanks.Bonus((KnowledgeFramework.KnowledgeRank)Level(colonist, species), 0.8f);
 
         public void Learn(Pawn colonist, ThingDef species, float amount, bool success = false, bool failure = false)
         {
@@ -172,6 +172,9 @@ namespace Herds
 
         public IEnumerable<ColonistBiomeKnowledgeRecord> BiomesForColonist(Pawn colonist) =>
             biomeRecords.Where(record => record.colonist == colonist).OrderByDescending(record => record.experience);
+
+        public IEnumerable<ColonistBiomeKnowledgeRecord> ColonyBiomeRecords =>
+            biomeRecords.Where(record => record?.colonist?.Faction?.def?.isPlayer == true && record.biome != null);
 
         public void LearnBiome(Pawn colonist, BiomeDef biome, float amount, bool completed = false)
         {
@@ -312,10 +315,9 @@ namespace Herds
             }
         }
 
-        public static string LevelLabel(int level) => level <= 0 ? "Unfamiliar" : level == 1 ? "Recognized" : level == 2 ? "Tracked" : level == 3 ? "Studied" : level == 4 ? "Expert" : "Master";
+        public static string LevelLabel(int level) => ((KnowledgeFramework.KnowledgeRank)Mathf.Clamp(level, 0, 3)).ToString();
 
-        public static int LevelForExperience(float xp) =>
-            xp >= 1200f ? 5 : xp >= 650f ? 4 : xp >= 300f ? 3 : xp >= 120f ? 2 : xp >= 35f ? 1 : 0;
+        public static int LevelForExperience(float xp) => (int)WildlifeSharedKnowledgeIntegration.RankFor(xp);
 
         public static string BiomeKnowledgeTooltip(ColonistBiomeKnowledgeRecord record)
         {
@@ -324,18 +326,16 @@ namespace Herds
             float incidents = level * 0.03f;
             float field = level * 0.02f;
             string tier = level <= 0 ? "No reliable field knowledge yet." :
-                level == 1 ? "Recognized: identifies common terrain conditions and improves basic route estimates." :
-                level == 2 ? "Tracked: recognizes wildlife trails and recurring regional hazards." :
-                level == 3 ? "Studied: provides dependable travel, encounter, and safety forecasts." :
-                level == 4 ? "Expert: anticipates subtle seasonal and habitat changes." :
-                "Master: reads this biome with exceptional confidence.";
+                level == 1 ? "Adept: identifies common terrain conditions and improves basic route estimates." :
+                level == 2 ? "Expert: recognizes wildlife trails, recurring hazards, and seasonal habitat changes." :
+                "Master: provides dependable travel, encounter, and safety forecasts.";
             string text = record.biome.LabelCap + " — " + LevelLabel(level) + "\n\n" + tier +
                 "\n\nExpedition Effects\n• Travel time: -" + travel.ToStringPercent() +
                 "\n• Incident risk: -" + incidents.ToStringPercent() +
                 "\n• Encounter and objective chance: +" + field.ToStringPercent() +
                 "\n• Completed expeditions: " + record.completedExpeditions +
                 "\n\nKnowledge: " + record.experience.ToString("0") + " XP";
-            if (level < 5) text += "\nNext tier: " + LevelLabel(level + 1) + " at " + LevelThreshold(level + 1).ToString("0") + " XP.";
+            if (level < 3) text += "\nNext tier: " + LevelLabel(level + 1) + " at " + LevelThreshold(level + 1).ToString("0") + " XP.";
             return text;
         }
 
@@ -344,16 +344,12 @@ namespace Herds
             string effects = level <= 0
                 ? "The colony cannot yet identify this animal reliably."
                 : level == 1
-                    ? "Recognized: identifies the animal, allows it to appear in Regional Wildlife when present, and reveals basic species, body size, movement, wildness, and trainability statistics."
+                    ? "Adept: identifies the animal, allows it to appear in Regional Wildlife when present, and reveals basic species, body size, movement, wildness, and trainability statistics."
                     : level == 2
-                        ? "Tracked: reveals regional population trends with Wildlife Stewardship, plus food, market, and general animal statistics."
-                        : level == 3
-                            ? "Studied: unlocks species management, ecological forecasts when available, and combat and health statistics."
-                            : level == 4
-                                ? "Expert: reveals product yields, leather, meat, milk, wool, and resistance statistics."
-                                : "Master: reveals every available statistic for this animal.";
+                        ? "Expert: reveals regional population trends with Wildlife Stewardship, plus food, market, combat, and health statistics."
+                        : "Master: unlocks species management and ecological forecasts when available, and reveals every statistic and product yield for this animal.";
             string result = species.LabelCap + " — " + LevelLabel(level) + "\n\n" + effects + "\n\nColony knowledge: " + experience.ToString("0") + " XP";
-            if (level < 5)
+            if (level < 3)
             {
                 float next = LevelThreshold(level + 1);
                 result += "\nNext tier: " + LevelLabel(level + 1) + " at " + next.ToString("0") + " XP (" + Mathf.Max(0f, next - experience).ToString("0") + " remaining).";
@@ -376,7 +372,7 @@ namespace Herds
                 "\n• Effective Hunting Skill: " + effectiveSkill.ToString("0.0") + " (+" + tacticalBonus.ToString("0.0") + " species, +" + (proficiency * 0.5f).ToString("0.0") + " proficiency)" +
                 "\n• Animal Call Success: " + callChance.ToStringPercent() +
                 "\n• Animal Call Attraction Distance: " + callDistance.ToString("0") + " cells";
-            if (level < 5)
+            if (level < 3)
             {
                 float next = LevelThreshold(level + 1);
                 text += "\n\nNext Personal Tier" +
@@ -392,21 +388,17 @@ namespace Herds
         public static float LevelThreshold(int level)
         {
             if (level <= 0) return 0f;
-            if (level == 1) return 35f;
-            if (level == 2) return 120f;
-            if (level == 3) return 300f;
-            if (level == 4) return 650f;
-            return 1200f;
+            if (level == 1) return WildlifeSharedKnowledgeIntegration.AdeptThreshold;
+            if (level == 2) return WildlifeSharedKnowledgeIntegration.ExpertThreshold;
+            return WildlifeSharedKnowledgeIntegration.MasterThreshold;
         }
 
         public static string RevealedStatistics(int level)
         {
-            if (level <= 0) return "Detailed species statistics remain hidden.";
-            if (level == 1) return "Reveals basic statistics, body size, movement speed, wildness, and trainability.";
-            if (level == 2) return "Also reveals food, general animal, miscellaneous, and market statistics.";
-            if (level == 3) return "Also reveals combat and health statistics.";
-            if (level == 4) return "Also reveals resistances, productivity, and resource yields.";
-            return "Reveals all species statistics.";
+            if (level <= 0) return "Reveals identity and basic species statistics.";
+            if (level == 1) return "Also reveals food, social, movement, market, and trainability statistics.";
+            if (level == 2) return "Also reveals combat, health, habitat, signals, and regional trends.";
+            return "Reveals all species statistics, yields, resistances, and individual field details.";
         }
 
         private static long Key(Pawn colonist, ThingDef species) => ((long)(colonist?.thingIDNumber ?? 0) << 16) ^ (species?.shortHash ?? 0);
@@ -440,130 +432,170 @@ namespace Herds
         }
     }
 
+    public static class WildlifeKnowledgeMenuAdapter
+    {
+        public static KnowledgeFramework.KnowledgeRank ExpertiseFor(Pawn pawn)
+        {
+            if (pawn == null || Current.Game?.Maps == null) return KnowledgeFramework.KnowledgeRank.Novice;
+            float total = 0f;
+            float coverage = 0f;
+            for (int i = 0; i < Current.Game.Maps.Count; i++)
+            {
+                HuntingKnowledgeMapComponent component = Current.Game.Maps[i].GetComponent<HuntingKnowledgeMapComponent>();
+                if (component == null) continue;
+                total += component.ForColonist(pawn).Sum(record => record.experience) +
+                    component.BiomesForColonist(pawn).Sum(record => record.experience);
+                coverage = Mathf.Max(coverage, component.WildlifeProficiencyCoverage(pawn));
+            }
+            float experience = Mathf.Max(total, coverage * WildlifeSharedKnowledgeIntegration.MasterThreshold);
+            return WildlifeSharedKnowledgeIntegration.RankFor(experience);
+        }
+
+        public static KnowledgeFramework.KnowledgeMenuModel ModelFor(Pawn pawn, bool colony)
+        {
+            List<Pawn> pawns = colony
+                ? Find.Maps.SelectMany(map => map.mapPawns.FreeColonists)
+                    .Where(value => value?.Faction?.def?.isPlayer == true && !value.Dead).Distinct().ToList()
+                : new List<Pawn> { pawn }.Where(value => value != null).ToList();
+            List<ColonistSpeciesKnowledgeRecord> personalAnimals = pawns.SelectMany(value =>
+                value.MapHeld?.GetComponent<HuntingKnowledgeMapComponent>()?.ForColonist(value)
+                ?? Enumerable.Empty<ColonistSpeciesKnowledgeRecord>()).ToList();
+            List<ColonistBiomeKnowledgeRecord> personalBiomes = colony
+                ? Find.Maps.SelectMany(map => map.GetComponent<HuntingKnowledgeMapComponent>()?.ColonyBiomeRecords
+                    ?? Enumerable.Empty<ColonistBiomeKnowledgeRecord>()).ToList()
+                : pawns.SelectMany(value => value.MapHeld?.GetComponent<HuntingKnowledgeMapComponent>()?.BiomesForColonist(value)
+                    ?? Enumerable.Empty<ColonistBiomeKnowledgeRecord>()).ToList();
+
+            var animals = new KnowledgeFramework.KnowledgeMenuSection
+            {
+                id = "animals",
+                label = "Animal Knowledge",
+                emptyText = "No Animal Knowledge yet. Track, observe, wound, tend, handle, or hunt wildlife to learn it."
+            };
+            IEnumerable<ThingDef> animalDefs = colony
+                ? DefDatabase<ThingDef>.AllDefsListForReading.Where(def => def.race?.Animal == true &&
+                    HuntingKnowledgeMapComponent.ColonyExperience(def) > 0f)
+                : personalAnimals.Select(record => record.species).Where(def => def != null).Distinct();
+            foreach (ThingDef def in animalDefs)
+            {
+                float experience = colony ? HuntingKnowledgeMapComponent.ColonyExperience(def)
+                    : personalAnimals.Where(record => record.species == def).Max(record => record.experience);
+                KnowledgeFramework.KnowledgeRank rank = WildlifeSharedKnowledgeIntegration.RankFor(experience);
+                animals.rows.Add(new KnowledgeFramework.KnowledgeMenuRow
+                {
+                    label = def.LabelCap,
+                    iconDef = def,
+                    rank = rank,
+                    progress = WildlifeSharedKnowledgeIntegration.ProgressFor(experience),
+                    status = rank + " - " + experience.ToString("0") + " XP",
+                    tooltip = colony
+                        ? HuntingKnowledgeMapComponent.ColonyKnowledgeTooltip(def, experience, (int)rank)
+                        : HuntingKnowledgeMapComponent.KnowledgeEffectsTooltip(pawn, def, experience, (int)rank)
+                });
+            }
+
+            var biomes = new KnowledgeFramework.KnowledgeMenuSection
+            {
+                id = "biomes",
+                label = "Biome Knowledge",
+                emptyText = "No Biome Knowledge yet. Complete wildlife expeditions to learn terrain, routes, and hazards."
+            };
+            foreach (IGrouping<BiomeDef, ColonistBiomeKnowledgeRecord> group in personalBiomes
+                .Where(record => record.biome != null).GroupBy(record => record.biome))
+            {
+                ColonistBiomeKnowledgeRecord first = group.First();
+                var aggregate = new ColonistBiomeKnowledgeRecord
+                {
+                    biome = first.biome,
+                    experience = colony ? group.Sum(record => record.experience) : first.experience,
+                    completedExpeditions = colony ? group.Sum(record => record.completedExpeditions) : first.completedExpeditions
+                };
+                KnowledgeFramework.KnowledgeRank rank = WildlifeSharedKnowledgeIntegration.RankFor(aggregate.experience);
+                biomes.rows.Add(new KnowledgeFramework.KnowledgeMenuRow
+                {
+                    label = aggregate.biome.LabelCap,
+                    rank = rank,
+                    progress = WildlifeSharedKnowledgeIntegration.ProgressFor(aggregate.experience),
+                    status = rank + " - " + aggregate.experience.ToString("0") + " XP",
+                    tooltip = HuntingKnowledgeMapComponent.BiomeKnowledgeTooltip(aggregate)
+                });
+            }
+
+            if (colony)
+            {
+                return new KnowledgeFramework.KnowledgeMenuModel
+                {
+                    title = "Colony Wildlife Knowledge",
+                    sections = new List<KnowledgeFramework.KnowledgeMenuSection> { animals, biomes }
+                };
+            }
+            KnowledgeFramework.KnowledgeRank expertise = ExpertiseFor(pawn);
+            return new KnowledgeFramework.KnowledgeMenuModel
+            {
+                title = (pawn?.LabelShortCap ?? "Colonist") + " - Wildlife",
+                expertiseLabel = "Wildlife expertise",
+                expertiseRank = expertise,
+                expertiseProgress = ExpertiseProgressFor(pawn),
+                sections = new List<KnowledgeFramework.KnowledgeMenuSection> { animals, biomes }
+            };
+        }
+
+        private static float ExpertiseProgressFor(Pawn pawn)
+        {
+            if (pawn == null || Current.Game?.Maps == null) return 0f;
+            float total = 0f;
+            float coverage = 0f;
+            for (int i = 0; i < Current.Game.Maps.Count; i++)
+            {
+                HuntingKnowledgeMapComponent component = Current.Game.Maps[i].GetComponent<HuntingKnowledgeMapComponent>();
+                if (component == null) continue;
+                total += component.ForColonist(pawn).Sum(record => record.experience) +
+                    component.BiomesForColonist(pawn).Sum(record => record.experience);
+                coverage = Mathf.Max(coverage, component.WildlifeProficiencyCoverage(pawn));
+            }
+            return WildlifeSharedKnowledgeIntegration.ProgressFor(Mathf.Max(total,
+                coverage * WildlifeSharedKnowledgeIntegration.MasterThreshold));
+        }
+    }
+
     public sealed class Window_ColonistWildlifeKnowledge : Window
     {
-        private readonly Pawn colonist;
-        private Vector2 scroll;
-        private bool showBiomes;
-        public override Vector2 InitialSize => new Vector2(700f, 600f);
+        private readonly KnowledgeFramework.KnowledgeMenuState state = new KnowledgeFramework.KnowledgeMenuState();
+        public override Vector2 InitialSize => new Vector2(1040f, 680f);
 
         public Window_ColonistWildlifeKnowledge(Pawn colonist)
         {
-            this.colonist = colonist;
+            state.scope = KnowledgeFramework.KnowledgeMenuScope.Colonist;
+            state.selectedPawn = colonist;
             doCloseX = true;
             absorbInputAroundWindow = true;
         }
 
         public override void DoWindowContents(Rect inRect)
         {
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, inRect.width, 34f), colonist.LabelShortCap + " — Wildlife Knowledge");
-            Text.Font = GameFont.Small;
-            if (Widgets.ButtonText(new Rect(0f, 42f, 170f, 32f), "Animal Knowledge", active: showBiomes)) { showBiomes = false; scroll = Vector2.zero; }
-            if (Widgets.ButtonText(new Rect(178f, 42f, 170f, 32f), "Biome Knowledge", active: !showBiomes)) { showBiomes = true; scroll = Vector2.zero; }
-            if (showBiomes) DrawBiomes(new Rect(0f, 84f, inRect.width, inRect.height - 84f));
-            else DrawAnimals(new Rect(0f, 84f, inRect.width, inRect.height - 84f));
-        }
-
-        private void DrawAnimals(Rect outer)
-        {
-            HuntingKnowledgeMapComponent component = colonist.MapHeld?.GetComponent<HuntingKnowledgeMapComponent>();
-            List<ColonistSpeciesKnowledgeRecord> values = component?.ForColonist(colonist).ToList() ?? new List<ColonistSpeciesKnowledgeRecord>();
-            Rect view = new Rect(0f, 0f, outer.width - 18f, Mathf.Max(outer.height, values.Count * 54f));
-            Widgets.BeginScrollView(outer, ref scroll, view);
-            for (int i = 0; i < values.Count; i++)
-            {
-                ColonistSpeciesKnowledgeRecord record = values[i];
-                int level = component.Level(colonist, record.species);
-                Rect row = new Rect(0f, i * 54f, view.width, 48f);
-                Widgets.DrawMenuSection(row);
-                Widgets.Label(new Rect(10f, row.y + 5f, row.width * 0.48f, 24f), record.species.LabelCap);
-                Text.Anchor = TextAnchor.MiddleRight;
-                Widgets.Label(new Rect(row.width * 0.50f, row.y + 3f, row.width * 0.47f, 26f), HuntingKnowledgeMapComponent.LevelLabel(level) + "  •  " + record.experience.ToString("0") + " XP");
-                Text.Anchor = TextAnchor.UpperLeft;
-                Widgets.FillableBar(new Rect(10f, row.y + 34f, row.width - 20f, 7f), Mathf.Clamp01(record.experience / 1200f));
-                TooltipHandler.TipRegion(row, HuntingKnowledgeMapComponent.KnowledgeEffectsTooltip(colonist, record.species, record.experience, level));
-            }
-            Widgets.EndScrollView();
-            if (values.Count == 0) Widgets.Label(outer.ContractedBy(10f), "No Animal Knowledge yet.");
-        }
-
-        private void DrawBiomes(Rect outer)
-        {
-            HuntingKnowledgeMapComponent component = colonist.MapHeld?.GetComponent<HuntingKnowledgeMapComponent>();
-            List<ColonistBiomeKnowledgeRecord> values = component?.BiomesForColonist(colonist).ToList() ?? new List<ColonistBiomeKnowledgeRecord>();
-            Rect view = new Rect(0f, 0f, outer.width - 18f, Mathf.Max(outer.height, values.Count * 54f));
-            Widgets.BeginScrollView(outer, ref scroll, view);
-            for (int i = 0; i < values.Count; i++)
-            {
-                ColonistBiomeKnowledgeRecord record = values[i];
-                int level = HuntingKnowledgeMapComponent.LevelForExperience(record.experience);
-                Rect row = new Rect(0f, i * 54f, view.width, 48f);
-                Widgets.DrawMenuSection(row);
-                Widgets.Label(new Rect(10f, row.y + 5f, row.width * 0.48f, 24f), record.biome.LabelCap);
-                Text.Anchor = TextAnchor.MiddleRight;
-                Widgets.Label(new Rect(row.width * 0.50f, row.y + 3f, row.width * 0.47f, 26f), HuntingKnowledgeMapComponent.LevelLabel(level) + "  •  " + record.experience.ToString("0") + " XP");
-                Text.Anchor = TextAnchor.UpperLeft;
-                Widgets.FillableBar(new Rect(10f, row.y + 34f, row.width - 20f, 7f), Mathf.Clamp01(record.experience / 1200f));
-                TooltipHandler.TipRegion(row, HuntingKnowledgeMapComponent.BiomeKnowledgeTooltip(record));
-            }
-            Widgets.EndScrollView();
-            if (values.Count == 0) Widgets.Label(outer.ContractedBy(10f), "No Biome Knowledge yet. Travel through and complete wildlife expeditions to learn terrain, routes, and hazards.");
+            KnowledgeFramework.KnowledgeMenuUI.Draw(inRect, state, WildlifeKnowledgeMenuAdapter.ModelFor,
+                WildlifeKnowledgeMenuAdapter.ExpertiseFor);
         }
     }
 
     public sealed class Window_ColonyWildlifeKnowledge : Window
     {
-        private sealed class KnowledgeRow
+        private readonly KnowledgeFramework.KnowledgeMenuState state = new KnowledgeFramework.KnowledgeMenuState
         {
-            public ThingDef species;
-            public float experience;
-            public int level;
-        }
-
-        private Vector2 scroll;
-        private readonly List<KnowledgeRow> rows;
-        public override Vector2 InitialSize => new Vector2(700f, 600f);
+            scope = KnowledgeFramework.KnowledgeMenuScope.Colony
+        };
+        public override Vector2 InitialSize => new Vector2(1040f, 680f);
 
         public Window_ColonyWildlifeKnowledge()
         {
             doCloseX = true;
             absorbInputAroundWindow = true;
-            rows = DefDatabase<ThingDef>.AllDefsListForReading
-                .Where(def => def.race?.Animal == true)
-                .Select(def => new KnowledgeRow { species = def, experience = HuntingKnowledgeMapComponent.ColonyExperience(def), level = HuntingKnowledgeMapComponent.ColonyLevel(def) })
-                .Where(row => row.experience > 0f)
-                .OrderByDescending(row => row.experience)
-                .ThenBy(row => row.species.label)
-                .ToList();
         }
 
         public override void DoWindowContents(Rect inRect)
         {
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, inRect.width, 34f), "Colony Animal Knowledge");
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(0f, 38f, inRect.width, 42f), "Combined knowledge gathered by every colonist through observation, tracks, encounters, and hunts. Higher tiers reveal more species statistics.");
-            Rect outer = new Rect(0f, 86f, inRect.width, inRect.height - 86f);
-            Rect view = new Rect(0f, 0f, outer.width - 18f, Mathf.Max(outer.height, rows.Count * 58f));
-            Widgets.BeginScrollView(outer, ref scroll, view);
-            for (int i = 0; i < rows.Count; i++)
-            {
-                KnowledgeRow knowledge = rows[i];
-                ThingDef def = knowledge.species;
-                float xp = knowledge.experience;
-                int level = knowledge.level;
-                Rect row = new Rect(0f, i * 58f, view.width, 52f);
-                Widgets.DrawMenuSection(row);
-                Widgets.Label(new Rect(row.x + 10f, row.y + 6f, row.width * 0.46f, 24f), def.LabelCap);
-                Text.Anchor = TextAnchor.MiddleRight;
-                Widgets.Label(new Rect(row.x + row.width * 0.48f, row.y + 4f, row.width * 0.49f, 26f), HuntingKnowledgeMapComponent.LevelLabel(level) + "  •  " + xp.ToString("0") + " XP");
-                Text.Anchor = TextAnchor.UpperLeft;
-                Widgets.FillableBar(new Rect(row.x + 10f, row.y + 35f, row.width - 20f, 8f), Mathf.Clamp01(xp / 1200f));
-                TooltipHandler.TipRegion(row, HuntingKnowledgeMapComponent.ColonyKnowledgeTooltip(def, xp, level));
-            }
-            Widgets.EndScrollView();
-            if (rows.Count == 0) Widgets.Label(new Rect(8f, 100f, inRect.width - 16f, 50f), "No wildlife species have been studied yet.");
+            KnowledgeFramework.KnowledgeMenuUI.Draw(inRect, state, WildlifeKnowledgeMenuAdapter.ModelFor,
+                WildlifeKnowledgeMenuAdapter.ExpertiseFor);
         }
     }
 }

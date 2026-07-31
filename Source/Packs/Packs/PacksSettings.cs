@@ -61,6 +61,12 @@ public sealed class PacksSettings : ModSettings
 		return enablePredators && StrategyFor(def) != PredatorSocialStrategy.Disabled;
 	}
 
+	public static void ClearSpeciesCaches()
+	{
+		DefaultStrategyCache.Clear();
+		DefaultHuntingStyleCache.Clear();
+	}
+
 	public PredatorSocialStrategy StrategyFor(ThingDef def)
 	{
 		if (!enablePredators) return PredatorSocialStrategy.Disabled;
@@ -125,7 +131,7 @@ public sealed class PacksSettings : ModSettings
 			return extension.socialStrategy;
 		}
 		RaceProperties race = def.race;
-		if (race == null || !race.predator)
+		if (race == null || !HerdsCompatibility.IsPredator(def))
 		{
 			return DefaultStrategyCache[def] = PredatorSocialStrategy.Disabled;
 		}

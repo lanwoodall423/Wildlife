@@ -169,16 +169,18 @@ namespace Herds
                 Mathf.Max(0, cachedConstruction - 35) * 0.0025f);
             float sanctuaryTarget = Mathf.Clamp01(reserves * 0.18f + trust * 0.5f + safeTradition);
             float waterTarget = Mathf.Clamp01(water * 0.32f + safeTradition * 0.25f);
+            bool predator = WildlifeSpeciesClassification.IsPredator(species);
             float feedingTarget = Mathf.Clamp01(bait * 0.25f +
-                (species.race.predator ? ranchTradition : reserves * 0.06f));
+                (predator ? ranchTradition : reserves * 0.06f));
             float forbiddenTarget = Mathf.Clamp01(fear * 0.38f + hostility * 0.22f +
-                hunting * 0.018f + fearTradition + (species.race.predator ? deterrents * 0.18f : 0f));
-            float killingTarget = species.race.predator
+                hunting * 0.018f + fearTradition + (predator ? deterrents * 0.18f : 0f));
+            float killingTarget = predator
                 ? Mathf.Clamp01(ranchTradition + feedingTarget * 0.32f - deterrents * 0.08f)
                 : Mathf.Clamp01(hunting * 0.025f + fearTradition * 0.45f);
-            float predatorNestTarget = species.race.predator ? 0f :
+            float predatorNestTarget = predator ? 0f :
                 Mathf.Clamp01(hunting * 0.018f + map.mapPawns.AllPawnsSpawned.Count(pawn =>
-                    pawn.Faction == Faction.OfPlayer && pawn.RaceProps?.predator == true) * 0.10f);
+                    pawn.Faction == Faction.OfPlayer &&
+                    WildlifeSpeciesClassification.IsPredator(pawn.def)) * 0.10f);
             float sacredTarget = Mathf.Clamp01(safeTradition * 0.75f +
                 map.GetComponent<WildlifeRegionalStoriesMapComponent>()?.FamilyLines.Count(line =>
                     line.species == species) * 0.035f ?? 0f);
@@ -227,7 +229,7 @@ namespace Herds
             if (value == null || HerdsMod.Settings?.enableColonyWildlifeLandmark != true) return 0f;
             float positive = value.sanctuary * 0.7f + value.water * 0.45f + value.feeding * 0.5f +
                 value.sacred * 0.55f;
-            if (species.race.predator) positive += value.killingGround * 0.75f;
+            if (WildlifeSpeciesClassification.IsPredator(species)) positive += value.killingGround * 0.75f;
             return Mathf.Clamp(positive - value.forbidden * 0.85f - value.predatorNest * 0.7f -
                 value.unstable * 0.35f, -1.5f, 1.5f);
         }
@@ -258,7 +260,7 @@ namespace Herds
             if (knowledge <= 0) return "Behavior suggests this species recognizes the colony as a landmark.";
             string result = IdentityLabel(identity);
             if (knowledge == 1) return result + ": movement patterns show a developing response to the colony.";
-            result += ": " + Description(identity, species.race.predator);
+            result += ": " + Description(identity, WildlifeSpeciesClassification.IsPredator(species));
             if (knowledge >= 3)
                 result += "\nConfidence: " + Strength(value).ToStringPercent() +
                     (value.latestEvidence.NullOrEmpty() ? "" : "\nEvidence: " + value.latestEvidence);

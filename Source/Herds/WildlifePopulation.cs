@@ -910,7 +910,7 @@ namespace Herds
                     Mathf.Min(0.08f, cachedWater * 0.025f) +
                     Mathf.Min(0.08f, cachedReserves * 0.02f) +
                     Mathf.Min(0.10f, cachedCorridors * 0.025f);
-                if (record.species.race.predator)
+                if (WildlifeSpeciesClassification.IsPredator(record.species))
                     chance -= Mathf.Min(0.20f, cachedDeterrents * 0.05f);
                 if (now < record.encouragedUntilTick) chance += 0.30f;
                 if (now < record.discouragedUntilTick) chance -= 0.42f;
@@ -1071,9 +1071,10 @@ namespace Herds
                 record.previousNearbyPopulation = record.nearbyPopulation;
                 int localCount = local.TryGetValue(record.species, out int count) ? count : 0;
                 record.lastLocalCount = localCount;
-                float capacity = record.species.race.predator ? Mathf.Max(2f, TotalRegionalPrey() * 0.09f) : 5f + habitatQuality * 30f;
+                bool predator = WildlifeSpeciesClassification.IsPredator(record.species);
+                float capacity = predator ? Mathf.Max(2f, TotalRegionalPrey() * 0.09f) : 5f + habitatQuality * 30f;
                 capacity *= 1f + record.policy * 0.18f;
-                float growth = (capacity - record.population) * (record.species.race.predator ? 0.018f : 0.035f);
+                float growth = (capacity - record.population) * (predator ? 0.018f : 0.035f);
                 record.population = Mathf.Clamp(record.population + growth + Rand.Range(-0.35f, 0.36f), 0f, 250f);
                 float nearbyTarget = Mathf.Max(localCount, record.population *
                     Mathf.Lerp(0.14f, 0.32f, habitatQuality) * (1f + record.policy * 0.18f));
@@ -1169,7 +1170,7 @@ namespace Herds
                 attraction += map.GetComponent<WildlifeLandscapeMapComponent>()?
                     .MigrationAttraction(record.species) ?? 0f;
             if (HerdsMod.Settings.enableConservationActions && WildlifeProgression.Unlocked(WildlifeCapability.Stewardship)) attraction += Mathf.Min(0.8f, cachedCorridors * 0.2f);
-            if (record.species.race.predator && cachedDeterrents > 0) attraction -= 0.75f;
+            if (WildlifeSpeciesClassification.IsPredator(record.species) && cachedDeterrents > 0) attraction -= 0.75f;
             return attraction + (record.population - record.lastLocalCount * 3f) * 0.06f - record.lastLocalCount * 0.08f;
         }
 
@@ -1194,7 +1195,7 @@ namespace Herds
             string text;
             if (kind == 0) { record.population *= 1.12f; text = "A strong nesting season is increasing " + record.species.LabelCap + " numbers."; }
             else if (kind == 1) { record.population *= 0.84f; text = "Disease is reducing the regional " + record.species.LabelCap + " population."; }
-            else if (kind == 2) { record.population += record.species.race.predator ? 3f : 6f; text = "A territorial movement is pushing " + record.species.LabelCap + " toward this area."; }
+            else if (kind == 2) { record.population += WildlifeSpeciesClassification.IsPredator(record.species) ? 3f : 6f; text = "A territorial movement is pushing " + record.species.LabelCap + " toward this area."; }
             else if (kind == 3) { record.confidence = Mathf.Clamp01(record.confidence + 0.3f); text = "Surveyors report a rare sighting of " + record.species.LabelCap + "."; }
             else { record.population += 4f; record.policy = Mathf.Max(0, record.policy); text = "A seasonal migration wave of " + record.species.LabelCap + " is moving through neighboring cells."; }
             float eventConfidence = HasOperationalMonitor(WildlifeToolKind.TelemetryStation) ? 0.08f : 0.2f;
@@ -1379,7 +1380,7 @@ namespace Herds
                     float distance = other.Position.DistanceToSquared(animal.Position);
                     if (distance < adultDistance) { nearestAdult = other; adultDistance = distance; }
                     if (animal.ageTracker.Adult && other.gender != Gender.None && animal.gender != Gender.None && other.gender != animal.gender && distance < mateDistance) { nearestMate = other; mateDistance = distance; }
-                    if (animal.ageTracker.Adult && animal.RaceProps.predator && other.gender == animal.gender && distance < rivalDistance) { nearestRival = other; rivalDistance = distance; }
+                    if (animal.ageTracker.Adult && WildlifeSpeciesClassification.IsPredator(animal.def) && other.gender == animal.gender && distance < rivalDistance) { nearestRival = other; rivalDistance = distance; }
                 }
                 if (!animal.ageTracker.Adult)
                 {
@@ -1406,7 +1407,7 @@ namespace Herds
                             WildlifeMemoryUtility.RememberAnimal(animal, record.mate,
                                 AnimalSocialMemoryKind.MateBond, 1f);
                     }
-                    if (animal.RaceProps.predator)
+                    if (WildlifeSpeciesClassification.IsPredator(animal.def))
                     {
                         record.rival = nearestRival;
                         if (record.rival != null && record.rival != previousRival)
@@ -1431,8 +1432,8 @@ namespace Herds
                 {
                     Pawn owner = claim.Value;
                     if (owner?.Spawned != true || owner.Dead || owner.Downed || owner.InMentalState) continue;
-                    Pawn intruder = map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn => pawn?.Spawned == true && pawn != owner && !pawn.Dead && pawn.Faction == null && pawn.RaceProps?.Animal == true && pawn.Position.DistanceToSquared(claim.Key.Position) <= 36 && pawn.RaceProps.predator);
-                    if (intruder != null && owner.RaceProps.predator && owner.kindDef.combatPower >= intruder.kindDef.combatPower * 0.75f && (owner.CurJobDef == null || owner.CurJobDef == JobDefOf.Wait_Wander))
+                    Pawn intruder = map.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn => pawn?.Spawned == true && pawn != owner && !pawn.Dead && pawn.Faction == null && pawn.RaceProps?.Animal == true && pawn.Position.DistanceToSquared(claim.Key.Position) <= 36 && WildlifeSpeciesClassification.IsPredator(pawn.def));
+                    if (intruder != null && WildlifeSpeciesClassification.IsPredator(owner.def) && owner.kindDef.combatPower >= intruder.kindDef.combatPower * 0.75f && (owner.CurJobDef == null || owner.CurJobDef == JobDefOf.Wait_Wander))
                     {
                         Job defend = JobMaker.MakeJob(JobDefOf.AttackMelee, intruder); defend.maxNumMeleeAttacks = 1; defend.expiryInterval = 150;
                         owner.jobs.StartJob(defend, JobCondition.InterruptForced);
@@ -1450,14 +1451,14 @@ namespace Herds
             for (int i = 0; i < pawns.Count; i++)
             {
                 Pawn pawn = pawns[i];
-                if (pawn?.Spawned != true || pawn.Dead || pawn.Downed || pawn.Faction != null || pawn.RaceProps?.Animal != true || (!pawn.RaceProps.predator && (pawn.RaceProps.foodType & FoodTypeFlags.Corpse) == 0) || pawn.needs?.food?.CurLevelPercentage > 0.58f) continue;
+                if (pawn?.Spawned != true || pawn.Dead || pawn.Downed || pawn.Faction != null || pawn.RaceProps?.Animal != true || (!WildlifeSpeciesClassification.IsPredator(pawn.def) && (pawn.RaceProps.foodType & FoodTypeFlags.Corpse) == 0) || pawn.needs?.food?.CurLevelPercentage > 0.58f) continue;
                 if (!pawn.CanReserve(corpse) || !pawn.CanReach(corpse, PathEndMode.Touch, Danger.Deadly)) continue;
                 if (HerdsMod.Settings.enableAdvancedScavenging && carcassOwners.TryGetValue(corpse, out Pawn owner) && owner != pawn && owner?.Dead == false) continue;
                 if (pawn.CurJobDef != null && pawn.CurJobDef != JobDefOf.Wait_Wander && pawn.CurJobDef != JobDefOf.GotoWander) continue;
                 if (HerdsMod.Settings.enableAdvancedScavenging)
                 {
                     carcassOwners[corpse] = pawn;
-                    if (pawn.RaceProps.predator && pawn.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation) && TryFindCacheCell(pawn, corpse, out IntVec3 cache))
+                    if (WildlifeSpeciesClassification.IsPredator(pawn.def) && pawn.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation) && TryFindCacheCell(pawn, corpse, out IntVec3 cache))
                     {
                         carcassCaches[corpse] = cache;
                         Job haul = JobMaker.MakeJob(JobDefOf.HaulToCell, corpse, cache); haul.expiryInterval = 5000;
@@ -1580,10 +1581,10 @@ namespace Herds
     [HarmonyPatch(typeof(WildAnimalSpawner), "SpawnRandomWildAnimalAt")]
     public static class RegionalWildAnimalSpawnPatch
     {
-        public static bool Prefix(Map ___map, bool mapInit, PawnKindDef animalKind)
+        public static bool Prefix(Map ___map, PawnKindDef animalKind)
         {
             return ___map?.GetComponent<RegionalWildlifeMapComponent>()
-                ?.CanSpawnWildAnimal(animalKind, mapInit) ?? true;
+                ?.CanSpawnWildAnimal(animalKind, false) ?? true;
         }
     }
     }
@@ -1805,7 +1806,7 @@ namespace Herds
                 pawn.Position.DistanceToSquared(map.Center)).FirstOrDefault();
             if (local != null)
                 options.Add(new FloatMenuOption("Focus Local " + record.species.LabelCap,
-                    () => CameraJumper.TryJumpAndSelect(local)));
+                    () => WildlifeUI.Focus(local)));
             options.Add(new FloatMenuOption("Review Animal Knowledge",
                 () => Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge())));
             bool hasRoamers = component.RoamersFor(record.species).Any(value =>
@@ -2027,7 +2028,7 @@ namespace Herds
                 int offspring = component?.OffspringCount(__instance) ?? 0;
                 if (offspring > 0) __result += "\nKnown offspring: " + offspring;
             }
-            if (HerdsMod.Settings.enableDomesticRoleProgression && __instance.Faction == Faction.OfPlayer && __instance.RaceProps.predator)
+            if (HerdsMod.Settings.enableDomesticRoleProgression && __instance.Faction == Faction.OfPlayer && WildlifeSpeciesClassification.IsPredator(__instance.def))
             {
                 WildlifeFieldcraftMapComponent fieldcraft = __instance.Map.GetComponent<WildlifeFieldcraftMapComponent>();
                 DomesticPredatorRole role = fieldcraft?.DomesticRole(__instance) ?? DomesticPredatorRole.None;

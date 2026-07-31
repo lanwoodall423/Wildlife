@@ -224,7 +224,8 @@ namespace Herds
                 canTargetSubhumans = false,
                 canTargetEntities = false,
                 mapObjectTargetsMustBeAutoAttackable = false,
-                validator = target => target.Thing is Pawn predator && predator != prey && predator.RaceProps.predator && predator.Spawned && !predator.Dead
+                validator = target => target.Thing is Pawn predator && predator != prey &&
+                    WildlifeSpeciesClassification.IsPredator(predator.def) && predator.Spawned && !predator.Dead
             };
             Find.Targeter.BeginTargeting(parameters, target => action(target.Pawn), prey);
         }
