@@ -133,6 +133,8 @@ namespace Herds
         public bool enableStewardProjects = true;
         public bool enableHuntRewards = true;
         public float hiddenPreySafeDistance = 40f;
+        public int frightenedMemoryLifetimeTicks = 900000;
+        public int packMemberKilledMemoryLifetimeTicks = 3600000;
         public List<SpeciesBehaviorOverride> speciesOverrides = new List<SpeciesBehaviorOverride>();
 
         public override void ExposeData()
@@ -262,6 +264,8 @@ namespace Herds
             Scribe_Values.Look(ref enableStewardProjects, "enableStewardProjects", true);
             Scribe_Values.Look(ref enableHuntRewards, "enableHuntRewards", true);
             Scribe_Values.Look(ref hiddenPreySafeDistance, "hiddenPreySafeDistance", 40f);
+            Scribe_Values.Look(ref frightenedMemoryLifetimeTicks, "frightenedMemoryLifetimeTicks", 900000);
+            Scribe_Values.Look(ref packMemberKilledMemoryLifetimeTicks, "packMemberKilledMemoryLifetimeTicks", 3600000);
             Scribe_Collections.Look(ref speciesOverrides, "speciesOverrides", LookMode.Deep);
             if (speciesOverrides == null) speciesOverrides = new List<SpeciesBehaviorOverride>();
             updateIntervalTicks = Mathf.Clamp(updateIntervalTicks, 120, 2000);
@@ -278,6 +282,8 @@ namespace Herds
             maximumHideTicks = Mathf.Clamp(maximumHideTicks, minimumHideTicks + 300, 15000);
             basePredatorEscapeChance = Mathf.Clamp(basePredatorEscapeChance, 0f, 0.5f);
             predatorEscapeCheckIntervalTicks = Mathf.Clamp(predatorEscapeCheckIntervalTicks, 120, 900);
+            frightenedMemoryLifetimeTicks = Mathf.Clamp(frightenedMemoryLifetimeTicks, 60000, 3600000);
+            packMemberKilledMemoryLifetimeTicks = Mathf.Clamp(packMemberKilledMemoryLifetimeTicks, 600000, 7200000);
         }
     }
 
@@ -428,6 +434,13 @@ namespace Herds
             if (Settings.enableAnimalMemory)
                 listing.CheckboxLabeled("Animal-To-Animal Social Memory", ref Settings.enableAnimalSocialMemory,
                     "Animals remember mates, parents, teachers, protectors, companions, reunions, rivals, and fights. Disabled: no social memory records, drawing, or behavioral influence is processed.");
+            if (Settings.enableAnimalMemory)
+            {
+                listing.Label("Frightened memory duration: " + Settings.frightenedMemoryLifetimeTicks.ToStringTicksToPeriod());
+                Settings.frightenedMemoryLifetimeTicks = Mathf.RoundToInt(listing.Slider(Settings.frightenedMemoryLifetimeTicks, 60000f, 3600000f));
+                listing.Label("Pack member death memory duration: " + Settings.packMemberKilledMemoryLifetimeTicks.ToStringTicksToPeriod());
+                Settings.packMemberKilledMemoryLifetimeTicks = Mathf.RoundToInt(listing.Slider(Settings.packMemberKilledMemoryLifetimeTicks, 600000f, 7200000f));
+            }
             listing.Gap();
             listing.CheckboxLabeled("Weapon-Aware Tactics", ref Settings.enableWeaponAwareTactics);
             listing.CheckboxLabeled("Wounded Tracking And Hunter Retreat", ref Settings.enableWoundedTrackingAndRetreat);

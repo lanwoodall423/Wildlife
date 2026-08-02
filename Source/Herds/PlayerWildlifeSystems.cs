@@ -1089,7 +1089,11 @@ namespace Herds
             if (!HerdsMod.Settings.enableWildlifeSteward && !HerdsMod.Settings.enableHuntingRegulations &&
                 !HerdsMod.Settings.enableSpeciesKnowledgeProgression && !HerdsMod.Settings.enableAnimalMemory &&
                 !HerdsMod.Settings.enableWildlifeIdeology) return;
-            if (__instance?.Map == null || dinfo?.Instigator is not Pawn killer || killer.Faction != Faction.OfPlayer) return;
+            if (__instance?.Map == null) return;
+            Pawn killer = dinfo?.Instigator as Pawn;
+            if (__instance.RaceProps?.Animal == true && HerdsMod.Settings.enableAnimalMemory)
+                __instance.Map.GetComponent<WildlifeMemoryMapComponent>()?.RememberPackMemberKilled(__instance, killer);
+            if (killer?.Faction != Faction.OfPlayer) return;
             if (__instance.RaceProps?.Animal == true)
             {
                 Map map = __instance.Map;

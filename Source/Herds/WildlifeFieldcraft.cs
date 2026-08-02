@@ -158,8 +158,11 @@ namespace Herds
                 WildlifeSign sign = job.targetA.Thing as WildlifeSign;
                 if (sign?.Spawned != true || sign.species == null || sign.studiedBy.Contains(pawn)) return;
                 sign.studiedBy.Add(pawn);
-                sign.Map.GetComponent<HuntingKnowledgeMapComponent>()?.Learn(pawn, sign.species,
-                    sign.signKind == WildlifeSignKind.BloodTrail ? 22f : 12f);
+                if (HerdsMod.Settings.enableSpeciesKnowledgeProgression)
+                    WildlifeKnowledgeAdapter.Observe(pawn, sign.species, WildlifeKnowledgeObservation.Tracks, sign.Map, true,
+                        sign.signKind == WildlifeSignKind.BloodTrail ? 1.4f : 0.9f,
+                        "A close study identified fresh " + sign.signKind.ToString().ToLowerInvariant() + " from " + sign.species.LabelCap + ".",
+                        "wildlife:tracks:sign:" + sign.thingIDNumber + ":" + pawn.thingIDNumber);
                 WildlifeTrailLead lead = HerdsMod.Settings.enableTrailReading
                     ? sign.Map.GetComponent<WildlifeTrailMapComponent>()?.Analyze(sign, pawn)
                     : null;

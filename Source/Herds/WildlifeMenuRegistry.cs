@@ -91,14 +91,14 @@ namespace Herds
             if (builtInsRegistered) return;
             builtInsRegistered = true;
             Register("wildlife.overview", "Wildlife Overview",
-                "Open the colony's wildlife status, recent outcomes, progression, and next recommended actions.",
-                OverviewOrder, null, () => Find.WindowStack.Add(new Window_WildlifeOverview(Find.CurrentMap)));
+                "Open the unified Wildlife Journal: field guide, living atlas, investigations, expeditions, and stories.",
+                OverviewOrder, null, () => Find.WindowStack.Add(new Window_WildlifeJournal(Find.CurrentMap, WildlifeJournalPage.FieldGuide)));
             Register("wildlife.expeditions", "Expeditions",
                 "Review every active wildlife expedition or send a new party.",
                 ExpeditionsOrder,
                 () => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
                     WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition),
-                () => Find.WindowStack.Add(new Window_WildlifeExpeditions(Find.CurrentMap)));
+                () => Find.WindowStack.Add(new Window_WildlifeJournal(Find.CurrentMap, WildlifeJournalPage.Expeditions)));
         }
     }
 }

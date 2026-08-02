@@ -130,14 +130,15 @@ namespace Herds
             lastMemoryScanTick = now;
             foreach (AnimalColonistMemory relationship in memory.Memories)
             {
-                if (relationship?.animal?.RaceProps?.Animal != true || relationship.colonist == null) continue;
+                if (relationship?.animal?.RaceProps?.Animal != true) continue;
                 foreach (AnimalMemoryEvent entry in relationship.events.Where(value =>
                     value != null && value.tick > fromTick && value.tick <= now))
                 {
                     AnimalTraditionKind? kind = KindFor(entry.kind);
-                    if (!kind.HasValue) continue;
+                    Pawn subject = entry.cause ?? relationship.colonist;
+                    if (!kind.HasValue || subject == null) continue;
                     float strength = Mathf.Clamp(entry.strength * 0.42f, 0.12f, 0.9f);
-                    Learn(relationship.animal, kind.Value, relationship.colonist, strength, 1f, null);
+                    Learn(relationship.animal, kind.Value, subject, strength, 1f, null);
                 }
             }
         }
@@ -147,6 +148,7 @@ namespace Herds
             if (kind == AnimalMemoryKind.KinKilled || kind == AnimalMemoryKind.Hunted ||
                 kind == AnimalMemoryKind.Wounded || kind == AnimalMemoryKind.WarningLearned)
                 return AnimalTraditionKind.FearedHunter;
+            if (kind == AnimalMemoryKind.Frightened) return AnimalTraditionKind.FearedHunter;
             if (kind == AnimalMemoryKind.Gunfire) return AnimalTraditionKind.ThunderSticks;
             if (kind == AnimalMemoryKind.TrapEscaped || kind == AnimalMemoryKind.BaitDanger)
                 return AnimalTraditionKind.TrapWise;

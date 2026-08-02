@@ -357,6 +357,10 @@ namespace Herds
         internal static Job MakeJob(Pawn pawn, HerdDefenseOrder order)
         {
             if (pawn == null || order == null || !order.destination.IsValid) return null;
+            if (HerdsMod.Settings?.enableAnimalMemory == true && pawn.RaceProps?.Animal == true &&
+                (order.mode == HerdDefenseMode.Flight || order.mode == HerdDefenseMode.Scatter ||
+                 order.mode == HerdDefenseMode.Hide))
+                WildlifeMemoryUtility.RememberFrightened(pawn, order.threat as Pawn, 0.9f);
             if (order.mode == HerdDefenseMode.Hide && !order.treeWaypoint && order.refuge?.Spawned == true)
             {
                 Job hide = JobMaker.MakeJob(HerdsDefOf.Herds_Hide, order.refuge, order.threat);
@@ -400,6 +404,9 @@ namespace Herds
     {
         public static void Postfix(Pawn pawn, ref Job __result)
         {
+            if (HerdsMod.Settings?.enableAnimalMemory == true && pawn?.RaceProps?.Animal == true &&
+                __result?.targetB.HasThing == true)
+                WildlifeMemoryUtility.RememberFrightened(pawn, __result.targetB.Thing as Pawn, 0.9f);
             if (HerdsMod.Settings?.enablePreyAndHerds != true || pawn == null || !PreyProfileDatabase.IsEligible(pawn.def)) return;
             HerdMapComponent component = pawn.Map?.GetComponent<HerdMapComponent>();
             if (__result != null && __result.targetB.HasThing)
@@ -414,6 +421,9 @@ namespace Herds
     {
         public static void Postfix(Pawn pawn, ref Job __result)
         {
+            if (HerdsMod.Settings?.enableAnimalMemory == true && pawn?.RaceProps?.Animal == true &&
+                __result?.targetA.HasThing == true)
+                WildlifeMemoryUtility.RememberFrightened(pawn, __result.targetA.Thing as Pawn, 0.9f);
             if (HerdsMod.Settings?.enablePreyAndHerds != true || pawn == null || !PreyProfileDatabase.IsEligible(pawn.def)) return;
             HerdMapComponent component = pawn.Map?.GetComponent<HerdMapComponent>();
             if (__result != null && __result.targetA.HasThing)

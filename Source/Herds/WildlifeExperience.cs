@@ -167,8 +167,16 @@ namespace Herds
 
         public static void Record(string category, string text, Thing thing = null, bool negative = false)
         {
-            if (HerdsMod.Settings?.enableOutcomeHistory != true || Current.Game == null) return;
-            Current.Game.GetComponent<WildlifeExperienceGameComponent>()?.Add(category, text, thing, negative);
+            if (HerdsMod.Settings?.enableOutcomeHistory == true && Current.Game != null)
+                Current.Game.GetComponent<WildlifeExperienceGameComponent>()?.Add(category, text, thing, negative);
+            Pawn animal = thing as Pawn;
+            ThingDef species = animal?.def ?? (thing as WildlifeSign)?.species;
+            Map map = thing?.MapHeld ?? animal?.MapHeld;
+            WildlifeEventUtility.Publish(WildlifeEventUtility.KindForOutcome(category, negative), map, null, animal,
+                species, category ?? "Wildlife", text, category, !negative, 1f, negative ? 0.25f : 0.55f,
+                0f, category?.IndexOf("document", StringComparison.OrdinalIgnoreCase) >= 0,
+                "outcome:" + (category ?? "wildlife") + ":" + (thing?.thingIDNumber ?? 0) + ":" + (Find.TickManager?.TicksGame ?? 0),
+                category, thing?.PositionHeld ?? IntVec3.Invalid);
         }
 
         public static bool IsNegative(WildlifeExperienceEvent entry)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using KnowledgeFramework;
 using LudeonTK;
 using RimWorld;
 using UnityEngine;
@@ -644,9 +645,8 @@ namespace Herds
                 cause = SignalCause(kind, speaker, subject, truthful, humanImitation),
                 expectedBehavior = ExpectedBehavior(kind)
             };
-            active.observerCount = TeachColonists(species, cell, radius, humanImitation);
             activeSignals.Add(active);
-            signalHistory.Add(new WildlifeSignalTrace
+            WildlifeSignalTrace trace = new WildlifeSignalTrace
             {
                 traceId = traceId,
                 species = species,
@@ -657,7 +657,7 @@ namespace Herds
                 truthful = truthful,
                 humanImitation = humanImitation,
                 listenerCount = active.listenerCount,
-                observerCount = active.observerCount,
+                observerCount = 0,
                 subjectCell = active.subjectCell,
                 hasSubject = active.hasSubject,
                 speakerLabel = speaker?.LabelShortCap,
@@ -665,7 +665,10 @@ namespace Herds
                 cause = active.cause,
                 expectedBehavior = active.expectedBehavior,
                 observedBehavior = "Awaiting response"
-            });
+            };
+            signalHistory.Add(trace);
+            active.observerCount = TeachColonists(species, cell, radius, humanImitation, kind, truthful, trace);
+            trace.observerCount = active.observerCount;
             if (signalHistory.Count > 60)
                 signalHistory.RemoveRange(0, signalHistory.Count - 60);
             RecordCallInPawnLog(speaker, kind, now);
@@ -709,7 +712,8 @@ namespace Herds
             kind == WildlifeSignalKind.Water ? HerdsDefOf.Herds_LogSignalWater :
             HerdsDefOf.Herds_LogSignalCoordination;
 
-        private int TeachColonists(ThingDef species, IntVec3 cell, float radius, bool humanImitation)
+        private int TeachColonists(ThingDef species, IntVec3 cell, float radius, bool humanImitation,
+            WildlifeSignalKind kind, bool truthful, WildlifeSignalTrace trace)
         {
             IReadOnlyList<Pawn> colonists = map.mapPawns.FreeColonistsSpawned;
             int now = Find.TickManager.TicksGame;
@@ -721,6 +725,7 @@ namespace Herds
                 bool throughPost = post != null && post.Position.InHorDistOf(cell, post.InfluenceRadius + radius);
                 if (!throughPost && !colonist.Position.InHorDistOf(cell, radius)) continue;
                 observers++;
+                trace.observerCount = observers;
                 WildlifeSignalKnowledgeRecord record = KnowledgeFor(colonist, species);
                 int beforeStage = KnowledgeStage(record.understanding);
                 float animals = colonist.skills?.GetSkill(SkillDefOf.Animals)?.Level ?? 0;
@@ -740,6 +745,11 @@ namespace Herds
                         " calls of " + species.LabelCap + ".", colonist,
                         MessageTypeDefOf.PositiveEvent, false);
                 }
+                WildlifeKnowledgeAdapter.Observe(colonist, species, WildlifeKnowledgeObservation.Call, map, true,
+                    Mathf.Clamp((throughPost ? 1.25f : 0.85f) * (truthful ? 1f : 0.65f) * (humanImitation ? 0.8f : 1f), 0.15f, 2f),
+                    "A " + kind.ToString().ToLowerInvariant() + " signal was heard near " + species.LabelCap + ".",
+                    "wildlife:signal:" + map.uniqueID + ":" + trace.traceId + ":" + colonist.thingIDNumber,
+                    false, null, null, truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory);
             }
             return observers;
         }
@@ -1396,7 +1406,8 @@ namespace Herds
             };
             options.AddRange(map.mapPawns.FreeColonistsSpawned
                 .Where(pawn => pawn?.Dead != true)
-                .OrderBy(pawn => pawn.LabelShortCap)
+                .OrderBy(pawn => pawn.LabelShortCap.ToString(), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(pawn => pawn.thingIDNumber)
                 .Select(pawn => new FloatMenuOption(pawn.LabelShortCap,
                     () => SetObserver(pawn))));
             Find.WindowStack.Add(new FloatMenu(options));

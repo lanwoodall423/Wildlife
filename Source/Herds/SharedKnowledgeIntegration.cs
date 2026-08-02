@@ -17,7 +17,7 @@ namespace Herds
 
         public static void Register()
         {
-            KnowledgeProviderRegistry.Register("wildlife", 10, EntryFor);
+            WildlifeKnowledgeAdapter.Register();
         }
 
         public static KnowledgeRank RankFor(float experience) =>
@@ -28,9 +28,7 @@ namespace Herds
 
         public static int TierFor(Pawn pawn, ThingDef species)
         {
-            HuntingKnowledgeMapComponent component = pawn?.MapHeld?.GetComponent<HuntingKnowledgeMapComponent>();
-            float experience = component?.For(pawn, species, false)?.experience ?? 0f;
-            return (int)RankFor(experience);
+            return WildlifeKnowledgeAdapter.TierFor(pawn, species);
         }
 
         private static KnowledgeEntry EntryFor(Pawn pawn)

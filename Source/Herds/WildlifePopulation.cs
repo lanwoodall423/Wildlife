@@ -472,6 +472,7 @@ namespace Herds
                 int knowledge = HuntingKnowledgeMapComponent.ColonyLevel(records[i].species);
                 records[i].confidence = Mathf.Clamp01(records[i].confidence + 0.05f + warningSystemBonus + skill * 0.008f + knowledge * 0.015f + proficiency * 0.02f + journal);
             }
+            WildlifeKnowledgeAdapter.LearnBiome(observer, map.Biome, 6f + skill * 0.25f + proficiency, false);
             Messages.Message(observer.LabelShortCap + " completed a regional wildlife survey.", observer, MessageTypeDefOf.PositiveEvent, false);
             WildlifeExperience.Record("Observation", observer.LabelShortCap + " completed a regional wildlife survey.", observer);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("RegionalSurvey", "skill=" + skill + " records=" + records.Count, observer);

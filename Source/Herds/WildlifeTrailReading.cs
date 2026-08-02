@@ -217,8 +217,11 @@ namespace Herds
             lead.state = WildlifeTrailState.BeyondMap;
             lead.departureCell = newest.travelTo;
             lead.lastOutcome = "The originating animal is roaming beyond the local map; the trail reaches the boundary.";
-            map.GetComponent<HuntingKnowledgeMapComponent>()?.Learn(tracker, seed.species,
-                8f + evidence.Count * 1.5f);
+            if (HerdsMod.Settings.enableSpeciesKnowledgeProgression)
+                WildlifeKnowledgeAdapter.Observe(tracker, seed.species, WildlifeKnowledgeObservation.Tracks, map, true,
+                    Mathf.Clamp(0.7f + evidence.Count * 0.1f + confidence * 0.5f, 0.2f, 2f),
+                    "A reconstructed trail established movement toward " + lead.direction.ToLowerInvariant() + ".",
+                    "wildlife:tracks:analysis:" + seed.thingIDNumber + ":" + tracker.thingIDNumber + ":" + newestTick);
             map.GetComponent<HuntingExpeditionMapComponent>()?
                 .TryCreateTrailHuntOpportunity(tracker, seed.species, confidence, target);
             SetMarked(lead, true);
@@ -312,7 +315,11 @@ namespace Herds
                 lead.state = WildlifeTrailState.LiveQuarry;
                 lead.lastOutcome = pawn.LabelShortCap + " confirmed living quarry at the end of the trail.";
                 SetMarked(lead, true);
-                map.GetComponent<HuntingKnowledgeMapComponent>()?.Learn(pawn, species, 18f);
+                if (HerdsMod.Settings.enableSpeciesKnowledgeProgression)
+                    WildlifeKnowledgeAdapter.Observe(pawn, species, WildlifeKnowledgeObservation.TrailCompletion, map, true,
+                        1.6f, "A successful trail follow located living quarry.",
+                        "wildlife:trail-completion:" + map.uniqueID + ":" + searchedCell.x + ":" + searchedCell.z +
+                        ":" + pawn.thingIDNumber + ":" + found.thingIDNumber);
                 WildlifeExperience.Record("Trail Followed", pawn.LabelShortCap + " successfully followed a " +
                     species.label + " trail.", found);
                 Messages.Message(pawn.LabelShortCap + " found the " + species.LabelCap +

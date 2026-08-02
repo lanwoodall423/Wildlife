@@ -76,6 +76,7 @@ namespace Herds
         public string tooltip;
         public bool negative;
         public bool otherAnimal;
+        public Pawn cause;
     }
 
     internal static class AnimalMemoryPresentation
@@ -103,7 +104,8 @@ namespace Herds
                 foreach (AnimalMemoryEvent entry in memory.events)
                     rows.Add(new AnimalMemoryDisplayRow
                     {
-                        other = memory.colonist,
+                        other = entry.cause ?? memory.colonist,
+                        cause = entry.cause,
                         tick = entry.tick,
                         text = WildlifeMemoryMapComponent.EventLabel(entry.kind)
                             .CapitalizeFirst() + ".",
@@ -114,11 +116,14 @@ namespace Herds
                             entry.kind == AnimalMemoryKind.Gunfire ||
                             entry.kind == AnimalMemoryKind.TrapEscaped ||
                             entry.kind == AnimalMemoryKind.BaitDanger ||
-                            entry.kind == AnimalMemoryKind.WarningLearned,
-                        tooltip = "Colonist relationship\nTrust: " +
+                            entry.kind == AnimalMemoryKind.WarningLearned ||
+                            entry.kind == AnimalMemoryKind.Frightened,
+                        otherAnimal = (entry.cause ?? memory.colonist)?.RaceProps?.Animal == true,
+                        tooltip = "Animal memory\nTrust: " +
                             memory.trust.ToStringPercent() + "\nFear: " +
                             memory.fear.ToStringPercent() + "\nHostility: " +
-                            memory.hostility.ToStringPercent()
+                            memory.hostility.ToStringPercent() +
+                            (entry.cause == null ? string.Empty : "\nCause: " + entry.cause.LabelShortCap)
                     });
             foreach (AnimalSocialMemory memory in component.SocialMemories.Where(value =>
                 value?.animal == animal))
@@ -126,16 +131,19 @@ namespace Herds
                     rows.Add(new AnimalMemoryDisplayRow
                     {
                         other = memory.otherAnimal,
+                        cause = entry.cause,
                         tick = entry.tick,
                         text = WildlifeMemoryMapComponent.SocialEventLabel(entry.kind)
                             .CapitalizeFirst() + ".",
                         negative = entry.kind == AnimalSocialMemoryKind.Rivalry ||
-                            entry.kind == AnimalSocialMemoryKind.Fought,
+                            entry.kind == AnimalSocialMemoryKind.Fought ||
+                            entry.kind == AnimalSocialMemoryKind.PackMemberKilled,
                         otherAnimal = true,
                         tooltip = "Animal relationship\nBond: " +
                             memory.bond.ToStringPercent() + "\nFear: " +
                             memory.fear.ToStringPercent() + "\nRivalry: " +
-                            memory.rivalry.ToStringPercent()
+                            memory.rivalry.ToStringPercent() +
+                            (entry.cause == null ? string.Empty : "\nCause: " + entry.cause.LabelShortCap)
                     });
             return rows.OrderByDescending(value => value.tick).ToList();
         }
@@ -159,7 +167,7 @@ namespace Herds
                     new Color(0.62f, 0.92f, 0.68f);
                 Widgets.Label(new Rect(12f, card.y + 7f, card.width * 0.31f, 22f),
                     row.otherAnimal ? DisplayName(row.other) :
-                        row.other?.LabelShortCap ?? "Unknown colonist");
+                        row.other?.LabelShortCap ?? "Unknown cause");
                 GUI.color = Color.white;
                 Widgets.Label(new Rect(card.width * 0.33f, card.y + 7f,
                     card.width * 0.43f, 36f), row.text);

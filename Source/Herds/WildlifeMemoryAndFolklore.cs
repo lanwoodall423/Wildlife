@@ -27,7 +27,8 @@ namespace Herds
         TrapEscaped,
         BaitDanger,
         WarningLearned,
-        QuietObservation
+        QuietObservation,
+        Frightened
     }
     public enum WildlifeIdeologyEvent { Study, Tend, Protect, SuccessfulCall, HuntKill, NotableKill, Folklore, ProtectedDeath }
     public enum WildlifeCeremonyKind { FirstHunt, MigrationWatch, Memorial, CeremonialRelease }
@@ -43,7 +44,8 @@ namespace Herds
         SharedShelter,
         Reunited,
         Rivalry,
-        Fought
+        Fought,
+        PackMemberKilled
     }
 
     public sealed class AnimalColonistMemory : IExposable
@@ -86,12 +88,14 @@ namespace Herds
         public AnimalMemoryKind kind;
         public int tick;
         public float strength;
+        public Pawn cause;
 
         public void ExposeData()
         {
             Scribe_Values.Look(ref kind, "kind");
             Scribe_Values.Look(ref tick, "tick");
             Scribe_Values.Look(ref strength, "strength");
+            Scribe_References.Look(ref cause, "cause");
         }
     }
 
@@ -100,12 +104,14 @@ namespace Herds
         public AnimalSocialMemoryKind kind;
         public int tick;
         public float strength;
+        public Pawn cause;
 
         public void ExposeData()
         {
             Scribe_Values.Look(ref kind, "kind");
             Scribe_Values.Look(ref tick, "tick");
             Scribe_Values.Look(ref strength, "strength");
+            Scribe_References.Look(ref cause, "cause");
         }
     }
 
@@ -235,7 +241,9 @@ namespace Herds
             Scribe_Collections.Look(ref traitAwarded, "wildlifeTraitAwarded", LookMode.Reference);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                memories = memories?.Where(value => value?.animal != null && value.colonist != null).ToList() ?? new List<AnimalColonistMemory>();
+                memories = memories?.Where(value => value?.animal != null &&
+                    (value.colonist != null || value.events?.Any(entry => entry?.kind == AnimalMemoryKind.Frightened) == true)).ToList() ??
+                    new List<AnimalColonistMemory>();
                 socialMemories = socialMemories?.Where(value => value?.animal != null &&
                     value.otherAnimal != null && value.animal != value.otherAnimal).ToList() ??
                     new List<AnimalSocialMemory>();
@@ -342,7 +350,7 @@ namespace Herds
 
         public AnimalColonistMemory For(Pawn animal, Pawn colonist, bool create = false)
         {
-            if (animal == null || colonist == null) return null;
+            if (animal == null) return null;
             cache.TryGetValue(Key(animal, colonist), out AnimalColonistMemory value);
             if (value == null && create)
             {
@@ -373,7 +381,7 @@ namespace Herds
                 ? values : System.Array.Empty<AnimalSocialMemory>();
 
         public void RememberAnimal(Pawn animal, Pawn otherAnimal,
-            AnimalSocialMemoryKind kind, float strength = 1f, bool reciprocal = true)
+            AnimalSocialMemoryKind kind, float strength = 1f, bool reciprocal = true, Pawn cause = null)
         {
             if (HerdsMod.Settings?.enableAnimalMemory != true ||
                 HerdsMod.Settings.enableAnimalSocialMemory != true ||
@@ -387,7 +395,7 @@ namespace Herds
             if (previous != null && now - previous.tick < cooldown) return;
             float amount = Mathf.Clamp(strength, 0.1f, 2f);
             bool positive = kind != AnimalSocialMemoryKind.Rivalry &&
-                kind != AnimalSocialMemoryKind.Fought;
+                kind != AnimalSocialMemoryKind.Fought && kind != AnimalSocialMemoryKind.PackMemberKilled;
             if (positive)
             {
                 float gain = kind == AnimalSocialMemoryKind.MateBond ? 0.24f :
@@ -412,7 +420,8 @@ namespace Herds
             {
                 kind = kind,
                 tick = now,
-                strength = amount
+                strength = amount,
+                cause = cause
             });
             if (value.events.Count > 24)
                 value.events.RemoveRange(24, value.events.Count - 24);
@@ -427,6 +436,44 @@ namespace Herds
                     " rivalry=" + value.rivalry.ToString("0.00"), animal, otherAnimal);
             if (reciprocal)
                 RememberAnimal(otherAnimal, animal, kind, amount * 0.85f, false);
+        }
+
+        public void RememberPackMemberKilled(Pawn deadAnimal, Pawn killer)
+        {
+            if (HerdsMod.Settings?.enableAnimalMemory != true ||
+                HerdsMod.Settings.enableAnimalSocialMemory != true ||
+                deadAnimal?.RaceProps?.Animal != true) return;
+            HerdSnapshot group = map.GetComponent<HerdMapComponent>()?.HerdFor(deadAnimal);
+            IReadOnlyList<Pawn> members = group?.profile?.IsSocial == true
+                ? group.members : PackMembersFor(deadAnimal);
+            if (members == null || members.Count < 2) return;
+            for (int i = 0; i < members.Count; i++)
+            {
+                Pawn member = members[i];
+                if (member == null || member == deadAnimal || member.Dead ||
+                    member.RaceProps?.Animal != true) continue;
+                RememberAnimal(member, deadAnimal, AnimalSocialMemoryKind.PackMemberKilled,
+                    killer == null ? 0.9f : 1.1f, false, killer);
+            }
+        }
+
+        private static IReadOnlyList<Pawn> PackMembersFor(Pawn animal)
+        {
+            try
+            {
+                MapComponent packs = animal?.Map?.components?.FirstOrDefault(component =>
+                    component?.GetType().FullName == "Packs.PackMapComponent");
+                if (packs == null) return null;
+                MethodInfo packFor = packs.GetType().GetMethod("PackFor", BindingFlags.Instance |
+                    BindingFlags.Public | BindingFlags.NonPublic);
+                object snapshot = packFor?.Invoke(packs, new object[] { animal });
+                return snapshot?.GetType().GetField("members", BindingFlags.Instance |
+                    BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(snapshot) as IReadOnlyList<Pawn>;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public float SocialAffinity(Pawn animal, Pawn otherAnimal)
@@ -457,11 +504,25 @@ namespace Herds
             RememberInternal(animal, colonist, kind, strength, true);
         }
 
+        public void RememberFrightened(Pawn animal, Pawn cause, float strength = 1f)
+        {
+            RememberInternal(animal, cause, AnimalMemoryKind.Frightened, strength, false);
+        }
+
         private void RememberInternal(Pawn animal, Pawn colonist, AnimalMemoryKind kind, float strength, bool share)
         {
+            bool frightened = kind == AnimalMemoryKind.Frightened;
             if (HerdsMod.Settings?.enableAnimalMemory != true || animal?.RaceProps?.Animal != true ||
-                colonist?.Faction != Faction.OfPlayer || !colonist.RaceProps.Humanlike) return;
+                (!frightened && (colonist?.Faction != Faction.OfPlayer || !colonist.RaceProps.Humanlike))) return;
             AnimalColonistMemory value = For(animal, colonist, true);
+            int now = Find.TickManager.TicksGame;
+            AnimalMemoryEvent recentFear = frightened ? value.events.FirstOrDefault(entry =>
+                entry?.kind == kind && now - entry.tick < 1500) : null;
+            if (recentFear != null)
+            {
+                if (recentFear.cause == null && colonist != null) recentFear.cause = colonist;
+                return;
+            }
             float amount = Mathf.Clamp(strength, 0.1f, 2f);
             bool positive = kind == AnimalMemoryKind.Studied || kind == AnimalMemoryKind.Called ||
                 kind == AnimalMemoryKind.Tended || kind == AnimalMemoryKind.Protected ||
@@ -476,8 +537,8 @@ namespace Herds
             }
             else
             {
-                value.fear = Mathf.Clamp01(value.fear + amount * 0.18f);
-                value.hostility = Mathf.Clamp01(value.hostility + amount * (kind == AnimalMemoryKind.KinKilled ? 0.24f : 0.11f));
+                value.fear = Mathf.Clamp01(value.fear + amount * (frightened ? 0.24f : 0.18f));
+                value.hostility = Mathf.Clamp01(value.hostility + amount * (kind == AnimalMemoryKind.KinKilled ? 0.24f : frightened ? 0.07f : 0.11f));
                 value.trust = Mathf.Clamp01(value.trust - amount * 0.18f);
                 value.negativeEvents++;
             }
@@ -485,14 +546,21 @@ namespace Herds
                 value.huntingEncounters++;
             if (kind == AnimalMemoryKind.Gunfire) value.rangedEncounters++;
             if (kind == AnimalMemoryKind.TrapEscaped) value.trapEncounters++;
-            value.lastTick = Find.TickManager.TicksGame;
+            value.lastTick = now;
             value.lastEvent = EventLabel(kind);
-            value.events.Insert(0, new AnimalMemoryEvent { kind = kind, tick = value.lastTick, strength = amount });
+            value.events.Insert(0, new AnimalMemoryEvent
+            {
+                kind = kind,
+                tick = value.lastTick,
+                strength = amount,
+                cause = frightened ? colonist : null
+            });
             if (value.events.Count > 24) value.events.RemoveRange(24, value.events.Count - 24);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("AnimalMemory",
                 "event=" + kind + " trust=" + value.trust.ToString("0.00") + " fear=" + value.fear.ToString("0.00") +
-                " hostility=" + value.hostility.ToString("0.00") + " colonist=" + colonist.thingIDNumber, animal);
-            if (share && !positive) ShareWarning(animal, colonist, kind, amount);
+                " hostility=" + value.hostility.ToString("0.00") + " cause=" +
+                (colonist?.thingIDNumber.ToString() ?? "unknown"), animal);
+            if (share && !positive && !frightened) ShareWarning(animal, colonist, kind, amount);
         }
 
         public float AvoidanceFactor(Pawn animal, Pawn colonist)
@@ -538,20 +606,20 @@ namespace Herds
             for (int i = memories.Count - 1; i >= 0; i--)
             {
                 AnimalColonistMemory value = memories[i];
-                if (value?.animal == null || value.colonist == null)
+                if (value?.animal == null || value.colonist == null &&
+                    !value.events.Any(entry => entry?.kind == AnimalMemoryKind.Frightened))
                 {
                     memories.RemoveAt(i);
                     continue;
                 }
-                bool lasting = value.events.Any(entry => entry.kind == AnimalMemoryKind.KinKilled ||
-                    entry.kind == AnimalMemoryKind.Hunted || entry.kind == AnimalMemoryKind.Protected ||
-                    entry.kind == AnimalMemoryKind.Tended || entry.kind == AnimalMemoryKind.Nuzzled);
+                bool lasting = value.events.Any(entry => entry?.kind == AnimalMemoryKind.KinKilled ||
+                    entry?.kind == AnimalMemoryKind.Hunted || entry?.kind == AnimalMemoryKind.Protected ||
+                    entry?.kind == AnimalMemoryKind.Tended || entry?.kind == AnimalMemoryKind.Nuzzled);
                 float retention = lasting ? 0.992f : 0.965f;
                 value.trust *= retention;
                 value.fear *= retention;
                 value.hostility *= retention;
-                int lifetime = lasting ? 3600000 : 900000;
-                value.events.RemoveAll(entry => entry == null || now - entry.tick > lifetime);
+                value.events.RemoveAll(entry => entry == null || now - entry.tick > MemoryLifetime(entry.kind, lasting));
                 if (value.events.Count == 0 && Mathf.Max(value.trust,
                     Mathf.Max(value.fear, value.hostility)) < 0.025f)
                     memories.RemoveAt(i);
@@ -566,29 +634,49 @@ namespace Herds
                     continue;
                 }
                 bool lasting = value.events.Any(entry =>
-                    entry.kind == AnimalSocialMemoryKind.MateBond ||
-                    entry.kind == AnimalSocialMemoryKind.ParentCare ||
-                    entry.kind == AnimalSocialMemoryKind.ProtectedBy ||
-                    entry.kind == AnimalSocialMemoryKind.Fought);
+                    entry?.kind == AnimalSocialMemoryKind.MateBond ||
+                    entry?.kind == AnimalSocialMemoryKind.ParentCare ||
+                    entry?.kind == AnimalSocialMemoryKind.ProtectedBy ||
+                    entry?.kind == AnimalSocialMemoryKind.Fought ||
+                    entry?.kind == AnimalSocialMemoryKind.PackMemberKilled);
                 float retention = lasting ? 0.994f : 0.975f;
                 value.bond *= retention;
                 value.fear *= lasting ? 0.986f : 0.96f;
                 value.rivalry *= lasting ? 0.991f : 0.965f;
-                int lifetime = lasting ? 3600000 : 1200000;
-                value.events.RemoveAll(entry => entry == null || now - entry.tick > lifetime);
+                value.events.RemoveAll(entry => entry == null || now - entry.tick > SocialMemoryLifetime(entry.kind, lasting));
                 if (value.events.Count == 0 && SocialStrength(value) < 0.025f)
                     socialMemories.RemoveAt(i);
             }
             RebuildSocialCache();
         }
 
+        private static int MemoryLifetime(AnimalMemoryKind kind, bool lasting)
+        {
+            if (kind == AnimalMemoryKind.Frightened)
+                return Mathf.Max(60000, HerdsMod.Settings?.frightenedMemoryLifetimeTicks ?? 900000);
+            return lasting ? 3600000 : 900000;
+        }
+
+        private static int SocialMemoryLifetime(AnimalSocialMemoryKind kind, bool lasting)
+        {
+            if (kind == AnimalSocialMemoryKind.PackMemberKilled)
+                return Mathf.Max(600000, HerdsMod.Settings?.packMemberKilledMemoryLifetimeTicks ?? 3600000);
+            return lasting ? 3600000 : 1200000;
+        }
+
         public string Summary(Pawn animal)
         {
             List<AnimalColonistMemory> values = memories.Where(value => value?.animal == animal)
                 .OrderByDescending(value => value.lastTick).ToList();
-            if (values.Count == 0) return "No lasting memories of colonists.";
-            return string.Join("\n", values.Take(5).Select(value => value.colonist.LabelShortCap + ": " +
-                Disposition(value) + " — remembers " + value.lastEvent.ToLowerInvariant() + "."));
+            if (values.Count == 0) return "No lasting memories of people or threats.";
+            return string.Join("\n", values.Take(5).Select(value =>
+            {
+                AnimalMemoryEvent latest = value.events.Where(entry => entry != null)
+                    .OrderByDescending(entry => entry.tick).FirstOrDefault();
+                Pawn cause = latest?.cause ?? value.colonist;
+                return (cause?.LabelShortCap ?? "Unknown cause") + ": " + Disposition(value) +
+                    " — remembers " + (value.lastEvent ?? "an event").ToLowerInvariant() + ".";
+            }));
         }
 
         public void RecordFolklore(string title, string story, Pawn animal = null, bool positive = true,
@@ -992,6 +1080,7 @@ namespace Herds
             kind == AnimalMemoryKind.TrapEscaped ? "escaping a trap" :
             kind == AnimalMemoryKind.BaitDanger ? "danger near bait" :
             kind == AnimalMemoryKind.QuietObservation ? "quietly watching them observe wildlife" :
+            kind == AnimalMemoryKind.Frightened ? "being frightened or forced to flee" :
             "a warning learned from its group";
 
         public static string SocialEventLabel(AnimalSocialMemoryKind kind) =>
@@ -1004,6 +1093,7 @@ namespace Herds
             kind == AnimalSocialMemoryKind.SharedShelter ? "sharing shelter" :
             kind == AnimalSocialMemoryKind.Reunited ? "reuniting after separation" :
             kind == AnimalSocialMemoryKind.Rivalry ? "a growing rivalry" :
+            kind == AnimalSocialMemoryKind.PackMemberKilled ? "remembering the death of a pack member" :
             "fighting";
 
         public static float SocialStrength(AnimalSocialMemory value) =>
@@ -1029,6 +1119,9 @@ namespace Herds
         public static void Remember(Pawn animal, Pawn colonist, AnimalMemoryKind kind, float strength = 1f) =>
             animal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>()?.Remember(animal, colonist, kind, strength);
 
+        public static void RememberFrightened(Pawn animal, Pawn cause, float strength = 1f) =>
+            animal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>()?.RememberFrightened(animal, cause, strength);
+
         public static float AvoidanceFactor(Pawn animal, Pawn colonist) =>
             animal?.Map?.GetComponent<WildlifeMemoryMapComponent>()?.AvoidanceFactor(animal, colonist) ?? 1f;
 
@@ -1036,6 +1129,10 @@ namespace Herds
             AnimalSocialMemoryKind kind, float strength = 1f) =>
             animal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>()?
                 .RememberAnimal(animal, otherAnimal, kind, strength);
+
+        public static void RememberPackMemberKilled(Pawn deadAnimal, Pawn killer) =>
+            deadAnimal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>()?
+                .RememberPackMemberKilled(deadAnimal, killer);
 
         public static float SocialAffinity(Pawn animal, Pawn otherAnimal) =>
             animal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>()?

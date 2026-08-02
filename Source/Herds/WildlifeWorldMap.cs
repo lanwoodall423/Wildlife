@@ -62,6 +62,7 @@ namespace Herds
             mode = newMode;
             selectedDestination = null;
             accepted = false;
+            HideWindowsForSelection();
             CameraJumper.TryShowWorld();
             CameraJumper.TryJump(source.HomeMap.Tile);
             source.HomeMap.Tile.Layer.SetDirty<WorldDrawLayer_WildlifeKnowledgeFog>();
@@ -83,6 +84,14 @@ namespace Herds
             {
                 starting = false;
             }
+        }
+
+        private static void HideWindowsForSelection()
+        {
+            foreach (Window window in Find.WindowStack.Windows.ToList())
+                window?.Close(false);
+            if (Find.MainTabsRoot?.OpenTab?.TabWindow != null)
+                Find.MainTabsRoot.EscapeCurrentTab(false);
         }
 
         private static bool CanSelect(GlobalTargetInfo target)
