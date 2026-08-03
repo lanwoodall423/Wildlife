@@ -167,6 +167,16 @@ namespace Herds
                         "Predator simulation component");
                 });
 
+                Section("Deferred Reality", () =>
+                {
+                    bool adapterLoaded = AccessTools.TypeByName("DeferredReality.Wildlife.WildlifeRealityProvider") != null;
+                    Check("Deferred Reality", !adapterLoaded || WildlifeDeferredRealityBridge.MaterializeBeyondMap != null,
+                        "Adjacent trail bridge is installed when the Deferred Reality Wildlife adapter is loaded");
+                    Check("Deferred Reality", !adapterLoaded ||
+                        typeof(WildlifeTrailMapComponent).GetMethod("NotifyAnimalDeparture") != null,
+                        "Trail records expose the adjacent-departure handoff");
+                });
+
                 Section("Landscape", () =>
                 {
                     Check("Landscape", WildlifeNicheDatabase.ConservativeRulesSelfTest(),

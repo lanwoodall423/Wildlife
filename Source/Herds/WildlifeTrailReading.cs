@@ -18,6 +18,13 @@ namespace Herds
         Cold
     }
 
+    /// <summary>Optional bridge installed by Deferred Reality without making Wildlife depend on it.</summary>
+    public static class WildlifeDeferredRealityBridge
+    {
+        public static Func<Map, WildlifeTrailLead, bool> MaterializeBeyondMap;
+        public static Func<Map, string> AdjacentRegionSummary;
+    }
+
     public sealed class WildlifeTrailLead : IExposable
     {
         public ThingDef species;
@@ -778,7 +785,12 @@ namespace Herds
             Widgets.EndScrollView();
 
             float buttonY = rect.height - 42f;
-            if (Widgets.ButtonText(new Rect(0f, buttonY, 210f, 36f), "Send Expedition"))
+            if (lead.state == WildlifeTrailState.BeyondMap)
+            {
+                if (Widgets.ButtonText(new Rect(0f, buttonY, 210f, 36f), "Continue Beyond Map"))
+                    OpenBeyondMapOptions();
+            }
+            else if (Widgets.ButtonText(new Rect(0f, buttonY, 210f, 36f), "Send Expedition"))
                 SendExpedition();
             if (Widgets.ButtonText(new Rect(220f, buttonY, 170f, 36f), "Forget Trail"))
                 ConfirmForget();
@@ -853,6 +865,11 @@ namespace Herds
                     Close();
                 })
             };
+            if (WildlifeDeferredRealityBridge.MaterializeBeyondMap != null)
+                options.Insert(0, new FloatMenuOption("Follow Trail Beyond Map", () =>
+                {
+                    if (WildlifeDeferredRealityBridge.MaterializeBeyondMap(map, lead)) Close();
+                }));
             HuntingExpeditionMapComponent expeditions =
                 map.GetComponent<HuntingExpeditionMapComponent>();
             if (WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition) &&

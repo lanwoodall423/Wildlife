@@ -105,11 +105,9 @@ namespace Herds
                     if (WildlifeKnowledgeAdapter.PersonalKnowledge(colonist, species) > 0f) seenSpecies.Add(species);
             // TaggedString is intentionally not comparable in RimWorld's runtime. Use stable
             // strings for deterministic ordering instead of passing the wrapper to LINQ.
-            cachedSpecies = cachedSnapshot?.species.Where(value => value?.species != null &&
-                mapSpecies.Contains(value.species) && seenSpecies.Contains(value.species))
+            cachedSpecies = OrderByKnowledge(cachedSnapshot?.species.Where(value => value?.species != null &&
+                mapSpecies.Contains(value.species) && seenSpecies.Contains(value.species)) ?? Enumerable.Empty<WildlifeSpeciesSnapshot>())
                 .Select(value => value.species)
-                .OrderBy(value => value.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase)
-                .ThenBy(value => value.defName, StringComparer.Ordinal)
                 .ToList() ?? new List<ThingDef>();
             cachedTick = now / 30;
             cachedKnowledgeRevision = knowledgeRevision;
@@ -297,16 +295,35 @@ namespace Herds
                 Widgets.Label(outer.ContractedBy(8f), "The atlas is still gathering its first ecological snapshot.");
                 return;
             }
+            List<WildlifeSpeciesSnapshot> visibleSpecies = OrderByKnowledge(cachedSnapshot.species
+                .Where(HasAtlasEvidence)).ToList();
+            if (visibleSpecies.Count == 0)
+            {
+                Widgets.Label(outer.ContractedBy(8f), "No direct wildlife evidence has been recorded for this map yet.");
+                return;
+            }
             const float rowHeight = 108f;
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f), Mathf.Max(outer.height, cachedSnapshot.species.Count * rowHeight));
+            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f), Mathf.Max(outer.height, visibleSpecies.Count * rowHeight));
             Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            int first = Mathf.Max(0, Mathf.FloorToInt(bodyScroll.y / rowHeight) - 1);
-            int last = Mathf.Min(cachedSnapshot.species.Count,
+            int first = Mathf.Min(visibleSpecies.Count, Mathf.Max(0, Mathf.FloorToInt(bodyScroll.y / rowHeight) - 1));
+            int last = Mathf.Min(visibleSpecies.Count,
                 Mathf.CeilToInt((bodyScroll.y + outer.height) / rowHeight) + 1);
             for (int i = first; i < last; i++)
-                DrawAtlasSpecies(new Rect(0f, i * rowHeight, view.width, 98f), cachedSnapshot.species[i], activeMap);
+                DrawAtlasSpecies(new Rect(0f, i * rowHeight, view.width, 98f), visibleSpecies[i], activeMap);
             Widgets.EndScrollView();
         }
+
+        private static bool HasAtlasEvidence(WildlifeSpeciesSnapshot value) => value != null &&
+            (value.evidence.Count > 0 || value.trails.Count > 0 || value.migrations.Count > 0 ||
+             value.signals.Count > 0 || value.knowledge > 0f);
+
+        private static IEnumerable<WildlifeSpeciesSnapshot> OrderByKnowledge(IEnumerable<WildlifeSpeciesSnapshot> values) =>
+            values.Where(value => value?.species != null)
+                .OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId))
+                .ThenByDescending(value => value.knowledge)
+                .ThenByDescending(value => value.confidence)
+                .ThenBy(value => value.species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(value => value.species.defName, StringComparer.Ordinal);
 
         private void DrawAtlasSpecies(Rect rect, WildlifeSpeciesSnapshot value, Map activeMap)
         {

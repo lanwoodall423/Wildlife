@@ -122,7 +122,9 @@ namespace Herds
             string animals = component.KnownSpecies(destination).Count == 0 ? "No animal signs identified" :
                 string.Join(", ", component.KnownSpecies(destination).Take(3).Select(def => def.LabelCap.ToString()));
             string focus = focusSpecies == null ? animals : SpeciesTileLabel(destination, focusSpecies);
-            return component.TileKnowledgeLabel(destination) + "\n" + range + "\n" + focus;
+            string adjacent = WildlifeDeferredRealityBridge.AdjacentRegionSummary?.Invoke(component.HomeMap);
+            return component.TileKnowledgeLabel(destination) + "\n" + range + "\n" + focus +
+                (adjacent.NullOrEmpty() ? string.Empty : "\n\n" + adjacent);
         }
 
         private static string SpeciesTileLabel(ExpeditionDestination destination, ThingDef species)
