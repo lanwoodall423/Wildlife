@@ -28,6 +28,7 @@ namespace Herds
     public sealed class RegionalSpeciesRecord : IExposable
     {
         public ThingDef species;
+        public string legacySpeciesDefName;
         public float population;
         public float previousPopulation;
         public float nearbyPopulation;
@@ -42,6 +43,8 @@ namespace Herds
         public void ExposeData()
         {
             Scribe_Defs.Look(ref species, "species");
+            if (Scribe.mode == LoadSaveMode.Saving && species != null) legacySpeciesDefName = species.defName;
+            Scribe_Values.Look(ref legacySpeciesDefName, "legacySpeciesDefName");
             Scribe_Values.Look(ref population, "population", 0f);
             Scribe_Values.Look(ref previousPopulation, "previousPopulation", 0f);
             Scribe_Values.Look(ref nearbyPopulation, "nearbyPopulation", 0f);
@@ -70,6 +73,7 @@ namespace Herds
     {
         public Pawn animal;
         public ThingDef species;
+        public string legacySpeciesDefName;
         public RoamingAnimalState state;
         public string reason;
         public string direction;
@@ -88,6 +92,8 @@ namespace Herds
         {
             Scribe_References.Look(ref animal, "animal");
             Scribe_Defs.Look(ref species, "species");
+            if (Scribe.mode == LoadSaveMode.Saving && species != null) legacySpeciesDefName = species.defName;
+            Scribe_Values.Look(ref legacySpeciesDefName, "legacySpeciesDefName");
             Scribe_Values.Look(ref state, "state", RoamingAnimalState.RoamingNearby);
             Scribe_Values.Look(ref reason, "reason");
             Scribe_Values.Look(ref direction, "direction");
@@ -136,7 +142,9 @@ namespace Herds
     public sealed class RegionalWildlifeMapComponent : MapComponent
     {
         private List<RegionalSpeciesRecord> records = new List<RegionalSpeciesRecord>();
+        private List<RegionalSpeciesRecord> orphanedRecords = new List<RegionalSpeciesRecord>();
         private List<RoamingAnimalRecord> roamingAnimals = new List<RoamingAnimalRecord>();
+        private List<RoamingAnimalRecord> orphanedRoamingAnimals = new List<RoamingAnimalRecord>();
         private Dictionary<Pawn, float> juvenileLearning = new Dictionary<Pawn, float>();
         private readonly Dictionary<Pawn, string> pendingDepartureReasons = new Dictionary<Pawn, string>();
         private readonly Dictionary<Pawn, int> pendingDepartureHerds = new Dictionary<Pawn, int>();
@@ -167,11 +175,16 @@ namespace Herds
 
         public RegionalWildlifeMapComponent(Map map) : base(map) { }
 
+        // Public projection hook for optional Deferred Reality integration; regional truth remains provider-owned.
+        public Map ActiveMap => map;
+
         public override void ExposeData()
         {
             base.ExposeData();
             Scribe_Collections.Look(ref records, "regionalWildlife", LookMode.Deep);
+            Scribe_Collections.Look(ref orphanedRecords, "deferredRealityRegionalOrphans", LookMode.Deep);
             Scribe_Collections.Look(ref roamingAnimals, "persistentRoamingAnimals", LookMode.Deep);
+            Scribe_Collections.Look(ref orphanedRoamingAnimals, "deferredRealityRoamingOrphans", LookMode.Deep);
             Scribe_Collections.Look(ref juvenileLearning, "juvenileWildlifeLearning", LookMode.Reference, LookMode.Value);
             Scribe_Values.Look(ref habitatQuality, "wildlifeHabitatQuality", 0.5f);
             Scribe_Values.Look(ref lastImmigrationTick, "lastWildlifeImmigrationTick", 0);
@@ -190,7 +203,12 @@ namespace Herds
             Scribe_Collections.Look(ref populationLossTicks, "wildlifePopulationLossTicks", LookMode.Value, LookMode.Value);
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
+                orphanedRecords = orphanedRecords ?? new List<RegionalSpeciesRecord>();
+                orphanedRecords.AddRange((records ?? new List<RegionalSpeciesRecord>()).Where(record => record?.species == null));
                 records = records?.Where(record => record?.species?.race?.Animal == true).ToList() ?? new List<RegionalSpeciesRecord>();
+                orphanedRoamingAnimals = orphanedRoamingAnimals ?? new List<RoamingAnimalRecord>();
+                orphanedRoamingAnimals.AddRange((roamingAnimals ?? new List<RoamingAnimalRecord>()).Where(record => record?.animal == null ||
+                    record.species?.race?.Animal != true));
                 roamingAnimals = roamingAnimals?.Where(record => record?.animal != null &&
                     record.species?.race?.Animal == true).ToList() ?? new List<RoamingAnimalRecord>();
                 juvenileLearning = juvenileLearning ?? new Dictionary<Pawn, float>();
@@ -304,7 +322,10 @@ namespace Herds
             get { EnsureCurrent(); return records.OrderByDescending(record => record.population).ThenBy(record => record.species.label).ToList(); }
         }
 
+        public IReadOnlyList<RegionalSpeciesRecord> OrphanedRecords => orphanedRecords;
+
         public IReadOnlyList<RoamingAnimalRecord> RoamingAnimals => roamingAnimals;
+        public IReadOnlyList<RoamingAnimalRecord> OrphanedRoamingAnimals => orphanedRoamingAnimals;
         public int RoamingCount => roamingAnimals.Count(record =>
             record != null && record.state != RoamingAnimalState.Present &&
             record.state != RoamingAnimalState.Dead);

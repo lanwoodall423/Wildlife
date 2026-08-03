@@ -3,6 +3,6 @@
   <name>Wildlife</name><author>Lan</author><packageId>Lan.Wildlife</packageId>
   <supportedVersions><li>1.6</li></supportedVersions>
   <description>A unified wildlife simulation combining prey social behavior, vigilance, hiding and homes with predator territories, dens, packs, coordinated hunts, player fieldcraft, animal knowledge, tracking, ranch protection, and ecological tools.</description>
-  <modDependencies><li><packageId>brrainz.harmony</packageId><displayName>Harmony</displayName><steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl></li><li><packageId>lan.knowledgeframework</packageId><displayName>Knowledge Framework</displayName></li></modDependencies>
-  <loadAfter><li>brrainz.harmony</li><li>lan.knowledgeframework</li><li>Lan.RimWorldDevBridge</li></loadAfter>
+  <modDependencies><li><packageId>brrainz.harmony</packageId><displayName>Harmony</displayName><steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl></li><li><packageId>lan.knowledgeframework</packageId><displayName>Knowledge Framework</displayName></li><li><packageId>lan.deferredreality.framework</packageId><displayName>Deferred Reality Framework</displayName></li></modDependencies>
+  <loadAfter><li>brrainz.harmony</li><li>lan.knowledgeframework</li><li>lan.deferredreality.framework</li><li>Lan.RimWorldDevBridge</li></loadAfter>
 </ModMetaData>
