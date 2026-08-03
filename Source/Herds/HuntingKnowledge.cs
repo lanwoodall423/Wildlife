@@ -94,6 +94,52 @@ namespace Herds
         }
     }
 
+    public static class WildlifePassiveObservationPolicy
+    {
+        public const int DayTicks = 60000;
+        public const int ReacquisitionTicks = DayTicks * 3;
+        public const float DailyCap = 18f;
+        public const float ObservationPostDailyCap = 36f;
+        public const float HourPerExposure = 0.6f;
+
+        public static int DayForTick(int tick) => Mathf.Max(0, tick / DayTicks);
+
+        public static float AcceptedExposure(float current, float exposure, bool observationPost)
+        {
+            float cap = observationPost ? ObservationPostDailyCap : DailyCap;
+            float remaining = Mathf.Max(0f, cap - current);
+            if (remaining <= 0f || exposure <= 0f) return 0f;
+            float diminishing = Mathf.Lerp(1f, 0.08f, Mathf.Clamp01(current / cap));
+            return Mathf.Min(remaining, exposure * diminishing);
+        }
+
+        public static string DiscoveryKind(bool firstColony, bool firstObserver, bool stageAdvanced,
+            bool newFacet, bool confidenceAdvanced, bool contextDiscovery, bool reacquired)
+        {
+            if (firstColony) return "first-colony";
+            if (firstObserver) return "first-observer";
+            if (stageAdvanced) return "stage-milestone";
+            if (newFacet || confidenceAdvanced) return "facet-confirmation";
+            if (contextDiscovery) return "new-context";
+            if (reacquired) return "reacquisition";
+            return null;
+        }
+
+        public static bool SelfTest()
+        {
+            float first = AcceptedExposure(0f, 0.2f, false);
+            float repeated = AcceptedExposure(first, 0.2f, false);
+            float post = AcceptedExposure(0f, 0.6f, true);
+            return DayForTick(59999) == 0 && DayForTick(60000) == 1 && first > repeated && post > first &&
+                DiscoveryKind(true, true, true, true, true, true, true) == "first-colony" &&
+                DiscoveryKind(false, false, false, false, false, false, false) == null &&
+                DiscoveryKind(false, false, true, false, false, false, false) == "stage-milestone" &&
+                DiscoveryKind(false, false, false, true, false, false, false) == "facet-confirmation" &&
+                DiscoveryKind(false, false, false, false, false, true, false) == "new-context" &&
+                DiscoveryKind(false, false, false, false, false, false, true) == "reacquisition";
+        }
+    }
+
     public sealed class HuntingKnowledgeMapComponent : MapComponent
     {
         private List<ColonistSpeciesKnowledgeRecord> records = new List<ColonistSpeciesKnowledgeRecord>();
@@ -108,11 +154,6 @@ namespace Herds
         private int cachedAnimalTotal = -1;
         private int cachedBiomeTotal = -1;
         private int nextPassiveFlushTick;
-        private const int PassiveDayTicks = 60000;
-        private const int PassiveReacquisitionTicks = PassiveDayTicks * 3;
-        private const float PassiveDailyCap = 18f;
-        private const float PassiveObservationPostDailyCap = 36f;
-        private const float PassiveHourPerExposure = 0.6f;
         public HuntingKnowledgeMapComponent(Map map) : base(map) { }
 
         // These are intentionally read-only views for the one-time V3 migration.
@@ -202,23 +243,18 @@ namespace Herds
         {
             if (!HerdsMod.Settings.enableSpeciesKnowledgeProgression || observer == null || species?.race?.Animal != true || exposure <= 0f) return;
             PassiveObservationRecord record = PassiveFor(observer, species);
-            int day = Mathf.Max(0, now / PassiveDayTicks);
+            int day = WildlifePassiveObservationPolicy.DayForTick(now);
             if (record.day < 0) record.day = day;
             if (day < record.day) return;
             if (day > record.day)
             {
-                if (!ApplyPassiveRecord(record, now)) return;
+                if (record.pendingExposure > 0f && !ApplyPassiveRecord(record, now)) return;
                 BeginPassiveDay(record, day);
             }
-            if (record.lastExposureTick > 0 && now - record.lastExposureTick >= PassiveReacquisitionTicks)
+            if (record.lastExposureTick > 0 && now - record.lastExposureTick >= WildlifePassiveObservationPolicy.ReacquisitionTicks)
                 record.pendingReacquisition = true;
             record.usedObservationPost |= observationPost;
-            float cap = record.usedObservationPost ? PassiveObservationPostDailyCap : PassiveDailyCap;
-            float remaining = Mathf.Max(0f, cap - record.dailyExposure);
-            if (remaining <= 0f) { record.lastExposureTick = now; return; }
-            float repetition = Mathf.Clamp01(record.dailyExposure / cap);
-            float diminishing = Mathf.Lerp(1f, 0.08f, repetition);
-            float accepted = Mathf.Min(remaining, Mathf.Max(0f, exposure) * diminishing);
+            float accepted = WildlifePassiveObservationPolicy.AcceptedExposure(record.dailyExposure, exposure, record.usedObservationPost);
             if (accepted <= 0.0001f) { record.lastExposureTick = now; return; }
             record.dailyExposure += accepted;
             record.pendingExposure += accepted;
@@ -229,7 +265,7 @@ namespace Herds
         public PassiveObservationFamiliarity FamiliarityFor(ThingDef species, int now)
         {
             if (species == null) return new PassiveObservationFamiliarity(0f, 0f, 0);
-            int day = Mathf.Max(0, now / PassiveDayTicks);
+            int day = WildlifePassiveObservationPolicy.DayForTick(now);
             float exposure = 0f;
             float cap = 0f;
             float hours = 0f;
@@ -238,10 +274,10 @@ namespace Herds
             {
                 PassiveObservationRecord record = passiveRecords[i];
                 if (record?.species != species || record.day != day || record.dailyExposure <= 0f) continue;
-                float recordCap = record.usedObservationPost ? PassiveObservationPostDailyCap : PassiveDailyCap;
+                float recordCap = record.usedObservationPost ? WildlifePassiveObservationPolicy.ObservationPostDailyCap : WildlifePassiveObservationPolicy.DailyCap;
                 exposure += record.dailyExposure;
                 cap += recordCap;
-                hours += record.dailyExposure * PassiveHourPerExposure;
+                hours += record.dailyExposure * WildlifePassiveObservationPolicy.HourPerExposure;
                 observers++;
             }
             return new PassiveObservationFamiliarity(cap <= 0f ? 0f : Mathf.Clamp01(exposure / cap), hours, observers);
@@ -258,7 +294,7 @@ namespace Herds
             {
                 PassiveObservationRecord record = passiveRecords[i];
                 if (record?.observer == null || record.species == null) continue;
-                float cap = record.usedObservationPost ? PassiveObservationPostDailyCap : PassiveDailyCap;
+                float cap = record.usedObservationPost ? WildlifePassiveObservationPolicy.ObservationPostDailyCap : WildlifePassiveObservationPolicy.DailyCap;
                 lines.Add("PASSIVE " + record.observer.LabelShortCap + " | " + record.species.LabelCap +
                     " | day=" + record.day + " exposure=" + record.dailyExposure.ToString("0.00") + "/" + cap.ToString("0") +
                     " pending=" + record.pendingExposure.ToString("0.00") + " contexts=" + record.knownContexts.Count +
@@ -279,7 +315,7 @@ namespace Herds
 
         private void FlushPassiveObservations(int now)
         {
-            int day = Mathf.Max(0, now / PassiveDayTicks);
+            int day = WildlifePassiveObservationPolicy.DayForTick(now);
             for (int i = 0; i < passiveRecords.Count; i++)
             {
                 PassiveObservationRecord record = passiveRecords[i];
@@ -296,7 +332,7 @@ namespace Herds
             for (int i = 0; i < record.pendingContexts.Count; i++)
             {
                 PassiveObservationContextRecord context = record.pendingContexts[i];
-                if (context == null || record.knownContexts.Any(value => value?.key == context.key)) continue;
+                if (context == null || HasContext(record.knownContexts, context.key)) continue;
                 contextKey = context.key;
                 contextLabel = context.label;
                 break;
@@ -314,7 +350,7 @@ namespace Herds
             for (int i = 0; i < record.pendingContexts.Count; i++)
             {
                 PassiveObservationContextRecord context = record.pendingContexts[i];
-                if (context == null || record.knownContexts.Any(value => value?.key == context.key)) continue;
+                if (context == null || HasContext(record.knownContexts, context.key)) continue;
                 record.knownContexts.Add(context);
                 if (record.knownContexts.Count >= 16) break;
             }
@@ -333,9 +369,16 @@ namespace Herds
 
         private static void RememberPendingContext(PassiveObservationRecord record, string key, string label)
         {
-            if (key.NullOrEmpty() || record.pendingContexts.Any(value => value?.key == key) || record.knownContexts.Any(value => value?.key == key)) return;
+            if (key.NullOrEmpty() || HasContext(record.pendingContexts, key) || HasContext(record.knownContexts, key)) return;
             if (record.pendingContexts.Count >= 4) return;
             record.pendingContexts.Add(new PassiveObservationContextRecord { key = key, label = label });
+        }
+
+        private static bool HasContext(List<PassiveObservationContextRecord> contexts, string key)
+        {
+            if (contexts == null || key.NullOrEmpty()) return false;
+            for (int i = 0; i < contexts.Count; i++) if (contexts[i]?.key == key) return true;
+            return false;
         }
 
         public IEnumerable<ColonistSpeciesKnowledgeRecord> ForColonist(Pawn colonist)
@@ -503,6 +546,7 @@ namespace Herds
             List<string> lines = new List<string>();
             foreach (ColonistSpeciesKnowledgeRecord record in records.OrderBy(record => record.colonist?.LabelShortCap.ToString()).ThenByDescending(record => record.experience))
                 lines.Add((record.colonist?.LabelShortCap.ToString() ?? "missing") + " | " + (record.species?.LabelCap.ToString() ?? "missing") + " | " + LevelLabel(Level(record.colonist, record.species)) + " | xp=" + record.experience.ToString("0.0") + " | successes=" + record.successfulHunts + " failures=" + record.failedHunts + " | effectiveSkill=" + ColonistHuntingUtility.HuntingSkill(record.colonist, record.species).ToString("0.0"));
+            lines.AddRange(DebugPassiveObservationLines().Take(12));
             return lines.Count > 0 ? lines : new List<string> { "No personal species knowledge recorded." };
         }
 

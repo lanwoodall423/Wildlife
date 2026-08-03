@@ -1077,11 +1077,14 @@ namespace Herds
                 pawn.Faction != Faction.OfPlayer).OrderBy(pawn =>
                 pawn.Position.DistanceToSquared(trace.cell)).FirstOrDefault();
             if (animal == null) return null;
+            WildlifeSignalCultureMapComponent signals = map.GetComponent<WildlifeSignalCultureMapComponent>();
+            float understanding = signals?.ColonyUnderstanding(trace.species) ?? 0f;
+            string signalDescription = WildlifeSignalPresentation.Description(trace.kind, understanding,
+                trace.truthful, trace.verified, trace.behaviorConsistent, animal, trace.species,
+                trace.radius, trace.expectedBehavior, trace.observedBehavior, map);
             return CreateMoment(WildlifeOpportunityKind.SignalResponse, animal, null,
                 "signal:" + trace.traceId,
-                animal.def.LabelCap + " visibly responded to a " +
-                WildlifeSignalCultureMapComponent.SignalLabel(trace.kind).ToLowerInvariant() +
-                ". This is a chance to connect the call with real behavior.", now, trace.cell);
+                signalDescription + " This is a chance to connect the call with real behavior.", now, trace.cell);
         }
 
         private WildlifeOpportunityRecord DetectSocialMoment(int now)

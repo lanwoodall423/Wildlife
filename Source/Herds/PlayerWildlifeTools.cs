@@ -201,7 +201,7 @@ namespace Herds
                         : "Review the calls " + listener.LabelShortCap +
                           " can recognize while listening from this observation post.",
                     icon = TexCommand.OpenLinkedQuestTex,
-                    action = () => Find.WindowStack.Add(new Window_WildlifeSignals(Map, ManningColonist()))
+                     action = () => Window_WildlifeJournal.OpenSignals(Map, ManningColonist())
                 };
             }
             if (Kind == WildlifeToolKind.ObservationPost && HerdsMod.Settings.enableRegionalPopulations)
@@ -355,23 +355,29 @@ namespace Herds
                 return;
             }
             float understanding = signals.Understanding(caller, species);
+            string contactLabel = WildlifeSignalCultureMapComponent.PlayerFacingSignal(
+                WildlifeSignalKind.Contact, understanding, true, false);
+            string alarmLabel = WildlifeSignalCultureMapComponent.PlayerFacingSignal(
+                WildlifeSignalKind.Alarm, understanding, true, false);
+            string allClearLabel = WildlifeSignalCultureMapComponent.PlayerFacingSignal(
+                WildlifeSignalKind.AllClear, understanding, true, false);
             List<FloatMenuOption> options = new List<FloatMenuOption>
             {
-                new FloatMenuOption("Contact Call  —  attract one or more animals",
+                new FloatMenuOption(contactLabel + "  —  attract one or more animals",
                     () => fieldcraft?.TryAnimalCall(species, this, ManningColonist())),
-                new FloatMenuOption("Alarm Call  —  warn or drive animals away",
+                new FloatMenuOption(alarmLabel + "  —  warn or drive animals away",
                     () => signals.TryPlayerSignal(species, this, ManningColonist(),
                         WildlifeSignalKind.Alarm)),
-                new FloatMenuOption("All-Clear Call  —  calm animals when danger has passed",
+                new FloatMenuOption(allClearLabel + "  —  calm animals when danger has passed",
                     () => signals.TryPlayerSignal(species, this, ManningColonist(),
                         WildlifeSignalKind.AllClear))
             };
             if (understanding < 0.15f)
             {
                 options[1] = new FloatMenuOption(
-                    "Alarm Call  —  requires recognizing this dialect", null);
+                    alarmLabel + "  —  requires recognizing this dialect", null);
                 options[2] = new FloatMenuOption(
-                    "All-Clear Call  —  requires recognizing this dialect", null);
+                    allClearLabel + "  —  requires recognizing this dialect", null);
             }
             Find.WindowStack.Add(new FloatMenu(options));
         }

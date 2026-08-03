@@ -155,6 +155,13 @@ namespace Herds
         public string cause;
         public string expectedBehavior;
         public string observedBehavior;
+        public string playerFacingDescription;
+        public int playerFacingTier = 99;
+        public SoundDef soundDef;
+        public float soundPitch = 1f;
+        public bool soundPlayed;
+        public string soundStatus;
+        public List<WildlifeSignalObservationPresentation> presentations = new List<WildlifeSignalObservationPresentation>();
 
         public void ExposeData()
         {
@@ -178,6 +185,27 @@ namespace Herds
             Scribe_Values.Look(ref cause, "cause");
             Scribe_Values.Look(ref expectedBehavior, "expectedBehavior");
             Scribe_Values.Look(ref observedBehavior, "observedBehavior");
+            Scribe_Values.Look(ref playerFacingDescription, "playerFacingDescription");
+            Scribe_Values.Look(ref playerFacingTier, "playerFacingTier", 99);
+            Scribe_Defs.Look(ref soundDef, "soundDef");
+            Scribe_Values.Look(ref soundPitch, "soundPitch", 1f);
+            Scribe_Values.Look(ref soundPlayed, "soundPlayed", false);
+            Scribe_Values.Look(ref soundStatus, "soundStatus");
+            Scribe_Collections.Look(ref presentations, "presentations", LookMode.Deep);
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                presentations = presentations ?? new List<WildlifeSignalObservationPresentation>();
+                if (playerFacingDescription.NullOrEmpty())
+                {
+                    playerFacingDescription = WildlifeSignalPresentation.Description(kind, 0f, truthful,
+                        false, false, null, species, radius, null, null, null);
+                    playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
+                }
+                if (playerFacingTier < (int)WildlifeSignalDisplayTier.Unknown ||
+                    playerFacingTier > (int)WildlifeSignalDisplayTier.Truthfulness)
+                    playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
+                soundPitch = Mathf.Clamp(soundPitch <= 0f ? 1f : soundPitch, 0.96f, 1.04f);
+            }
         }
     }
 
@@ -407,8 +435,10 @@ namespace Herds
             if (dialect == null) return "No local signal culture is known.";
             Pawn contributor = observer ?? ColonyContributor(species);
             float understanding = observer == null ? ColonyUnderstanding(species) : Understanding(observer, species);
+            WildlifeSignalTrace recent = signalHistory.Where(trace => trace.species == species)
+                .OrderByDescending(trace => trace.tick).FirstOrDefault();
             string text = (observer == null ? "Colony" : observer.LabelShortCap + "'s") +
-                " " + species.LabelCap + " signal understanding: " +
+                " signals from " + WildlifeSignalPresentation.SpeciesReference(species) + ": " +
                 UnderstandingLabel(understanding) + " " + understanding.ToStringPercent() + ".";
             if (observer == null)
                 text += contributor == null
@@ -431,6 +461,9 @@ namespace Herds
                 if (understanding >= 0.92f)
                     text += "\nMistaken and deceptive calls can be identified.";
             }
+            if (recent != null && understanding >= 0.7f)
+                text += "\n\nRecent trace: " + WildlifeSignalPresentation.HistoricalDescription(
+                    recent, observer, species, map);
             text += "\n\nUnderstanding improves when colonists hear calls, especially while manning an observation post.";
             if (observer == null)
                 text += "\n\nThe colony uses its best currently present contributor for each species. " +
@@ -443,13 +476,15 @@ namespace Herds
             PredatorSignalKnowledgeRecord best = predatorKnowledge.Where(record =>
                 record.predatorSpecies == predatorSpecies).OrderByDescending(record => record.understanding).FirstOrDefault();
             return best == null ? "No prey calls interpreted" :
-                "Reads " + best.preySpecies.LabelCap + " • " + best.understanding.ToStringPercent();
+                best.understanding < 0.15f ? "Detects local prey movement" :
+                best.understanding < 0.4f ? "Recognizes broad prey warning patterns" :
+                "Reads " + best.preySpecies.LabelCap + " movement • " + best.understanding.ToStringPercent();
         }
 
         public string PredatorTooltip(ThingDef predatorSpecies)
         {
             List<PredatorSignalKnowledgeRecord> known = predatorKnowledge.Where(record =>
-                record.predatorSpecies == predatorSpecies && record.understanding > 0.01f)
+                record.predatorSpecies == predatorSpecies && record.understanding >= 0.15f)
                 .OrderByDescending(record => record.understanding).Take(5).ToList();
             if (known.Count == 0)
                 return "This predator has not yet learned to exploit local prey alarm calls.";
@@ -554,10 +589,12 @@ namespace Herds
                         herds?.NotifyThreat(animals[i], perceivedThreat, 750);
             }
             NotifyPlayerImitation(species, kind, caller, source.Position, true, truthful);
-            string effect = truthful ? "The call was understood." :
-                "The animals responded, but learned that the call was misleading.";
-            Messages.Message(caller.LabelShortCap + " gave a " + SignalLabel(kind).ToLowerInvariant() +
-                " in the " + DialectName(species) + " dialect. " + effect, source,
+            string effect = Understanding(caller, species) >= 0.92f && !truthful
+                ? "The animals responded, but learned that the call was misleading."
+                : "Nearby animals reacted to the call.";
+            string playerFacing = WildlifeSignalPresentation.Description(kind, Understanding(caller, species),
+                truthful, false, false, null, species, 35f, null, null, map);
+            Messages.Message(caller.LabelShortCap + " made a call. " + playerFacing + " " + effect, source,
                 truthful ? MessageTypeDefOf.PositiveEvent : MessageTypeDefOf.CautionInput, false);
             return true;
         }
@@ -569,7 +606,8 @@ namespace Herds
                 "signals=dialects:" + dialects.Count + " active:" +
                 activeSignals.Count(signal => signal.expiresTick > Find.TickManager.TicksGame) +
                 " traces:" + signalHistory.Count + " colonistLinks:" + colonistKnowledge.Count +
-                " predatorLinks:" + predatorKnowledge.Count
+                " predatorLinks:" + predatorKnowledge.Count + " journalSignalsTab:" +
+                (HerdsMod.Settings?.enableWildlifeSignalCulture == true)
             };
             lines.AddRange(dialects.OrderByDescending(record => record.lastSignalTick).Take(12).Select(record =>
                 "dialect=" + record.species.defName + " name:" + DialectName(record.species).Replace(' ', '_') +
@@ -596,7 +634,14 @@ namespace Herds
                 " true:" + trace.truthful + " verified:" + trace.verified +
                 " consistent:" + trace.behaviorConsistent + " listeners:" + trace.listenerCount +
                 " reactions:" + trace.reactionCount + " observers:" + trace.observerCount +
-                " cause:" + BridgeClean(trace.cause) + " observed:" + BridgeClean(trace.observedBehavior)));
+                " cause:" + BridgeClean(trace.cause) + " observed:" + BridgeClean(trace.observedBehavior) +
+                " historical:" + BridgeClean(trace.playerFacingDescription) +
+                " current:" + BridgeClean(WildlifeSignalPresentation.Description(trace.kind,
+                    ColonyUnderstanding(trace.species), trace.truthful, trace.verified,
+                    trace.behaviorConsistent, null, trace.species, trace.radius,
+                    trace.expectedBehavior, trace.observedBehavior, map)) +
+                " sound:" + BridgeClean(trace.soundDef?.defName) + " pitch:" + trace.soundPitch.ToString("0.000") +
+                " played:" + trace.soundPlayed + " soundStatus:" + BridgeClean(trace.soundStatus)));
             return lines;
         }
 
@@ -664,21 +709,36 @@ namespace Herds
                 subjectLabel = subject?.LabelShortCap,
                 cause = active.cause,
                 expectedBehavior = active.expectedBehavior,
-                observedBehavior = "Awaiting response"
+                observedBehavior = "Awaiting response",
+                playerFacingDescription = null,
+                playerFacingTier = 99
             };
             signalHistory.Add(trace);
-            active.observerCount = TeachColonists(species, cell, radius, humanImitation, kind, truthful, trace);
+            if (humanImitation)
+                trace.soundStatus = "human imitation";
+            else
+                WildlifeSignalAudio.CaptureAndPlay(speaker, kind, trace);
+            active.observerCount = TeachColonists(species, cell, radius, humanImitation, kind, truthful, speaker, trace);
             trace.observerCount = active.observerCount;
+            if (trace.playerFacingDescription.NullOrEmpty())
+            {
+                trace.playerFacingDescription = WildlifeSignalPresentation.Description(kind, 0f, truthful, false,
+                    false, speaker, species, effectiveRadius, active.expectedBehavior, null, map);
+                trace.playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
+            }
             if (signalHistory.Count > 60)
                 signalHistory.RemoveRange(0, signalHistory.Count - 60);
             RecordCallInPawnLog(speaker, kind, now);
             ApplyImmediateResponse(active);
             TeachPredator(species, speaker, subject, truthful);
             float known = ColonyUnderstanding(species);
-            string identifiedMeaning = IdentifiedSignalMeaning(kind, known);
+            string identifiedMeaning = known >= 0.4f
+                ? WildlifeSignalPresentation.Description(kind, known, truthful, false, false, speaker,
+                    species, effectiveRadius, null, null, map)
+                : null;
             if (HerdsMod.Settings?.showIdentifiedSignalText == true && !identifiedMeaning.NullOrEmpty())
                 MoteMaker.ThrowText(cell.ToVector3Shifted(), map,
-                    species.LabelCap + ": " + identifiedMeaning);
+                    identifiedMeaning);
             if (WildlifeTestLog.Enabled)
                 WildlifeTestLog.Write("WildlifeSignal", "species=" + species.defName + " dialect=" +
                     DialectName(species) + " kind=" + kind + " truthful=" + truthful +
@@ -689,7 +749,7 @@ namespace Herds
         private void RecordCallInPawnLog(Pawn speaker, WildlifeSignalKind kind, int now)
         {
             if (speaker?.RaceProps?.Animal != true || speaker.DestroyedOrNull() ||
-                Find.BattleLog == null) return;
+                Find.BattleLog == null || ColonyUnderstanding(speaker.def) < 0.15f) return;
             int key = Gen.HashCombineInt(speaker.thingIDNumber, (int)kind);
             if (lastPawnLogTicks.TryGetValue(key, out int lastTick) &&
                 now - lastTick < 600) return;
@@ -713,7 +773,7 @@ namespace Herds
             HerdsDefOf.Herds_LogSignalCoordination;
 
         private int TeachColonists(ThingDef species, IntVec3 cell, float radius, bool humanImitation,
-            WildlifeSignalKind kind, bool truthful, WildlifeSignalTrace trace)
+            WildlifeSignalKind kind, bool truthful, Pawn speaker, WildlifeSignalTrace trace)
         {
             IReadOnlyList<Pawn> colonists = map.mapPawns.FreeColonistsSpawned;
             int now = Find.TickManager.TicksGame;
@@ -737,19 +797,42 @@ namespace Herds
                 record.signalsHeard++;
                 record.lastHeardTick = now;
                 int afterStage = KnowledgeStage(record.understanding);
+                string playerFacing = WildlifeSignalPresentation.Description(kind, record.understanding,
+                    truthful, false, false, speaker, species, radius, ExpectedBehavior(kind), null, map);
+                if (trace.presentations == null) trace.presentations = new List<WildlifeSignalObservationPresentation>();
+                int presentationTier = (int)WildlifeSignalPresentation.TierFor(record.understanding);
+                if (trace.presentations.Count < 16)
+                    trace.presentations.Add(new WildlifeSignalObservationPresentation
+                    {
+                        observer = colonist,
+                        understanding = record.understanding,
+                        tier = presentationTier,
+                        description = playerFacing
+                    });
+                if (trace.playerFacingDescription.NullOrEmpty() || presentationTier < trace.playerFacingTier)
+                {
+                    trace.playerFacingDescription = playerFacing;
+                    trace.playerFacingTier = presentationTier;
+                }
                 if (afterStage > beforeStage && afterStage > record.lastNotifiedStage)
                 {
                     record.lastNotifiedStage = afterStage;
                     Messages.Message(colonist.LabelShortCap + " now " +
-                        StageLearningVerb(afterStage) + " the " + DialectName(species) +
-                        " calls of " + species.LabelCap + ".", colonist,
+                        StageLearningVerb(afterStage) + " the calls of " +
+                        WildlifeSignalPresentation.SpeciesReference(species) + ".", colonist,
                         MessageTypeDefOf.PositiveEvent, false);
                 }
                 WildlifeKnowledgeAdapter.Observe(colonist, species, WildlifeKnowledgeObservation.Call, map, true,
                     Mathf.Clamp((throughPost ? 1.25f : 0.85f) * (truthful ? 1f : 0.65f) * (humanImitation ? 0.8f : 1f), 0.15f, 2f),
-                    "A " + kind.ToString().ToLowerInvariant() + " signal was heard near " + species.LabelCap + ".",
+                    playerFacing,
                     "wildlife:signal:" + map.uniqueID + ":" + trace.traceId + ":" + colonist.thingIDNumber,
-                    false, null, null, truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory);
+                    false, null, null, truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
+                    0f, new Dictionary<string, string>
+                    {
+                        ["observationLayer"] = "signal",
+                        ["signalTier"] = presentationTier.ToString(),
+                        ["signalTraceId"] = trace.traceId.ToString()
+                    });
             }
             return observers;
         }
@@ -926,29 +1009,7 @@ namespace Herds
 
         public void Replay(WildlifeSignalTrace trace)
         {
-            if (trace?.species == null || !trace.cell.InBounds(map)) return;
-            int now = Find.TickManager.TicksGame;
-            activeSignals.Add(new WildlifeActiveSignal
-            {
-                traceId = 0,
-                species = trace.species,
-                kind = trace.kind,
-                cell = trace.cell,
-                startedTick = now,
-                expiresTick = now + 210,
-                radius = trace.radius,
-                truthful = trace.truthful,
-                subjectCell = trace.subjectCell,
-                hasSubject = trace.hasSubject,
-                listenerCount = trace.listenerCount,
-                observerCount = trace.observerCount,
-                reactionCount = trace.reactionCount,
-                verified = true,
-                behaviorConsistent = trace.behaviorConsistent,
-                cause = trace.cause,
-                expectedBehavior = trace.expectedBehavior,
-                observedBehavior = trace.observedBehavior
-            });
+            WildlifeSignalAudio.Replay(map, trace);
         }
 
         public List<string> DebugSignalScenario(string kindName)
@@ -1282,7 +1343,7 @@ namespace Herds
         }
     }
 
-    public sealed class Window_WildlifeSignals : Window
+    public sealed class WildlifeSignalJournalPanel
     {
         private readonly Map map;
         private Pawn observer;
@@ -1290,7 +1351,7 @@ namespace Herds
         private Vector2 detailScroll;
         private ThingDef selectedSpecies;
 
-        public Window_WildlifeSignals(Map map, Pawn observer, ThingDef selectedSpecies = null,
+        public WildlifeSignalJournalPanel(Map map, Pawn observer, ThingDef selectedSpecies = null,
             Vector2? speciesScroll = null, Vector2? detailScroll = null)
         {
             this.map = map;
@@ -1298,14 +1359,20 @@ namespace Herds
             this.selectedSpecies = selectedSpecies;
             this.speciesScroll = speciesScroll ?? Vector2.zero;
             this.detailScroll = detailScroll ?? Vector2.zero;
-            doCloseButton = true;
-            doCloseX = true;
-            absorbInputAroundWindow = true;
         }
 
-        public override Vector2 InitialSize => new Vector2(920f, 680f);
+        public Pawn Observer => observer;
+        public ThingDef SelectedSpecies => selectedSpecies;
+        public Vector2 SpeciesScroll => speciesScroll;
+        public Vector2 DetailScroll => detailScroll;
 
-        public override void DoWindowContents(Rect inRect)
+        public void SetContext(Pawn value, ThingDef species)
+        {
+            observer = value;
+            if (species != null) selectedSpecies = species;
+        }
+
+        public void DrawJournalPanel(Rect inRect)
         {
             WildlifeSignalCultureMapComponent signals = map?.GetComponent<WildlifeSignalCultureMapComponent>();
             if (signals == null)
@@ -1326,10 +1393,12 @@ namespace Herds
                 observer == null ? "Viewing: Colony" : "Viewing: " + observer.LabelShortCap))
                 OpenViewerMenu();
             Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(inRect.x, inRect.y + 32f, inRect.width, 42f),
+            Widgets.Label(new Rect(inRect.x, inRect.y + 32f, inRect.width, 55f),
                 "Wild animals use species-specific local calls. Choose an animal to learn what its visible " +
-                "signals mean, how reliable they are, and how nearby animals responded.");
-            Rect listenerRect = new Rect(inRect.x, inRect.y + 77f, inRect.width, 48f);
+                "signals mean, how reliable they are, and how nearby animals responded. Nearby colonists learn by " +
+                "hearing calls; observation posts accelerate learning. Families unlock at 15%, exact meanings at 40%, " +
+                "reliability and behavior at 70%, and misleading calls at 92%.");
+            Rect listenerRect = new Rect(inRect.x, inRect.y + 92f, inRect.width, 48f);
             Widgets.DrawBoxSolid(listenerRect, observer == null
                 ? new Color(0.16f, 0.15f, 0.11f, 0.9f)
                 : new Color(0.1f, 0.23f, 0.19f, 0.9f));
@@ -1346,7 +1415,7 @@ namespace Herds
                 "reliability at 70%, and misleading calls at 92%.\n\nIn Colony view, knowledge can fall " +
                 "when its current contributor leaves or dies.");
 
-            Rect body = new Rect(inRect.x, inRect.y + 133f, inRect.width, inRect.height - 178f);
+            Rect body = new Rect(inRect.x, inRect.y + 145f, inRect.width, Mathf.Max(1f, inRect.height - 145f));
             Rect left = new Rect(body.x, body.y, 310f, body.height);
             Rect right = new Rect(left.xMax + 10f, body.y, body.width - left.width - 10f, body.height);
             Widgets.DrawBoxSolid(left, new Color(0.08f, 0.12f, 0.13f, 0.92f));
@@ -1394,6 +1463,10 @@ namespace Herds
 
             if (selectedSpecies != null)
                 DrawSpeciesDetail(right.ContractedBy(12f), signals, selectedSpecies);
+            else
+                Widgets.Label(right.ContractedBy(18f), species.Count == 0
+                    ? "No local signal dialects are known yet. Observe wildlife or work an observation post to begin a guide."
+                    : "Select a species to review its signal evidence.");
             Text.Anchor = TextAnchor.UpperLeft;
             GUI.color = Color.white;
         }
@@ -1429,7 +1502,8 @@ namespace Herds
                 signals.Understanding(observer, species);
             WildlifeDialectRecord dialect = signals.DialectFor(species);
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 28f), species.LabelCap + " Signals");
+            Widgets.Label(new Rect(rect.x, rect.y, rect.width, 28f),
+                "Signals: " + WildlifeSignalPresentation.SpeciesReference(species));
             Text.Font = GameFont.Small;
             GUI.color = new Color(0.66f, 0.86f, 0.78f);
             Widgets.Label(new Rect(rect.x, rect.y + 31f, rect.width, 22f),
@@ -1449,7 +1523,7 @@ namespace Herds
             Rect scrollOuter = new Rect(rect.x, rect.y + 139f, rect.width, rect.height - 139f);
             List<WildlifeSignalTrace> traces = signals.RecentSignals.Where(trace =>
                 trace.species == species).OrderByDescending(trace => trace.tick).Take(8).ToList();
-            float contentHeight = 310f + traces.Count * 104f;
+            float contentHeight = 310f + traces.Count * 124f;
             Rect view = new Rect(0f, 0f, scrollOuter.width - 16f,
                 Mathf.Max(scrollOuter.height, contentHeight));
             Widgets.BeginScrollView(scrollOuter, ref detailScroll, view);
@@ -1490,47 +1564,33 @@ namespace Herds
             Widgets.Label(new Rect(0f, 278f, view.width, 24f), "Recorded Signals");
             if (traces.Count == 0)
                 Widgets.Label(new Rect(0f, 306f, view.width, 42f),
-                    "No calls have been recorded. Observe this animal in the field.");
+                    "No calls have been recorded. Observe this animal in the field or man an observation post to begin the guide.");
             for (int i = 0; i < traces.Count; i++)
             {
                 WildlifeSignalTrace trace = traces[i];
-                Rect card = new Rect(0f, 306f + i * 104f, view.width, 96f);
-                bool showAccuracy = understanding >= 0.92f && trace.verified;
+                Rect card = new Rect(0f, 306f + i * 124f, view.width, 116f);
+                string historical = WildlifeSignalPresentation.HistoricalDescription(trace, observer, species, map);
+                int historicalTier = trace.presentations?.FirstOrDefault(value => value?.observer == observer)?.tier ??
+                    trace.playerFacingTier;
+                bool showAccuracy = historicalTier >= (int)WildlifeSignalDisplayTier.Truthfulness && trace.verified;
                 Color cardColor = showAccuracy && (!trace.truthful || !trace.behaviorConsistent)
                     ? new Color(0.35f, 0.11f, 0.1f, 0.9f)
                     : new Color(0.11f, 0.18f, 0.19f, 0.92f);
                 Widgets.DrawBoxSolid(card, cardColor);
-                string name = WildlifeSignalCultureMapComponent.PlayerFacingSignal(trace.kind,
-                    understanding, trace.truthful, trace.verified);
-                if (understanding >= 0.4f)
-                    name += " - " + WildlifeSignalCultureMapComponent.SignalMeaning(trace.kind);
-                Widgets.Label(new Rect(card.x + 8f, card.y + 5f, card.width - 90f, 22f), name);
-                if (understanding >= 0.7f)
-                {
-                    Widgets.Label(new Rect(card.x + 8f, card.y + 29f, card.width - 90f, 20f),
-                        "Range " + trace.radius.ToString("0") + "  |  Listeners " + trace.listenerCount +
-                        "  |  Reactions " + (trace.verified ? trace.reactionCount.ToString() : "..."));
-                    Widgets.Label(new Rect(card.x + 8f, card.y + 51f, card.width - 90f, 36f),
-                        trace.verified ? trace.observedBehavior : trace.expectedBehavior);
-                }
-                else
-                    Widgets.Label(new Rect(card.x + 8f, card.y + 31f, card.width - 90f, 42f),
-                        understanding >= 0.4f ? trace.cause : "Continue observing to interpret this call.");
-                if (Widgets.ButtonText(new Rect(card.xMax - 76f, card.y + 32f, 68f, 30f), "Replay"))
-                {
-                    Pawn savedObserver = observer;
-                    ThingDef savedSpecies = selectedSpecies;
-                    Vector2 savedSpeciesScroll = speciesScroll;
-                    Vector2 savedDetailScroll = detailScroll;
-                    WildlifeUI.CloseMenus();
+                Widgets.Label(new Rect(card.x + 8f, card.y + 5f, card.width - 90f, 76f), historical);
+                GUI.color = new Color(0.62f, 0.75f, 0.7f);
+                Widgets.Label(new Rect(card.x + 8f, card.y + 82f, card.width - 90f, 24f),
+                    "Recorded " + (Find.TickManager.TicksGame - trace.tick).ToStringTicksToPeriod() + " ago" +
+                    (trace.observerCount > 1 ? "  |  " + trace.observerCount + " listeners" : string.Empty));
+                GUI.color = Color.white;
+                bool canReplay = trace.soundDef != null;
+                Rect replayButton = new Rect(card.xMax - 102f, card.y + 32f, 94f, 30f);
+                if (Widgets.ButtonText(replayButton, "Replay Sound", canReplay))
                     signals.Replay(trace);
-                    Find.WindowStack.Add(new Window_WildlifeSignals(map, savedObserver,
-                        savedSpecies, savedSpeciesScroll, savedDetailScroll));
-                }
-                TooltipHandler.TipRegion(card, understanding >= 0.7f
-                    ? trace.cause + "\n\nExpected: " + trace.expectedBehavior +
-                      "\nObserved: " + trace.observedBehavior
-                    : "More understanding reveals what caused the call and how animals responded.");
+                TooltipHandler.TipRegion(replayButton, canReplay
+                    ? "Play the recorded animal vocalization without creating a new signal or changing knowledge."
+                    : "No recorded vocalization is available for this signal.");
+                TooltipHandler.TipRegion(card, historical + "\n\nThis description is preserved from when the evidence was recorded.");
             }
             Widgets.EndScrollView();
         }
@@ -1544,7 +1604,6 @@ namespace Herds
                 WildlifeSignalKind.Food, WildlifeSignalKind.Water,
                 WildlifeSignalKind.Coordination
             };
-            string[] exactNames = { "Alarm", "Human", "Safe", "Contact", "Food", "Water", "Hunt" };
             string[] familyNames = { "Danger", "Danger", "Danger", "Social", "Resource", "Resource", "Hunt" };
             string[] tips =
             {
@@ -1565,15 +1624,51 @@ namespace Herds
                 Widgets.DrawBoxSolid(new Rect(entry.x + 5f, entry.y + 9f, 12f, 12f), color);
                 Text.Font = GameFont.Tiny;
                 string label = understanding < 0.15f ? "?" :
-                    understanding < 0.4f ? familyNames[i] : exactNames[i];
+                    understanding < 0.4f ? familyNames[i] :
+                    WildlifeSignalCultureMapComponent.SignalLabel(kinds[i]);
                 Widgets.Label(new Rect(entry.x + 21f, entry.y + 7f, entry.width - 23f, 20f), label);
                 TooltipHandler.TipRegion(entry, understanding < 0.15f
                     ? "The colony has not learned what this pattern means for this species."
                     : understanding < 0.4f
                         ? "The colony recognizes the broad family of this call. More observation reveals its exact meaning."
-                        : tips[i]);
+                        : understanding < 0.7f
+                            ? "The colony recognizes the exact intent. More observation reveals range and expected response."
+                            : tips[i]);
             }
             Text.Font = GameFont.Small;
+        }
+    }
+
+    // Compatibility shell for callers from older integrations. The presentation now lives in the Journal.
+    public sealed class Window_WildlifeSignals : Window
+    {
+        private readonly Map map;
+        private readonly Pawn observer;
+        private readonly ThingDef selectedSpecies;
+        private readonly Vector2? speciesScroll;
+        private readonly Vector2? detailScroll;
+        private bool redirected;
+
+        public Window_WildlifeSignals(Map map, Pawn observer, ThingDef selectedSpecies = null,
+            Vector2? speciesScroll = null, Vector2? detailScroll = null)
+        {
+            this.map = map;
+            this.observer = observer;
+            this.selectedSpecies = selectedSpecies;
+            this.speciesScroll = speciesScroll;
+            this.detailScroll = detailScroll;
+            doCloseX = true;
+            absorbInputAroundWindow = true;
+        }
+
+        public override Vector2 InitialSize => new Vector2(920f, 680f);
+
+        public override void DoWindowContents(Rect inRect)
+        {
+            if (redirected) return;
+            redirected = true;
+            Close(false);
+            Window_WildlifeJournal.OpenSignals(map, observer, selectedSpecies, speciesScroll, detailScroll);
         }
     }
 
@@ -1612,11 +1707,11 @@ namespace Herds
                 ?.DebugIdentifiedSignalText(animal);
         }
 
-        [DebugAction("Wildlife", "Open local wildlife signals", actionType = DebugActionType.Action,
+        [DebugAction("Wildlife", "Open Journal local wildlife signals", actionType = DebugActionType.Action,
             allowedGameStates = AllowedGameStates.PlayingOnMap)]
         public static void OpenSignals()
         {
-            Find.WindowStack.Add(new Window_WildlifeSignals(Find.CurrentMap, null));
+            Window_WildlifeJournal.OpenSignals(Find.CurrentMap, null);
         }
     }
 }

@@ -371,10 +371,10 @@ namespace Herds
             OverviewNavigation signalGuide = HerdsMod.Settings.enableWildlifeSignalCulture
                 ? new OverviewNavigation
                 {
-                    title = "Signal Guide", detail = "Learn animal calls and meanings",
+                    title = "Signals", detail = "Learn animal calls and meanings",
                     tooltip = "Review local signal dialects, observed meanings, credibility, and colonist understanding.",
                     accent = new Color(0.43f, 0.38f, 0.62f),
-                    action = () => Find.WindowStack.Add(new Window_WildlifeSignals(map, null))
+                    action = () => Window_WildlifeJournal.OpenSignals(map, null)
                 } : null;
             OverviewNavigation landscape = HerdsMod.Settings.enableWildlifeLandscaping
                 ? new OverviewNavigation

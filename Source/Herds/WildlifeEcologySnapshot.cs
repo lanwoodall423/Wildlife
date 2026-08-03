@@ -19,8 +19,25 @@ namespace Herds
         public readonly float confidence;
         public readonly bool success;
         public readonly IntVec3 cell;
+        public readonly Pawn observer;
+        public readonly string observerName;
+        public readonly string facetId;
+        public readonly string discoveryKind;
+        public readonly string contextLabel;
+        public readonly string previousStage;
+        public readonly string newStage;
+        public readonly float previousAmount;
+        public readonly float newAmount;
+        public readonly float previousConfidence;
+        public readonly float newConfidence;
+        public readonly float amountDelta;
+        public readonly float confidenceDelta;
+        public readonly int observerCount;
+        public readonly float observationHours;
+        public readonly float elapsedHours;
+        internal readonly string signalTraceId;
 
-        internal WildlifeEvidenceSnapshot(WildlifeEvent value)
+        internal WildlifeEvidenceSnapshot(WildlifeEvent value, int observerCount = 1, float observationHours = 0f, float elapsedHours = 0f, float amountDelta = -1f)
         {
             kind = value.kind;
             tick = value.tick;
@@ -30,6 +47,33 @@ namespace Herds
             confidence = value.confidence;
             success = value.success;
             cell = value.cell;
+            observer = value.observer;
+            this.observerCount = Mathf.Max(1, observerCount);
+            this.observationHours = Mathf.Max(0f, observationHours);
+            this.elapsedHours = Mathf.Max(0f, elapsedHours);
+            this.amountDelta = amountDelta >= 0f ? amountDelta : MetadataFloat(value, "amountDelta", value.amount);
+            confidenceDelta = MetadataFloat(value, "confidenceDelta", 0f);
+            signalTraceId = Metadata(value, "signalTraceId", string.Empty);
+            observerName = Metadata(value, "observerName", value.observer?.LabelShortCap.ToString());
+            facetId = Metadata(value, "facetId", string.Empty);
+            discoveryKind = Metadata(value, "discoveryKind", string.Empty);
+            contextLabel = Metadata(value, "contextLabel", string.Empty);
+            previousStage = Metadata(value, "previousStage", string.Empty);
+            newStage = Metadata(value, "newStage", string.Empty);
+            previousAmount = MetadataFloat(value, "previousAmount", 0f);
+            newAmount = MetadataFloat(value, "newAmount", previousAmount + this.amountDelta);
+            previousConfidence = MetadataFloat(value, "previousConfidence", 0f);
+            newConfidence = MetadataFloat(value, "newConfidence", previousConfidence + confidenceDelta);
+        }
+
+        private static string Metadata(WildlifeEvent value, string key, string fallback)
+        {
+            return value?.metadata != null && value.metadata.TryGetValue(key, out string result) && !result.NullOrEmpty() ? result : fallback;
+        }
+
+        internal static float MetadataFloat(WildlifeEvent value, string key, float fallback)
+        {
+            return float.TryParse(Metadata(value, key, string.Empty), out float result) ? result : fallback;
         }
     }
 
@@ -93,6 +137,8 @@ namespace Herds
         public readonly bool verified;
         public readonly bool behaviorConsistent;
         public readonly float radius;
+        public readonly string historicalDescription;
+        public readonly int historicalTier;
 
         internal WildlifeSignalSnapshot(WildlifeSignalTrace value)
         {
@@ -104,6 +150,8 @@ namespace Herds
             verified = value.verified;
             behaviorConsistent = value.behaviorConsistent;
             radius = value.radius;
+            historicalDescription = value.playerFacingDescription;
+            historicalTier = value.playerFacingTier;
         }
     }
 
@@ -230,6 +278,45 @@ namespace Herds
             dirty = true;
         }
 
+        public List<string> DebugOverviewLines()
+        {
+            WildlifeEcologySnapshot value = Current;
+            List<string> lines = new List<string>
+            {
+                "atlas=tick:" + value.tick + " species:" + value.species.Count +
+                " trails:" + value.trails.Count + " migrations:" + value.migrations.Count +
+                " signals:" + value.signals.Count + " habitat:" + value.habitatQuality.ToString("0.00") +
+                " season:" + GenLocalDate.Season(map) + " route:journal-signals=" +
+                (HerdsMod.Settings?.enableWildlifeSignalCulture == true)
+            };
+            foreach (WildlifeSpeciesSnapshot speciesValue in value.species
+                .OrderByDescending(item => item.evidence.Count + item.trails.Count + item.migrations.Count + item.signals.Count)
+                .Take(8))
+            {
+                int latestTick = 0;
+                for (int i = 0; i < speciesValue.evidence.Count; i++)
+                    latestTick = Mathf.Max(latestTick, speciesValue.evidence[i].tick);
+                for (int i = 0; i < speciesValue.signals.Count; i++)
+                    latestTick = Mathf.Max(latestTick, speciesValue.signals[i].tick);
+                string action = speciesValue.trails.Count > 0 ? "inspect-trail" :
+                    speciesValue.signals.Count > 0 && HerdsMod.Settings?.enableWildlifeSignalCulture == true ? "open-signals" :
+                    speciesValue.localCount > 0 ? "focus-area" : "survey";
+                IntVec3 target = speciesValue.trails.Count > 0 && speciesValue.trails[0].predictedCell.IsValid
+                    ? speciesValue.trails[0].predictedCell :
+                    speciesValue.signals.Count > 0 ? speciesValue.signals[0].cell : map.Center;
+                string freshness = latestTick <= 0 ? "stale" :
+                    value.tick - latestTick <= 5000 ? "fresh" :
+                    value.tick - latestTick <= 15000 ? "aging" : "stale";
+                lines.Add("atlas.species=" + speciesValue.species.defName +
+                    " local:" + speciesValue.localCount + " regional:" + speciesValue.regionalPopulation.ToString("0.0") +
+                    " confidence:" + speciesValue.confidence.ToString("0.00") +
+                    " evidence:" + speciesValue.evidence.Count + " trails:" + speciesValue.trails.Count +
+                    " migrations:" + speciesValue.migrations.Count + " signals:" + speciesValue.signals.Count +
+                    " freshness:" + freshness + " action:" + action + " target:" + target);
+            }
+            return lines;
+        }
+
         private void OnWildlifeEvent(WildlifeEvent value)
         {
             if (value?.map == map) dirty = true;
@@ -266,15 +353,16 @@ namespace Herds
                 float population = record?.population ?? nearby;
                 float confidence = record?.confidence ?? 0f;
                 float pressure = population <= 0f ? 0f : Mathf.Clamp01((local + nearby * 0.28f) / Mathf.Max(1f, population));
-                List<WildlifeEvent> recent = events.Where(value => value?.map == map && value.species == def)
-                    .OrderByDescending(value => value.tick).Take(8).ToList();
+                List<WildlifeEvent> recent = events.Where(value => value?.map == map && value.species == def && IsPlayerFacingEvidence(value))
+                    .OrderByDescending(value => value.tick).Take(24).ToList();
+                List<WildlifeEvidenceSnapshot> evidence = MergeEvidence(recent);
                 IReadOnlyList<string> variations = WildlifeRegionalVariation.Variations(map, def);
                 species.Add(new WildlifeSpeciesSnapshot(def, WildlifeKnowledgeAdapter.ColonyStage(def),
                     WildlifeKnowledgeAdapter.ColonyKnowledge(def), confidence, local, nearby, population,
                     WildlifeLearningAPI.HabitatScoreAt(map, map.Center), pressure,
                     record == null ? "No regional estimate" : regional.Forecast(record),
                     record == null ? "Nonintervention" : regional.PolicyLabel(record),
-                    recent.Select(value => new WildlifeEvidenceSnapshot(value)),
+                    evidence,
                     trails.Where(value => value.species == def), migrations.Where(value => value.species == def),
                     signals.Where(value => value.species == def), variations));
             }
@@ -284,6 +372,68 @@ namespace Herds
                 map.GetComponent<WildlifeMysteryMapComponent>()?.Mysteries?.Count(value => value != null && !value.Resolved) ?? 0,
                 map.GetComponent<HuntingExpeditionMapComponent>()?.ActiveExpeditions?.Count ?? 0);
             dirty = false;
+        }
+
+        private static bool IsPlayerFacingEvidence(WildlifeEvent value)
+        {
+            if (value == null) return false;
+            if (value.metadata != null && value.metadata.TryGetValue("observationLayer", out string layer) &&
+                (layer == "passive-familiarity" || layer == "passive-routine")) return false;
+            if (value.kind == WildlifeEventKind.Signal)
+                return value.metadata != null && value.metadata.TryGetValue("observationLayer", out string signalLayer) &&
+                    signalLayer == "signal";
+            if (value.kind != WildlifeEventKind.Sighting || value.summary != "A field observation added a small piece of evidence.") return true;
+            return value.metadata != null && value.metadata.TryGetValue("observationLayer", out string observationLayer) &&
+                observationLayer == "deliberate";
+        }
+
+        private static List<WildlifeEvidenceSnapshot> MergeEvidence(List<WildlifeEvent> recent)
+        {
+            List<WildlifeEvidenceSnapshot> merged = new List<WildlifeEvidenceSnapshot>();
+            for (int i = 0; i < recent.Count; i++)
+            {
+                WildlifeEvent value = recent[i];
+                WildlifeEvidenceSnapshot candidate = new WildlifeEvidenceSnapshot(value, MetadataInt(value, "observerCount", 1),
+                    WildlifeEvidenceSnapshot.MetadataFloat(value, "observedHours", 0f));
+                bool passive = value.metadata != null && value.metadata.TryGetValue("observationLayer", out string layer) && layer == "passive-meaningful";
+                string signalTraceId = string.Empty;
+                bool signal = value.kind == WildlifeEventKind.Signal && value.metadata != null &&
+                    value.metadata.TryGetValue("signalTraceId", out signalTraceId) && !signalTraceId.NullOrEmpty();
+                int mergeIndex = -1;
+                if (passive || signal)
+                {
+                    for (int j = 0; j < merged.Count; j++)
+                    {
+                        WildlifeEvidenceSnapshot existing = merged[j];
+                        bool sameSignal = signal && existing.kind == WildlifeEventKind.Signal &&
+                            signalTraceId == existing.signalTraceId;
+                        if ((sameSignal || (passive && existing.kind == candidate.kind &&
+                            existing.discoveryKind == candidate.discoveryKind && existing.facetId == candidate.facetId &&
+                            Mathf.Abs(existing.tick - candidate.tick) <= 12000f && existing.contextLabel == candidate.contextLabel)))
+                        {
+                            mergeIndex = j;
+                            break;
+                        }
+                    }
+                }
+                if (mergeIndex < 0)
+                {
+                    merged.Add(candidate);
+                    continue;
+                }
+                WildlifeEvidenceSnapshot existingValue = merged[mergeIndex];
+                int count = existingValue.observerCount + candidate.observerCount;
+                float contribution = existingValue.amountDelta + candidate.amountDelta;
+                float observationHours = existingValue.observationHours + candidate.observationHours;
+                float elapsedHours = Mathf.Abs(existingValue.tick - candidate.tick) / 2500f + Mathf.Max(existingValue.elapsedHours, candidate.elapsedHours);
+                merged[mergeIndex] = new WildlifeEvidenceSnapshot(value, count, observationHours, elapsedHours, contribution);
+            }
+            return merged.Take(8).ToList();
+        }
+
+        private static int MetadataInt(WildlifeEvent value, string key, int fallback)
+        {
+            return int.TryParse(value?.metadata != null && value.metadata.TryGetValue(key, out string result) ? result : null, out int parsed) ? parsed : fallback;
         }
     }
 

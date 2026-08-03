@@ -204,7 +204,7 @@ namespace Herds
             Map map = null, bool success = true, float quality = 1f, string summary = null,
             string sourceInstanceId = null, bool documented = false, IReadOnlyList<Pawn> witnesses = null,
             IReadOnlyList<KnowledgeMeasurement> measurements = null, KnowledgeEvidenceDisposition disposition = KnowledgeEvidenceDisposition.Supporting,
-            float directKnowledge = 0f)
+            float directKnowledge = 0f, IReadOnlyDictionary<string, string> metadata = null)
         {
             if (species?.race?.Animal != true) return false;
             Register();
@@ -228,6 +228,7 @@ namespace Herds
                 reasonId = recipe,
                 context = ContextFor(map, observer?.Position ?? map?.Center ?? IntVec3.Invalid),
                 summary = summary,
+                metadata = metadata,
                 claimMeasurements = measurements,
                 directKnowledge = Mathf.Max(0f, directKnowledge),
                 notify = false
@@ -237,7 +238,7 @@ namespace Herds
             {
                 WildlifeEventUtility.Publish(EventKindFor(observation), map ?? observer?.MapHeld, observer, null, species,
                     "Knowledge observation", summary ?? recipe, recipe, success, quality, quality >= 1f ? 0.7f : quality * 0.55f,
-                    directKnowledge, documented, value.sourceInstanceId, recipe, observer?.Position ?? IntVec3.Invalid, witnesses);
+                    directKnowledge, documented, value.sourceInstanceId, recipe, observer?.Position ?? IntVec3.Invalid, witnesses, metadata);
                 return true;
             }
             return false;
@@ -250,7 +251,8 @@ namespace Herds
             float quality = Mathf.Clamp(amount / 18f, 0.15f, 3.5f);
             return Observe(observer, species, observation, observer?.MapHeld, success || !failure, quality,
                 success ? "A successful field outcome improved the record." : failure ? "A failed attempt revealed a limit or risk." : "A field observation added a small piece of evidence.",
-                null, false, null, null, failure ? KnowledgeEvidenceDisposition.Contradictory : KnowledgeEvidenceDisposition.Supporting);
+                null, false, null, null, failure ? KnowledgeEvidenceDisposition.Contradictory : KnowledgeEvidenceDisposition.Supporting,
+                0f, new Dictionary<string, string> { ["observationLayer"] = "deliberate" });
         }
 
         public static WildlifePassiveObservationResult ApplyPassiveObservation(Pawn observer, ThingDef species, float amount,
@@ -297,13 +299,15 @@ namespace Herds
                 (output.change.newAmount > output.change.oldAmount + 0.001f || output.change.newConfidence > output.change.oldConfidence + 0.01f);
             bool confidenceAdvanced = output.change != null && output.change.newConfidence - output.change.oldConfidence >= 0.05f;
             bool contextDiscovery = !contextKey.NullOrEmpty();
-            if (firstColony) { output.discoveryKind = "first-colony"; output.summary = "First colony sighting of " + species.LabelCap + "."; }
-            else if (firstObserver) { output.discoveryKind = "first-observer"; output.summary = observer.LabelShortCap + " recorded " + species.LabelCap + " for the first time."; }
-            else if (stageAdvanced) { output.discoveryKind = "stage-milestone"; output.summary = species.LabelCap + " knowledge advanced from " + StageLabel(output.change.oldStageId) + " to " + StageLabel(output.change.newStageId) + "."; }
-            else if (newFacet || confidenceAdvanced) { output.discoveryKind = "facet-confirmation"; output.summary = observer.LabelShortCap + " strengthened " + FacetLabel(output.change.facetId) + " evidence for " + species.LabelCap + "."; }
-            else if (contextDiscovery) { output.discoveryKind = "new-context"; output.summary = species.LabelCap + " was observed in a new context" + (contextLabel.NullOrEmpty() ? "." : ": " + contextLabel + "."); }
-            else if (reacquired) { output.discoveryKind = "reacquisition"; output.summary = species.LabelCap + " was reacquired after a substantial absence."; }
-            else return output;
+            output.discoveryKind = WildlifePassiveObservationPolicy.DiscoveryKind(firstColony, firstObserver, stageAdvanced,
+                newFacet, confidenceAdvanced, contextDiscovery, reacquired);
+            if (output.discoveryKind.NullOrEmpty()) return output;
+            if (output.discoveryKind == "first-colony") output.summary = "First colony sighting of " + species.LabelCap + ".";
+            else if (output.discoveryKind == "first-observer") output.summary = observer.LabelShortCap + " recorded " + species.LabelCap + " for the first time.";
+            else if (output.discoveryKind == "stage-milestone") output.summary = species.LabelCap + " knowledge advanced from " + StageLabel(output.change.oldStageId) + " to " + StageLabel(output.change.newStageId) + ".";
+            else if (output.discoveryKind == "facet-confirmation") output.summary = observer.LabelShortCap + " strengthened " + FacetLabel(output.change.facetId) + " evidence for " + species.LabelCap + ".";
+            else if (output.discoveryKind == "new-context") output.summary = species.LabelCap + " was observed in a new context" + (contextLabel.NullOrEmpty() ? "." : ": " + contextLabel + ".");
+            else output.summary = species.LabelCap + " was reacquired after a substantial absence.";
             output.meaningful = true;
             Dictionary<string, string> metadata = new Dictionary<string, string>
             {
@@ -326,6 +330,7 @@ namespace Herds
                 ["reacquired"] = reacquired.ToString(),
                 ["amountDelta"] = (output.change == null ? 0f : output.change.newAmount - output.change.oldAmount).ToString("0.###"),
                 ["confidenceDelta"] = (output.change == null ? 0f : output.change.newConfidence - output.change.oldConfidence).ToString("0.###"),
+                ["observedHours"] = (amount * 0.6f).ToString("0.###"),
                 ["observerCount"] = "1"
             };
             WildlifeEventUtility.Publish(WildlifeEventKind.Sighting, map, observer, null, species,
@@ -350,6 +355,7 @@ namespace Herds
                 WildlifeEvent value = history[i];
                 if (value?.species == species && value.metadata != null && value.metadata.TryGetValue("observationLayer", out string layer) &&
                     layer == "passive-meaningful" && value.metadata.TryGetValue("firstColony", out string first) && first == "True") return true;
+                if (value?.species == species && value.success && value.observer?.Faction == Faction.OfPlayer) return true;
             }
             return false;
         }
@@ -916,9 +922,6 @@ namespace Herds
             }
             return best;
         }
-
-        private static string StageLabel(string stageId) =>
-            stageId.NullOrEmpty() || stageId == StageUnknown ? "Rumored" : stageId.CapitalizeFirst();
 
         private static float LegacyColonyExperience(ThingDef species) =>
             Find.Maps?.Sum(map => map.GetComponent<HuntingKnowledgeMapComponent>()?.LegacyColonyExperienceFor(species) ?? 0f) ?? 0f;

@@ -91,7 +91,7 @@ namespace Herds
             if (builtInsRegistered) return;
             builtInsRegistered = true;
             Register("wildlife.overview", "Wildlife Overview",
-                "Open the unified Wildlife Journal: field guide, living atlas, investigations, expeditions, and stories.",
+                "Open the unified Wildlife Journal: field guide, living atlas, signals, investigations, expeditions, and stories.",
                 OverviewOrder, null, () => Find.WindowStack.Add(new Window_WildlifeJournal(Find.CurrentMap, WildlifeJournalPage.FieldGuide)));
             Register("wildlife.expeditions", "Expeditions",
                 "Review every active wildlife expedition or send a new party.",

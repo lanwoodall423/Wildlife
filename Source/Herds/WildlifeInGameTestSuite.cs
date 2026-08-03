@@ -375,20 +375,20 @@ namespace Herds
                         .Where(pawn => pawn?.RaceProps?.Animal == true)
                         .Select(pawn => pawn.def).Distinct().ToList();
                     Check("Signals", signals != null, "Local signal culture state API responds");
-                    Check("Signals", species.All(def =>
+                    Check("Signals", signals != null && species.All(def =>
                     {
                         WildlifeDialectRecord dialect = signals.DialectFor(def);
                         return dialect != null && dialect.credibility >= 0f &&
                             dialect.credibility <= 1f && dialect.humanTrust >= 0f &&
                             dialect.humanTrust <= 1f && !signals.DialectName(def).NullOrEmpty();
                     }), "Animal dialect identities and trust values are valid");
-                    Check("Signals", map.mapPawns.FreeColonists.All(pawn =>
+                    Check("Signals", signals != null && map.mapPawns.FreeColonists.All(pawn =>
                         species.All(def =>
                         {
                             float value = signals.Understanding(pawn, def);
                             return value >= 0f && value <= 1f;
                         })), "Per-colonist signal understanding is bounded");
-                    Check("Signals", species.All(def =>
+                    Check("Signals", signals != null && species.All(def =>
                     {
                         Pawn contributor = signals.ColonyContributor(def);
                         float displayed = signals.ColonyUnderstanding(def);
@@ -400,11 +400,11 @@ namespace Herds
                                 ? Math.Abs(displayed) < 0.0001f
                                 : Math.Abs(signals.Understanding(contributor, def) - displayed) < 0.0001f);
                     }), "Colony signal knowledge names the currently contributing colonist");
-                    Check("Signals", signals.ActiveSignals.All(signal =>
+                    Check("Signals", signals != null && signals.ActiveSignals.All(signal =>
                         signal.species?.race?.Animal == true && signal.radius >= 0f &&
                         signal.expiresTick >= signal.startedTick),
                         "Active signal visuals have valid state");
-                    Check("Signals", signals.RecentSignals.All(trace =>
+                    Check("Signals", signals != null && signals.RecentSignals.All(trace =>
                         trace.species?.race?.Animal == true && trace.traceId > 0 &&
                         trace.radius >= 0f && !trace.cause.NullOrEmpty() &&
                         !trace.expectedBehavior.NullOrEmpty() &&
@@ -416,10 +416,24 @@ namespace Herds
                         "Solitary or ungrouped signalers are safe during response verification");
                     Check("Signals", WildlifeSignalCultureMapComponent.IdentifiedSignalTextSelfTest(),
                         "Signal meaning labels appear only after exact identification");
-                    Check("Signals", typeof(Window_WildlifeSignals) != null &&
+                    Check("Signals", WildlifeSignalPresentation.SelfTest(),
+                        "Signal descriptions use threshold-safe grammar and animal references");
+                    Check("Signals", signals != null && signals.RecentSignals.All(trace => trace.playerFacingTier >= 0 &&
+                        trace.playerFacingTier <= (int)WildlifeSignalDisplayTier.Truthfulness &&
+                        !trace.playerFacingDescription.NullOrEmpty()),
+                        "Signal history preserves a bounded historical player-facing description");
+                    Check("Signals", typeof(WildlifeSignalJournalPanel) != null &&
                         typeof(WildlifeSignalCultureMapComponent).GetMethod("Replay") != null &&
                         typeof(WildlifeSignalCultureMapComponent).GetMethod("TraceLines") != null,
-                        "Signal Field Guide supports replay and compact bridge traces");
+                        "Journal Signals supports replay and compact bridge traces");
+                    Check("Signals", typeof(WildlifeSignalAudio).GetMethod("Replay") != null,
+                        "Recorded signal replay is audio-only");
+                    Check("Signals", WildlifeSignalAudio.SelfTest(),
+                        "Signal vocalization pitch is deterministic, subtle, and bounded");
+                    Check("Signals", signals == null || signals.RecentSignals.All(trace =>
+                        trace.soundPitch >= 0.96f && trace.soundPitch <= 1.04f &&
+                        (trace.soundDef == null || !trace.soundStatus.NullOrEmpty())),
+                        "Signal audio identity and bounded pitch are persisted safely");
                     Check("Signals", typeof(HerdsSettings).GetField("enableWildlifeSignalCulture") != null &&
                         typeof(HerdsSettings).GetField("showIdentifiedSignalText") != null &&
                         typeof(HerdsSettings).GetField("enablePlayerSignalImitation") != null &&
@@ -575,6 +589,28 @@ namespace Herds
                         !WildlifeTabKnowledgePolicy.RevealsIndividualMemory(2) &&
                         WildlifeTabKnowledgePolicy.RevealsIndividualMemory(3),
                         "Animal Wildlife tab reveals information progressively by colony knowledge");
+                    Check("Knowledge", WildlifePassiveObservationPolicy.SelfTest(),
+                        "Passive familiarity caps, diminishes repetition, and classifies meaningful discoveries");
+                    List<PassiveObservationRecord> passiveRecords = knowledge.PassiveRecords.ToList();
+                    Check("Knowledge", passiveRecords.Select(record => (record?.observer?.thingIDNumber ?? 0) + ":" +
+                        (record.species?.defName ?? string.Empty)).Distinct().Count() == passiveRecords.Count,
+                        "Passive exposure aggregates to one record per observer and species");
+                    Check("Knowledge", passiveRecords.All(record => record != null && record.dailyExposure >= 0f &&
+                        record.pendingExposure >= 0f && record.pendingExposure <= record.dailyExposure + 0.001f &&
+                        record.dailyExposure <= (record.usedObservationPost ? WildlifePassiveObservationPolicy.ObservationPostDailyCap : WildlifePassiveObservationPolicy.DailyCap) + 0.001f),
+                        "Passive exposure remains within its daily cap and save-safe pending balance");
+                    List<WildlifeEvent> passiveEvents = WildlifeEventRouter.Shared.History
+                        .Where(value => value?.metadata != null && value.metadata.TryGetValue("observationLayer", out string layer) &&
+                            layer == "passive-meaningful").ToList();
+                    Check("Knowledge", passiveEvents.GroupBy(value => value.sourceInstanceId ?? string.Empty)
+                        .All(group => group.Key.NullOrEmpty() || group.Count() == 1),
+                        "Stable passive day source IDs prevent duplicate rewards");
+                    Check("Knowledge", passiveEvents.All(value => !value.summary.NullOrEmpty() &&
+                        value.metadata.ContainsKey("previousAmount") && value.metadata.ContainsKey("newAmount") &&
+                        value.metadata.ContainsKey("discoveryKind") && value.metadata.ContainsKey("observerId")),
+                        "Meaningful passive events carry descriptive change metadata");
+                    Check("Knowledge", typeof(PassiveObservationRecord).GetInterface(nameof(IExposable)) != null,
+                        "Passive familiarity records are save-compatible");
                 });
 
                 Section("Regional", () =>
@@ -699,6 +735,30 @@ namespace Herds
                         "Protect is additive and leaves Observe available");
                     Check("Journal", WildlifeFieldJournalMapComponent.MomentAvailabilitySelfTest(),
                         "Unclaimed Wildlife Moments last a deterministic 1-3 in-game hours");
+                    ResearchProjectDef expeditionResearch = DefDatabase<ResearchProjectDef>.GetNamedSilentFail("Wildlife_HuntingExpedition");
+                    Check("Journal", Window_WildlifeJournal.ExpeditionsVisible() ==
+                        (HerdsMod.Settings.enableOffMapHuntingExpeditions && expeditionResearch?.IsFinished == true),
+                        "Field Guide Expeditions tab follows the expedition research gate");
+                    Check("Journal", map.GetComponent<WildlifeEcologySnapshotMapComponent>()?.Current?.species
+                        .SelectMany(value => value.evidence ?? Array.Empty<WildlifeEvidenceSnapshot>())
+                        .All(value => value.summary != "A field observation added a small piece of evidence.") ?? true,
+                        "Field Guide evidence excludes routine proximity summaries");
+                    Check("Journal", typeof(WildlifeEvidenceSnapshot).GetField("amountDelta") != null &&
+                        typeof(WildlifeEvidenceSnapshot).GetField("observerCount") != null &&
+                        typeof(WildlifeEvidenceSnapshot).GetField("observationHours") != null,
+                        "Field Guide evidence exposes concrete contribution and familiarity metadata");
+                    WildlifeEcologySnapshot atlas = map.GetComponent<WildlifeEcologySnapshotMapComponent>()?.Current;
+                    Check("Journal", atlas != null && atlas.species.All(value => value != null &&
+                        value.species?.race?.Animal == true && value.confidence >= 0f && value.confidence <= 1f),
+                        "Living Atlas derives bounded species activity state from the ecology snapshot");
+                    Check("Journal", typeof(WildlifeEcologySnapshotMapComponent).GetMethod("DebugOverviewLines") != null,
+                        "Living Atlas exposes bounded bridge diagnostics");
+                    WildlifeMenuEntry signalEntry = WildlifeMenuRegistry.VisibleEntriesForTesting()
+                        .FirstOrDefault(entry => entry.id == "wildlife.signals");
+                    Check("Journal", signalEntry == null &&
+                        typeof(Window_WildlifeJournal).GetMethod("OpenSignals") != null &&
+                        Window_WildlifeJournal.SignalsVisible() == (HerdsMod.Settings?.enableWildlifeSignalCulture == true),
+                        "Signals is a setting-gated Journal page rather than a standalone menu entry");
                     Check("Journal", journal.Opportunity?.continuedAsTrail != true ||
                         journal.Opportunity.evidence is WildlifeSign,
                         "A departed Wildlife Moment retains physical trail evidence");
@@ -886,7 +946,7 @@ namespace Herds
                             typeof(Map), typeof(Pawn), typeof(ThingDef),
                             typeof(UnityEngine.Vector2?), typeof(UnityEngine.Vector2?)
                         }) != null,
-                        "Signal replay can restore viewer, species, and scroll state");
+                        "Legacy Signal Guide callers redirect with viewer, species, and scroll state");
                     Check("UI", AccessTools.Method(typeof(WildlifeUI), "Focus",
                             new[] { typeof(Thing) }) != null &&
                         AccessTools.Method(typeof(WildlifeUI), "Focus",

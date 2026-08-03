@@ -922,6 +922,8 @@ namespace Herds
             AddSection(lines, "packs", WildlifeDevMaster.PacksOverview(map), 8);
             AddSection(lines, "hunts", map.GetComponent<WildlifeHuntCoordinator>()?.DebugOverviewLines(), 8);
             AddSection(lines, "regional", map.GetComponent<RegionalWildlifeMapComponent>()?.DebugOverviewLines(), 10);
+            AddSection(lines, "atlas", map.GetComponent<WildlifeEcologySnapshotMapComponent>()?.DebugOverviewLines(), 8);
+            AddSection(lines, "signals", map.GetComponent<WildlifeSignalCultureMapComponent>()?.TraceLines(), 6);
             AddSection(lines, "landscape", map.GetComponent<WildlifeLandscapeMapComponent>()?.BridgeLines(), 10);
             AddSection(lines, "expeditions", map.GetComponent<HuntingExpeditionMapComponent>()?.DebugOverviewLines(), 8);
             AddSection(lines, "knowledge", map.GetComponent<HuntingKnowledgeMapComponent>()?.DebugOverviewLines(), 8);
@@ -1137,8 +1139,8 @@ namespace Herds
         private static List<string> OpenSignals(Map map)
         {
             if (map == null) return new List<string> { "signalsWindow=no_map" };
-            Find.WindowStack.Add(new Window_WildlifeSignals(map, null));
-            return new List<string> { "signalsWindow=open" };
+            Window_WildlifeJournal.OpenSignals(map, null);
+            return new List<string> { "signalsWindow=open journalPage=signals" };
         }
 
         private static List<string> SelectThing(Map map, int id)

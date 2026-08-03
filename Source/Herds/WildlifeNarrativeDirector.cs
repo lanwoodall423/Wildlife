@@ -298,7 +298,20 @@ namespace Herds
         private void AddEventEvidence(WildlifeHypothesisRecord hypothesis, WildlifeEvent value)
         {
             if (hypothesis == null || value == null || value.species != hypothesis.species) return;
-            string text = value.summary.NullOrEmpty() ? value.kind.ToString() : value.summary;
+            string text;
+            if (value.kind == WildlifeEventKind.Signal)
+            {
+                string layer;
+                bool playerFacing = value.metadata != null &&
+                    value.metadata.TryGetValue("observationLayer", out layer) && layer == "signal";
+                text = playerFacing && !value.summary.NullOrEmpty()
+                    ? value.summary
+                    : "Wildlife signal evidence was recorded.";
+            }
+            else
+            {
+                text = value.summary.NullOrEmpty() ? value.kind.ToString() : value.summary;
+            }
             if (hypothesis.evidence.Any(item => item.text == text && item.tick == value.tick)) return;
             hypothesis.evidence.Insert(0, new WildlifeHypothesisEvidence
             {
