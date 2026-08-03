@@ -994,6 +994,8 @@ namespace Herds
                     if (HerdsMod.Settings.enableSpeciesKnowledgeProgression)
                     {
                         HuntingKnowledgeMapComponent knowledge = map.GetComponent<HuntingKnowledgeMapComponent>();
+                        HerdSnapshot herd = HerdFor(pawn);
+                        BuildPassiveObservationContext(pawn, herd, out string contextKey, out string contextLabel);
                         for (int observerIndex = 0; observerIndex < playerObserversScratch.Count; observerIndex++)
                         {
                             Pawn observer = playerObserversScratch[observerIndex];
@@ -1001,13 +1003,34 @@ namespace Herds
                             bool manningPost = observer.CurJobDef == HerdsDefOf.Herds_ManObservationPost && observer.CurJob?.targetA.Thing is Building_WildlifeTool post && post.Position.DistanceToSquared(pawn.Position) <= post.InfluenceRadius * post.InfluenceRadius;
                             if (closeStudy || manningPost)
                             {
-                                knowledge?.Learn(observer, pawn.def, manningPost ? 0.6f : 0.2f);
+                                knowledge?.AccumulatePassiveExposure(observer, pawn.def, manningPost ? 0.6f : 0.2f,
+                                    contextKey, contextLabel, manningPost, now);
                             }
                         }
                     }
                 }
             }
             foreach (Pawn stale in observedUntilTick.Keys.Where(pawn => pawn == null || pawn.Dead || observedUntilTick[pawn] <= now).ToList()) if (stale != null) observedUntilTick.Remove(stale);
+        }
+
+        private void BuildPassiveObservationContext(Pawn animal, HerdSnapshot herd, out string key, out string label)
+        {
+            string biome = map.Biome?.defName ?? "unknown-biome";
+            string season = GenLocalDate.Season(map).ToString();
+            int hour = GenLocalDate.HourOfDay(animal);
+            string timeBand = hour < 6 ? "night" : hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+            int herdSize = herd?.members?.Count ?? 1;
+            string herdBand = herdSize <= 1 ? "solo" : herdSize <= 4 ? "small-group" : herdSize <= 12 ? "herd" : "large-herd";
+            string behavior = herd == null || herd.defenseMode == HerdDefenseMode.None ? "calm" : herd.defenseMode.ToString().ToLowerInvariant();
+            string refuge = HomeFor(animal)?.Spawned == true ? "refuge" : "open-range";
+            string condition = animal.Downed || animal.InMentalState ? "injured-or-stressed" : "healthy";
+            bool notable = map.GetComponent<NotableWildlifeMapComponent>()?.For(animal) != null;
+            key = "biome=" + biome + "|sector=" + (animal.Position.x / 12) + ":" + (animal.Position.z / 12) +
+                "|season=" + season + "|time=" + timeBand + "|herd=" + herdBand + "|behavior=" + behavior +
+                "|refuge=" + refuge + "|condition=" + condition + (notable ? "|notable" : string.Empty);
+            label = season + " " + timeBand + ", " + herdBand + " in " + biome.Replace('_', ' ') +
+                (behavior == "calm" ? string.Empty : ", " + behavior.Replace('_', ' ')) +
+                (refuge == "refuge" ? ", near refuge" : string.Empty) + (notable ? ", notable individual" : string.Empty);
         }
 
         private void AddActiveTools(ThingDef def, List<Building_WildlifeTool> target, bool enabled)
