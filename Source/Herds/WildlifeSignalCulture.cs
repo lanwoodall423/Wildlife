@@ -196,50 +196,52 @@ namespace Herds
             Scribe_Values.Look(ref soundPlayed, "soundPlayed", false);
             Scribe_Values.Look(ref soundStatus, "soundStatus");
             Scribe_Collections.Look(ref presentations, "presentations", LookMode.Deep);
-            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            if (Scribe.mode == LoadSaveMode.PostLoadInit) NormalizePostLoadState();
+        }
+
+        internal void NormalizePostLoadState()
+        {
+            presentations = presentations ?? new List<WildlifeSignalObservationPresentation>();
+            List<WildlifeSignalObservationPresentation> uniquePresentations = new List<WildlifeSignalObservationPresentation>();
+            for (int i = 0; i < presentations.Count; i++)
             {
-                presentations = presentations ?? new List<WildlifeSignalObservationPresentation>();
-                List<WildlifeSignalObservationPresentation> uniquePresentations = new List<WildlifeSignalObservationPresentation>();
-                for (int i = 0; i < presentations.Count; i++)
+                WildlifeSignalObservationPresentation candidate = presentations[i];
+                if (candidate?.observer == null) continue;
+                if (candidate.warningKnowledgeSubmitted && candidate.warningKnowledgeSourceInstanceId.NullOrEmpty())
+                    candidate.warningKnowledgeSubmitted = false;
+                if (candidate.predatorPressureSubmitted && candidate.predatorPressureSourceInstanceId.NullOrEmpty())
+                    candidate.predatorPressureSubmitted = false;
+                WildlifeSignalObservationPresentation existing = uniquePresentations.FirstOrDefault(value =>
+                    value.observer == candidate.observer);
+                if (existing == null)
+                    uniquePresentations.Add(candidate);
+                else
                 {
-                    WildlifeSignalObservationPresentation candidate = presentations[i];
-                    if (candidate?.observer == null) continue;
-                    if (candidate.warningKnowledgeSubmitted && candidate.warningKnowledgeSourceInstanceId.NullOrEmpty())
-                        candidate.warningKnowledgeSubmitted = false;
-                    if (candidate.predatorPressureSubmitted && candidate.predatorPressureSourceInstanceId.NullOrEmpty())
-                        candidate.predatorPressureSubmitted = false;
-                    WildlifeSignalObservationPresentation existing = uniquePresentations.FirstOrDefault(value =>
-                        value.observer == candidate.observer);
-                    if (existing == null)
-                        uniquePresentations.Add(candidate);
-                    else
+                    if (existing.warningKnowledgeSubmitted == false && candidate.warningKnowledgeSubmitted)
                     {
-                        if (existing.warningKnowledgeSubmitted == false && candidate.warningKnowledgeSubmitted)
-                        {
-                            existing.warningKnowledgeSourceInstanceId = candidate.warningKnowledgeSourceInstanceId;
-                            existing.warningKnowledgeSubmitted = true;
-                        }
-                        if (existing.predatorPressureSubmitted == false && candidate.predatorPressureSubmitted)
-                        {
-                            existing.predatorPressureSourceInstanceId = candidate.predatorPressureSourceInstanceId;
-                            existing.predatorPressureSubmitted = true;
-                        }
+                        existing.warningKnowledgeSourceInstanceId = candidate.warningKnowledgeSourceInstanceId;
+                        existing.warningKnowledgeSubmitted = true;
+                    }
+                    if (existing.predatorPressureSubmitted == false && candidate.predatorPressureSubmitted)
+                    {
+                        existing.predatorPressureSourceInstanceId = candidate.predatorPressureSourceInstanceId;
+                        existing.predatorPressureSubmitted = true;
                     }
                 }
-                presentations = uniquePresentations.Take(16).ToList();
-                if (playerFacingDescription.NullOrEmpty())
-                {
-                    playerFacingDescription = WildlifeSignalCultureMapComponent.IsWarningCall(kind)
-                        ? "A warning call was recorded."
-                        : WildlifeSignalPresentation.Description(kind, 0f, truthful,
-                            false, false, null, species, radius, null, null, null);
-                    playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
-                }
-                if (playerFacingTier < (int)WildlifeSignalDisplayTier.Unknown ||
-                    playerFacingTier > (int)WildlifeSignalDisplayTier.Truthfulness)
-                    playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
-                soundPitch = Mathf.Clamp(soundPitch <= 0f ? 1f : soundPitch, 0.96f, 1.04f);
             }
+            presentations = uniquePresentations.Take(16).ToList();
+            if (playerFacingDescription.NullOrEmpty())
+            {
+                playerFacingDescription = WildlifeSignalCultureMapComponent.IsWarningCall(kind)
+                    ? "A warning call was recorded."
+                    : WildlifeSignalPresentation.Description(kind, 0f, truthful,
+                        false, false, null, species, radius, null, null, null);
+                playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
+            }
+            if (playerFacingTier < (int)WildlifeSignalDisplayTier.Unknown ||
+                playerFacingTier > (int)WildlifeSignalDisplayTier.Truthfulness)
+                playerFacingTier = (int)WildlifeSignalDisplayTier.Unknown;
+            soundPitch = Mathf.Clamp(soundPitch <= 0f ? 1f : soundPitch, 0.96f, 1.04f);
         }
     }
 

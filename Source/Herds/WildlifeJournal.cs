@@ -600,6 +600,52 @@ namespace Herds
                 .FirstOrDefault();
         }
 
+        private static Thing ExistingPredatorDeterrent(Map map)
+        {
+            ThingDef deterrent = HerdsDefOf.Herds_PredatorDeterrent;
+            return map?.listerThings != null && deterrent != null
+                ? map.listerThings.ThingsOfDef(deterrent).FirstOrDefault(thing => thing?.Spawned == true)
+                : null;
+        }
+
+        internal static bool OpenPredatorDeterrent(Map map)
+        {
+            if (map == null) return false;
+            Thing existing = ExistingPredatorDeterrent(map);
+            if (existing != null)
+            {
+                WildlifeUI.Focus(existing);
+                return true;
+            }
+
+            if (HerdsMod.Settings?.enablePredatorDeterrents != true)
+            {
+                Messages.Message("Predator Deterrent is disabled in Wildlife settings.",
+                    MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
+            if (deterrentDef == null || deterrentDef.designationCategory == null)
+            {
+                Messages.Message("Predator Deterrent is unavailable as a player construction in this scenario.",
+                    MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            ResearchProjectDef pendingResearch = deterrentDef.researchPrerequisites?.FirstOrDefault(project =>
+                project != null && !project.IsFinished);
+            if (pendingResearch != null)
+            {
+                Messages.Message("Predator Deterrent requires further research.", MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+
+            WildlifeUI.CloseMenus();
+            Find.DesignatorManager.Select(new Designator_Build(deterrentDef));
+            return Find.DesignatorManager.SelectedDesignator is Designator_Build;
+        }
+
         private void DrawRegionHub(Rect rect, Map activeMap)
         {
             WildlifeEcologySnapshot snapshot = cachedSnapshot;
@@ -690,11 +736,19 @@ namespace Herds
                 predatorPressure?.claimSupported == true
                     ? "Repeated local predator encounters support defensive herd behavior. A Predator Deterrent is the existing response for discouraging ordinary predators."
                     : "Select an animal from Local Wildlife or the Living Atlas to inspect its group context.",
-                predatorPressure?.claimSupported == true ? "Open regional management" : "Use regional detail", regional != null,
+                predatorPressure?.claimSupported == true
+                    ? ExistingPredatorDeterrent(activeMap) != null ? "Locate Predator Deterrent" : "Build Predator Deterrent"
+                    : "Use regional detail",
+                predatorPressure?.claimSupported == true ? activeMap != null : regional != null,
                 () =>
                 {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
+                    if (predatorPressure?.claimSupported == true)
+                        OpenPredatorDeterrent(activeMap);
+                    else
+                    {
+                        WildlifeUI.CloseMenus();
+                        Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
+                    }
                 });
             Widgets.EndScrollView();
         }

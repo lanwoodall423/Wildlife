@@ -23,72 +23,424 @@ namespace Herds
             public string text;
         }
 
+        private sealed class DeterministicPredatorPressureResult
+        {
+            public bool noQualifyingThreat;
+            public bool genuineDefense;
+            public bool productionClassification;
+            public bool sharedPresentations;
+            public bool oneColonyEvent;
+            public bool firstEvidenceAmbiguous;
+            public bool reprocessingIdempotent;
+            public bool laterEncounterReinforced;
+            public bool localPredictionBounded;
+            public bool hostileNonPredatorExcluded;
+            public bool unobservedExcluded;
+            public bool ineligibleObserverExcluded;
+            public bool fabricatedExcluded;
+            public bool simulatedPredatorEligible;
+            public bool cleared;
+            public bool allClearExcluded;
+            public bool normalizationIdempotent;
+            public bool uiNonMutating;
+            public bool warningPathPreserved;
+            public bool deterrentRoute;
+            public string detail;
+        }
+
         public static string ReportPath => Path.Combine(GenFilePaths.SaveDataFolderPath, FileName);
 
-        private static bool LivePredatorDefenseProductionCheck(Map map, out string detail)
+        private static PawnKindDef TestAnimalKind(bool predator)
         {
-            detail = "";
-            if (map == null) { detail = "no map"; return false; }
-            if (HerdsMod.Settings?.enableDefensiveBehavior != true)
+            return DefDatabase<PawnKindDef>.AllDefsListForReading.FirstOrDefault(value =>
+                value?.race?.race?.Animal == true &&
+                WildlifeSpeciesClassification.IsPredator(value.race) == predator);
+        }
+
+        private static bool TryTestCell(Map map, IntVec3 origin, float minDistance, float maxDistance,
+            HashSet<IntVec3> used, out IntVec3 result)
+        {
+            for (int z = 1; z < map.Size.z - 1; z++)
+                for (int x = 1; x < map.Size.x - 1; x++)
+                {
+                    IntVec3 candidate = new IntVec3(x, 0, z);
+                    if (used.Contains(candidate) || !candidate.Standable(map) ||
+                        !candidate.InHorDistOf(origin, maxDistance) ||
+                        candidate.InHorDistOf(origin, minDistance)) continue;
+                    result = candidate;
+                    return true;
+                }
+            result = IntVec3.Invalid;
+            return false;
+        }
+
+        private static Pawn SpawnTestPawn(Map map, PawnKindDef kind, Faction faction, IntVec3 cell,
+            List<Pawn> created)
+        {
+            Pawn pawn = PawnGenerator.GeneratePawn(kind, faction);
+            if (pawn == null) return null;
+            GenSpawn.Spawn(pawn, cell, map, Rot4.North);
+            if (pawn.Spawned) created.Add(pawn);
+            return pawn;
+        }
+
+        private static int MaxTraceId(WildlifeSignalCultureMapComponent signals)
+        {
+            return signals?.RecentSignals?.Select(value => value?.traceId ?? 0).DefaultIfEmpty(0).Max() ?? 0;
+        }
+
+        private static WildlifeSignalTrace NewTrace(WildlifeSignalCultureMapComponent signals, int previousId,
+            WildlifeSignalKind kind)
+        {
+            return signals?.RecentSignals?.FirstOrDefault(value => value != null && value.traceId > previousId &&
+                value.kind == kind);
+        }
+
+        private static bool VerifySignals(WildlifeSignalCultureMapComponent signals, int tick)
+        {
+            MethodInfo method = AccessTools.Method(typeof(WildlifeSignalCultureMapComponent), "VerifyActiveSignals");
+            if (method == null) return false;
+            try
             {
-                detail = "defensive behavior disabled";
-                return false;
+                method.Invoke(signals, new object[] { tick });
+                return true;
             }
-            HerdMapComponent herds = map.GetComponent<HerdMapComponent>();
-            WildlifeSignalCultureMapComponent signals = map.GetComponent<WildlifeSignalCultureMapComponent>();
-            Pawn prey = map.mapPawns.AllPawnsSpawned.FirstOrDefault(value =>
-                value?.Spawned == true && !value.Dead && value.Faction == null &&
-                value.RaceProps?.Animal == true && !WildlifeSpeciesClassification.IsPredator(value.def));
-            Pawn predator = map.mapPawns.AllPawnsSpawned.FirstOrDefault(value =>
-                value?.Spawned == true && !value.Dead && value.Faction == null &&
-                value.RaceProps?.Animal == true && WildlifeSpeciesClassification.IsPredator(value.def));
-            if (herds == null || signals == null || prey == null || predator == null)
+            catch { return false; }
+        }
+
+        private static bool UpdateDefense(HerdMapComponent herds, int tick)
+        {
+            MethodInfo method = AccessTools.Method(typeof(HerdMapComponent), "UpdateDefense");
+            if (method == null) return false;
+            try
             {
-                detail = "no live prey and predator pair";
-                return false;
+                method.Invoke(herds, new object[] { tick });
+                return true;
             }
-            bool noThreatBefore = herds.DefenseOrderFor(prey) == null;
-            int lastTraceId = signals.RecentSignals.Count == 0 ? 0 :
-                signals.RecentSignals.Max(value => value?.traceId ?? 0);
-            bool triggered = herds.DebugTriggerDefense(prey, predator, null);
-            WildlifeSignalTrace alarm = signals.RecentSignals.FirstOrDefault(value =>
-                value != null && value.traceId > lastTraceId && value.kind == WildlifeSignalKind.Alarm);
-            bool classified = alarm?.subjectWasPredator == true &&
-                WildlifeKnowledgeAdapter.IsPredatorPressureTrace(alarm);
-            MethodInfo verifySignals = AccessTools.Method(typeof(WildlifeSignalCultureMapComponent), "VerifyActiveSignals");
-            if (verifySignals != null)
+            catch { return false; }
+        }
+
+        private static void RemoveTestSignalState(WildlifeSignalCultureMapComponent signals,
+            HashSet<int> traceIds)
+        {
+            if (signals == null || traceIds == null || traceIds.Count == 0) return;
+            foreach (string fieldName in new[] { "signalHistory", "activeSignals" })
             {
-                try { verifySignals.Invoke(signals, new object[] { (Find.TickManager?.TicksGame ?? 0) + 90 }); }
-                catch { }
+                FieldInfo field = typeof(WildlifeSignalCultureMapComponent).GetField(fieldName,
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                if (!(field?.GetValue(signals) is System.Collections.IList list)) continue;
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    FieldInfo traceIdField = list[i]?.GetType().GetField("traceId");
+                    if (traceIdField != null && traceIds.Contains((int)traceIdField.GetValue(list[i]))) list.RemoveAt(i);
+                }
             }
-            int submittedBefore = alarm?.presentations?.Count(value => value?.predatorPressureSubmitted == true) ?? 0;
-            int distinctEventSources = alarm?.presentations?.Where(value => value?.predatorPressureSubmitted == true)
-                .Select(value => value.predatorPressureSourceInstanceId).Distinct().Count() ?? 0;
-            if (verifySignals != null)
+            FieldInfo sourceField = typeof(WildlifeSignalCultureMapComponent).GetField("warningKnowledgeSources",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            if (sourceField?.GetValue(signals) is System.Collections.IList sources)
+                for (int i = sources.Count - 1; i >= 0; i--)
+                    if (traceIds.Any(id => sources[i]?.ToString().Contains(":" + id + ":") == true)) sources.RemoveAt(i);
+        }
+
+        private static void RemoveTestKnowledgeState(Map map, ThingDef species, HashSet<string> sourceIds)
+        {
+            if (map == null || species == null || sourceIds == null || sourceIds.Count == 0) return;
+            object component = Type.GetType("KnowledgeFramework.GameComponent_KnowledgeFramework, KnowledgeFramework")?
+                .GetProperty("Current", BindingFlags.Static | BindingFlags.Public)?.GetValue(null, null);
+            if (component == null) return;
+            Type componentType = component.GetType();
+            string subjectId = WildlifeKnowledgeAdapter.PopulationSubjectId(map, species);
+            FieldInfo claimsField = componentType.GetField("claimsV3", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (claimsField?.GetValue(component) is System.Collections.IList claims)
+                for (int i = claims.Count - 1; i >= 0; i--)
+                {
+                    object claim = claims[i];
+                    if (claim == null) continue;
+                    FieldInfo subjectField = claim.GetType().GetField("subjectId");
+                    FieldInfo measurementsField = claim.GetType().GetField("measurements");
+                    if (subjectField?.GetValue(claim) as string != subjectId) continue;
+                    if (measurementsField?.GetValue(claim) is System.Collections.IList measurements)
+                        for (int j = measurements.Count - 1; j >= 0; j--)
+                        {
+                            FieldInfo sourceField = measurements[j]?.GetType().GetField("sourceInstanceId");
+                            if (sourceIds.Contains(sourceField?.GetValue(measurements[j]) as string)) measurements.RemoveAt(j);
+                        }
+                    if (measurementsField?.GetValue(claim) is System.Collections.IList remaining && remaining.Count == 0)
+                        claims.RemoveAt(i);
+                }
+            foreach (string fieldName in new[] { "contextFacetsV3", "accrualV3" })
             {
-                try { verifySignals.Invoke(signals, new object[] { (Find.TickManager?.TicksGame ?? 0) + 180 }); }
-                catch { }
+                FieldInfo field = componentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+                if (!(field?.GetValue(component) is System.Collections.IList records)) continue;
+                for (int i = records.Count - 1; i >= 0; i--)
+                {
+                    object record = records[i];
+                    FieldInfo subjectField = record?.GetType().GetField("subjectId");
+                    FieldInfo sourceField = record?.GetType().GetField("sourceInstanceId");
+                    FieldInfo sourcesField = record?.GetType().GetField("sourceInstanceIds");
+                    bool subjectMatch = subjectField?.GetValue(record) as string == subjectId;
+                    bool sourceMatch = sourceIds.Contains(sourceField?.GetValue(record) as string) ||
+                        (sourcesField?.GetValue(record) is IEnumerable<string> values && values.Any(sourceIds.Contains));
+                    if (subjectMatch || sourceMatch) records.RemoveAt(i);
+                }
             }
-            int submittedAfter = alarm?.presentations?.Count(value => value?.predatorPressureSubmitted == true) ?? 0;
-            herds.NotifyThreatEnded(prey, predator);
-            MethodInfo updateDefense = AccessTools.Method(typeof(HerdMapComponent), "UpdateDefense");
-            if (updateDefense != null)
+            MethodInfo rebuild = componentType.GetMethod("RebuildV3Indexes",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            rebuild?.Invoke(component, null);
+        }
+
+        private static DeterministicPredatorPressureResult DeterministicPredatorPressureCheck(Map map)
+        {
+            DeterministicPredatorPressureResult result = new DeterministicPredatorPressureResult();
+            List<Pawn> created = new List<Pawn>();
+            List<Tuple<Pawn, IntVec3, Rot4>> parkedColonists = new List<Tuple<Pawn, IntVec3, Rot4>>();
+            HashSet<IntVec3> used = new HashSet<IntVec3>();
+            HashSet<int> traceIds = new HashSet<int>();
+            HashSet<string> sourceIds = new HashSet<string>();
+            bool oldDefense = HerdsMod.Settings?.enableDefensiveBehavior == true;
+            bool oldSignals = HerdsMod.Settings?.enableWildlifeSignalCulture == true;
+            ThingDef preySpecies = null;
+            try
             {
-                try { updateDefense.Invoke(herds, new object[] { (Find.TickManager?.TicksGame ?? 0) + 61 }); }
-                catch { }
+                if (map == null || HerdsMod.Settings == null) throw new InvalidOperationException("test map/settings unavailable");
+                HerdsMod.Settings.enableDefensiveBehavior = true;
+                HerdsMod.Settings.enableWildlifeSignalCulture = true;
+                foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned.ToList())
+                {
+                    if (pawn?.Spawned != true) continue;
+                    parkedColonists.Add(Tuple.Create(pawn, pawn.Position, pawn.Rotation));
+                    pawn.DeSpawn(DestroyMode.Vanish);
+                }
+                PawnKindDef preyKind = TestAnimalKind(false);
+                PawnKindDef predatorKind = TestAnimalKind(true);
+                if (preyKind == null || predatorKind == null) throw new InvalidOperationException("animal Def fixture unavailable");
+                preySpecies = preyKind.race;
+                if (!TryTestCell(map, map.Center, 0f, 999f, used, out IntVec3 preyCell) ||
+                    !TryTestCell(map, preyCell, 1f, 8f, used, out IntVec3 predatorCell) ||
+                    !TryTestCell(map, preyCell, 1f, 10f, used, out IntVec3 colonistACell) ||
+                    !TryTestCell(map, preyCell, 1f, 10f, used, out IntVec3 colonistBCell))
+                    throw new InvalidOperationException("deterministic standable cells unavailable");
+                used.Add(preyCell); used.Add(predatorCell); used.Add(colonistACell); used.Add(colonistBCell);
+                Pawn prey = SpawnTestPawn(map, preyKind, null, preyCell, created);
+                Pawn predator = SpawnTestPawn(map, predatorKind, null, predatorCell, created);
+                Pawn colonistA = SpawnTestPawn(map, PawnKindDefOf.Colonist, Faction.OfPlayer, colonistACell, created);
+                Pawn colonistB = SpawnTestPawn(map, PawnKindDefOf.Colonist, Faction.OfPlayer, colonistBCell, created);
+                HerdMapComponent herds = map.GetComponent<HerdMapComponent>();
+                WildlifeSignalCultureMapComponent signals = map.GetComponent<WildlifeSignalCultureMapComponent>();
+                if (prey == null || predator == null || colonistA == null || colonistB == null || herds == null || signals == null)
+                    throw new InvalidOperationException("deterministic actor or component creation failed");
+                herds.ForceRefresh();
+                if (herds.HerdFor(prey) == null) throw new InvalidOperationException("prey did not enter herd assessment");
+                int baselineClaimCount = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
+                if (baselineClaimCount != 0) throw new InvalidOperationException("predator fixture was not clean");
+
+                int beforeNoThreat = MaxTraceId(signals);
+                bool noOrder = herds.DefenseOrderFor(prey) == null;
+                result.noQualifyingThreat = noOrder && MaxTraceId(signals) == beforeNoThreat &&
+                    (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) == baselineClaimCount;
+
+                int beforeFirst = MaxTraceId(signals);
+                bool triggered = herds.DebugTriggerDefense(prey, predator, null);
+                WildlifeSignalTrace firstAlarm = NewTrace(signals, beforeFirst, WildlifeSignalKind.Alarm);
+                if (firstAlarm == null) throw new InvalidOperationException("production Alarm was not emitted");
+                traceIds.Add(firstAlarm.traceId);
+                bool firstObserved = VerifySignals(signals, firstAlarm.tick + 90);
+                int firstClaimCount = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
+                WildlifePredatorPressureKnowledgeState firstState = signals.ColonyPredatorPressure(preySpecies);
+                int firstSubmitted = firstAlarm.presentations.Count(value => value?.predatorPressureSubmitted == true);
+                int firstSourceCount = firstAlarm.presentations.Where(value => value?.predatorPressureSubmitted == true)
+                    .Select(value => value.predatorPressureSourceInstanceId).Distinct().Count();
+                result.genuineDefense = triggered && herds.DefenseOrderFor(prey) != null && firstObserved && firstAlarm.verified;
+                result.productionClassification = firstAlarm.subjectWasPredator &&
+                    WildlifeKnowledgeAdapter.IsPredatorPressureTrace(firstAlarm);
+                result.sharedPresentations = firstAlarm.presentations.Count == 2 && firstSubmitted == 2 &&
+                    firstSourceCount == 1 && firstAlarm.presentations.Select(value => value.warningKnowledgeSourceInstanceId)
+                        .Where(value => !value.NullOrEmpty()).Distinct().Count() == 2;
+                result.oneColonyEvent = firstClaimCount == 1 && firstSourceCount == 1;
+                result.firstEvidenceAmbiguous = firstClaimCount == baselineClaimCount + 1 &&
+                    firstState?.hasEvidence == true && firstState.patternRecognized == false &&
+                    firstState.meaningInterpreted == false && firstState.claimSupported == false;
+                int afterFirst = firstClaimCount;
+                VerifySignals(signals, firstAlarm.tick + 180);
+                result.reprocessingIdempotent = (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) == afterFirst;
+                for (int i = 0; i < firstAlarm.presentations.Count; i++)
+                    if (firstAlarm.presentations[i]?.predatorPressureSourceInstanceId != null)
+                        sourceIds.Add(firstAlarm.presentations[i].predatorPressureSourceInstanceId);
+
+                MoveTestPawn(map, colonistA, prey.Position, 4f, used);
+                MoveTestPawn(map, colonistB, prey.Position, 60f, used);
+                int beforeFiltered = MaxTraceId(signals);
+                signals.NotifyAnimalSignal(preySpecies, WildlifeSignalKind.Alarm, prey, predator, true, 6f);
+                WildlifeSignalTrace filtered = NewTrace(signals, beforeFiltered, WildlifeSignalKind.Alarm);
+                if (filtered != null) traceIds.Add(filtered.traceId);
+                VerifySignals(signals, (filtered?.tick ?? Find.TickManager.TicksGame) + 90);
+                result.ineligibleObserverExcluded = filtered != null && filtered.observerCount == 1 &&
+                    filtered.presentations.Count == 1 && filtered.presentations[0].observer == colonistA &&
+                    filtered.presentations.All(value => value.observer != colonistB);
+                if (filtered != null) foreach (WildlifeSignalObservationPresentation value in filtered.presentations)
+                    if (!value.predatorPressureSourceInstanceId.NullOrEmpty()) sourceIds.Add(value.predatorPressureSourceInstanceId);
+
+                MoveTestPawn(map, colonistA, prey.Position, 60f, used);
+                MoveTestPawn(map, colonistB, prey.Position, 70f, used);
+                int beforeUnobserved = MaxTraceId(signals);
+                int claimsBeforeUnobserved = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
+                signals.NotifyAnimalSignal(preySpecies, WildlifeSignalKind.Alarm, prey, predator, true, 1f);
+                WildlifeSignalTrace unobserved = NewTrace(signals, beforeUnobserved, WildlifeSignalKind.Alarm);
+                if (unobserved != null) traceIds.Add(unobserved.traceId);
+                VerifySignals(signals, (unobserved?.tick ?? Find.TickManager.TicksGame) + 90);
+                result.unobservedExcluded = unobserved != null && unobserved.observerCount == 0 &&
+                    unobserved.presentations.Count == 0 &&
+                    (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) == claimsBeforeUnobserved;
+
+                MoveTestPawn(map, colonistA, prey.Position, 4f, used);
+                MoveTestPawn(map, colonistB, prey.Position, 6f, used);
+                int beforeHostile = MaxTraceId(signals);
+                signals.NotifyAnimalSignal(preySpecies, WildlifeSignalKind.Alarm, prey, colonistB, true, 12f);
+                WildlifeSignalTrace hostile = NewTrace(signals, beforeHostile, WildlifeSignalKind.Alarm);
+                if (hostile != null) traceIds.Add(hostile.traceId);
+                result.hostileNonPredatorExcluded = hostile != null && hostile.subjectWasPredator == false &&
+                    !WildlifeKnowledgeAdapter.IsPredatorPressureTrace(hostile) &&
+                    !hostile.presentations.Any(value => value?.predatorPressureSubmitted == true);
+                int warningBeforeHuman = signals.WarningKnowledgeSources.Count;
+                int beforeHuman = MaxTraceId(signals);
+                signals.NotifyAnimalSignal(preySpecies, WildlifeSignalKind.HumanDanger, prey, colonistB, true, 12f);
+                WildlifeSignalTrace human = NewTrace(signals, beforeHuman, WildlifeSignalKind.HumanDanger);
+                if (human != null) traceIds.Add(human.traceId);
+                result.warningPathPreserved = human != null && human.presentations.Any(value => value?.warningKnowledgeSubmitted == true) &&
+                    signals.WarningKnowledgeSources.Count > warningBeforeHuman;
+
+                int warningBeforeDebug = signals.WarningKnowledgeSources.Count;
+                int beforeDebug = MaxTraceId(signals);
+                signals.NotifyDeveloperSignal(preySpecies, WildlifeSignalKind.Alarm, prey, predator, true, 35f);
+                WildlifeSignalTrace debugAlarm = NewTrace(signals, beforeDebug, WildlifeSignalKind.Alarm);
+                if (debugAlarm != null) traceIds.Add(debugAlarm.traceId);
+                int beforeDebugHuman = MaxTraceId(signals);
+                signals.NotifyDeveloperSignal(preySpecies, WildlifeSignalKind.HumanDanger, prey, predator, true, 35f);
+                WildlifeSignalTrace debugHuman = NewTrace(signals, beforeDebugHuman, WildlifeSignalKind.HumanDanger);
+                if (debugHuman != null) traceIds.Add(debugHuman.traceId);
+                result.fabricatedExcluded = debugAlarm?.developerScenario == true && debugHuman?.developerScenario == true &&
+                    debugAlarm.subjectWasPredator == false && debugHuman.subjectWasPredator == false &&
+                    !debugAlarm.presentations.Any(value => value?.warningKnowledgeSubmitted == true) &&
+                    !debugHuman.presentations.Any(value => value?.warningKnowledgeSubmitted == true) &&
+                    signals.WarningKnowledgeSources.Count == warningBeforeDebug;
+
+                int beforeSimulated = MaxTraceId(signals);
+                bool simulated = herds.DebugStartHunted(prey, predator);
+                WildlifeSignalTrace simulatedAlarm = NewTrace(signals, beforeSimulated, WildlifeSignalKind.Alarm);
+                if (simulatedAlarm != null) traceIds.Add(simulatedAlarm.traceId);
+                result.simulatedPredatorEligible = simulated && simulatedAlarm?.subjectWasPredator == true &&
+                    simulatedAlarm.developerScenario == false &&
+                    WildlifeKnowledgeAdapter.IsPredatorPressureTrace(simulatedAlarm);
+                herds.DebugStopHunted(prey);
+
+                int claimsBeforeReinforcement = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
+                for (int encounter = 1; encounter < 4; encounter++)
+                {
+                    herds.NotifyThreatEnded(prey, predator);
+                    UpdateDefense(herds, Find.TickManager.TicksGame + 61);
+                    int prior = MaxTraceId(signals);
+                    if (!herds.DebugTriggerDefense(prey, predator, null)) throw new InvalidOperationException("repeat defense did not trigger");
+                    WildlifeSignalTrace repeated = NewTrace(signals, prior, WildlifeSignalKind.Alarm);
+                    if (repeated == null) throw new InvalidOperationException("repeat Alarm was not emitted");
+                    traceIds.Add(repeated.traceId);
+                    VerifySignals(signals, repeated.tick + 90);
+                    foreach (WildlifeSignalObservationPresentation presentation in repeated.presentations)
+                        if (!presentation.predatorPressureSourceInstanceId.NullOrEmpty()) sourceIds.Add(presentation.predatorPressureSourceInstanceId);
+                }
+                WildlifePredatorPressureKnowledgeState finalState = signals.ColonyPredatorPressure(preySpecies);
+                result.laterEncounterReinforced = (finalState?.claimObservationCount ?? 0) == claimsBeforeReinforcement + 3;
+                result.localPredictionBounded = finalState?.claimSupported == true &&
+                    !finalState.PlayerDescription.Contains("regional") &&
+                    (finalState.PlayerDescription.Contains("nearby") || finalState.PlayerDescription.Contains("local"));
+
+                int beforeClear = MaxTraceId(signals);
+                int warningBeforeClear = signals.WarningKnowledgeSources.Count;
+                herds.NotifyThreatEnded(prey, predator);
+                UpdateDefense(herds, Find.TickManager.TicksGame + 61);
+                WildlifeSignalTrace allClear = NewTrace(signals, beforeClear, WildlifeSignalKind.AllClear);
+                if (allClear != null) traceIds.Add(allClear.traceId);
+                result.cleared = allClear != null && allClear.kind == WildlifeSignalKind.AllClear;
+                result.allClearExcluded = signals.WarningKnowledgeSources.Count == warningBeforeClear &&
+                    !signals.RecentSignals.Where(value => value?.traceId == allClear?.traceId)
+                        .Any(value => value != null && value.presentations.Any(item => item?.warningKnowledgeSubmitted == true));
+
+                WildlifeSignalTrace normalize = firstAlarm;
+                WildlifeSignalObservationPresentation original = normalize.presentations.FirstOrDefault();
+                if (original != null)
+                {
+                    normalize.presentations.Add(new WildlifeSignalObservationPresentation
+                    {
+                        observer = original.observer,
+                        predatorPressureSourceInstanceId = original.predatorPressureSourceInstanceId,
+                        predatorPressureSubmitted = original.predatorPressureSubmitted,
+                        warningKnowledgeSourceInstanceId = original.warningKnowledgeSourceInstanceId,
+                        warningKnowledgeSubmitted = original.warningKnowledgeSubmitted
+                    });
+                    normalize.NormalizePostLoadState();
+                    int normalizedCount = normalize.presentations.Count;
+                    string normalizedSource = normalize.presentations[0].predatorPressureSourceInstanceId;
+                    normalize.NormalizePostLoadState();
+                    result.normalizationIdempotent = normalizedCount == normalize.presentations.Count &&
+                        normalizedSource == normalize.presentations[0].predatorPressureSourceInstanceId;
+                }
+
+                int claimsBeforeUi = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
+                int sourcesBeforeUi = signals.WarningKnowledgeSources.Count;
+                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.FieldLog);
+                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.Knowledge);
+                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.Region);
+                _ = new Window_WildlifeSignals(map, colonistA, preySpecies);
+                _ = new Window_WildlifeFieldJournal(map, 2);
+                result.uiNonMutating = claimsBeforeUi == (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) &&
+                    sourcesBeforeUi == signals.WarningKnowledgeSources.Count;
+                bool selectedDeterrent = Window_WildlifeJournal.OpenPredatorDeterrent(map);
+                ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
+                ResearchProjectDef pendingDeterrentResearch = deterrentDef?.researchPrerequisites?.FirstOrDefault(project =>
+                    project != null && !project.IsFinished);
+                bool unavailableDeterrent = !selectedDeterrent &&
+                    (HerdsMod.Settings?.enablePredatorDeterrents != true || deterrentDef == null ||
+                        deterrentDef.designationCategory == null || pendingDeterrentResearch != null);
+                result.deterrentRoute = selectedDeterrent || unavailableDeterrent;
+                if (selectedDeterrent) Find.DesignatorManager.Deselect();
+                result.detail = "first=" + firstClaimCount + " final=" + (finalState?.claimObservationCount ?? 0) +
+                    " event=" + firstSourceCount + " traces=" + traceIds.Count + " source=" +
+                    WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, firstAlarm.traceId);
+                return result;
             }
-            bool cleared = signals.RecentSignals.Any(value => value != null && value.traceId > lastTraceId &&
-                value.kind == WildlifeSignalKind.AllClear);
-            bool oneSharedEvent = submittedBefore == submittedAfter &&
-                (distinctEventSources == 0 || distinctEventSources == 1);
-            bool observerGated = alarm == null || alarm.observerCount > 0
-                ? submittedBefore > 0 : submittedBefore == 0;
-            detail = "noThreat=" + noThreatBefore + " triggered=" + triggered +
-                " classified=" + classified + " verified=" + (alarm?.verified == true) +
-                " observerGated=" + observerGated + " sharedEvent=" + oneSharedEvent +
-                " cleared=" + cleared;
-            return noThreatBefore && triggered && classified && alarm?.verified == true &&
-                observerGated && oneSharedEvent && cleared;
+            catch (Exception exception)
+            {
+                result.detail = exception.GetType().Name + ": " + exception.Message;
+                return result;
+            }
+            finally
+            {
+                RemoveTestSignalState(map?.GetComponent<WildlifeSignalCultureMapComponent>(), traceIds);
+                RemoveTestKnowledgeState(map, preySpecies, sourceIds);
+                for (int i = created.Count - 1; i >= 0; i--)
+                    if (created[i]?.Spawned == true) created[i].Destroy(DestroyMode.Vanish);
+                    if (HerdsMod.Settings != null)
+                    {
+                        HerdsMod.Settings.enableDefensiveBehavior = oldDefense;
+                        HerdsMod.Settings.enableWildlifeSignalCulture = oldSignals;
+                    }
+                    for (int i = 0; i < parkedColonists.Count; i++)
+                    {
+                        Pawn pawn = parkedColonists[i].Item1;
+                        if (pawn == null || pawn.Destroyed || pawn.Spawned) continue;
+                        try { GenSpawn.Spawn(pawn, parkedColonists[i].Item2, map, parkedColonists[i].Item3); }
+                        catch { }
+                    }
+                }
+            }
+
+        private static void MoveTestPawn(Map map, Pawn pawn, IntVec3 origin, float distance, HashSet<IntVec3> used)
+        {
+            if (pawn?.Spawned != true) return;
+            pawn.DeSpawn(DestroyMode.Vanish);
+            if (!TryTestCell(map, origin, distance, 999f, used, out IntVec3 cell))
+                throw new InvalidOperationException("deterministic relocation cell unavailable");
+            used.Add(cell);
+            GenSpawn.Spawn(pawn, cell, map, Rot4.North);
         }
 
         [DebugAction("Wildlife", "Run full in-game test suite", actionType = DebugActionType.Action,
@@ -536,10 +888,35 @@ namespace Herds
                         "One predator encounter trace has one colony-level identity independent of observers");
                     Check("Signals", RegionalWildlifeMapComponent.PredatorDeterrentEffectSelfTest(),
                         "Predator Deterrents reduce predator return and migration attraction in the established calculations");
-                    string liveDefenseDetail;
-                    bool liveDefense = LivePredatorDefenseProductionCheck(map, out liveDefenseDetail);
-                    Warn("Signals", liveDefense,
-                        "Production predator threat, Alarm, defensive response, and clearing path: " + liveDefenseDetail);
+                    DeterministicPredatorPressureResult predatorFixture = DeterministicPredatorPressureCheck(map);
+                    Check("Signals", predatorFixture.noQualifyingThreat,
+                        "No qualifying threat produces no predator-encounter evidence");
+                    Check("Signals", predatorFixture.genuineDefense && predatorFixture.productionClassification,
+                        "A genuine predator drives UpdateDefense, production classification, Alarm, and response verification");
+                    Check("Signals", predatorFixture.sharedPresentations && predatorFixture.oneColonyEvent,
+                        "Two eligible observers receive one shared colony encounter event");
+                    Check("Signals", predatorFixture.firstEvidenceAmbiguous && predatorFixture.localPredictionBounded,
+                        "First evidence is ambiguous and later local encounters progress to a bounded prediction");
+                    Check("Signals", predatorFixture.reprocessingIdempotent && predatorFixture.laterEncounterReinforced,
+                        "Repeated processing is idempotent and later distinct encounters reinforce knowledge");
+                    Check("Signals", predatorFixture.hostileNonPredatorExcluded && predatorFixture.unobservedExcluded &&
+                        predatorFixture.ineligibleObserverExcluded,
+                        "Hostile non-predators and unobserved or ineligible listeners cannot create predator evidence");
+                    Check("Signals", predatorFixture.fabricatedExcluded && predatorFixture.simulatedPredatorEligible,
+                        "Fabricated debug signals are excluded while naturally simulated predator actors remain eligible");
+                    Check("Signals", predatorFixture.cleared && predatorFixture.allClearExcluded,
+                        "Threat clearing emits AllClear without creating warning or predator-encounter evidence");
+                    Check("Signals", predatorFixture.normalizationIdempotent && predatorFixture.uiNonMutating &&
+                        predatorFixture.warningPathPreserved,
+                        "Save normalization, Journal/detail construction, and warning compatibility remain non-mutating");
+                    Check("Signals", predatorFixture.deterrentRoute,
+                        "Supported local encounters expose Predator Deterrent construction or a qualitative unavailable reason");
+                    string deterrentDetail = "regional ecology component unavailable";
+                    RegionalWildlifeMapComponent regionalForTest = map.GetComponent<RegionalWildlifeMapComponent>();
+                    bool deterrentResult = regionalForTest != null &&
+                        regionalForTest.PredatorDeterrentIntegrationSelfTest(out deterrentDetail);
+                    Check("Signals", deterrentResult,
+                        "Predator Deterrent changes real cached regional calculations and restores state: " + deterrentDetail);
                     Check("Signals", signals != null && signals.WarningKnowledgeSources.Distinct().Count() ==
                         signals.WarningKnowledgeSources.Count,
                         "Warning source identity ledger remains duplicate-free after load normalization");

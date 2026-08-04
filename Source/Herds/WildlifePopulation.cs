@@ -475,6 +475,79 @@ namespace Herds
                 PredatorDeterrentMigrationAttractionModifier(ordinary, 1) == 0f;
         }
 
+        public bool PredatorDeterrentIntegrationSelfTest(out string detail)
+        {
+            detail = "";
+            ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
+            ThingDef predator = DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(value =>
+                value?.race?.Animal == true && WildlifeSpeciesClassification.IsPredator(value));
+            if (map == null || deterrentDef == null || predator == null)
+            {
+                detail = "missing map, Predator Deterrent Def, or predator species";
+                return false;
+            }
+
+            List<Thing> existing = map.listerThings?.ThingsOfDef(deterrentDef)
+                ?.Where(thing => thing?.Spawned == true).ToList() ?? new List<Thing>();
+            List<Tuple<Thing, IntVec3, Rot4>> parked = new List<Tuple<Thing, IntVec3, Rot4>>();
+            Thing temporary = null;
+            try
+            {
+                for (int i = 0; i < existing.Count; i++)
+                {
+                    Thing thing = existing[i];
+                    parked.Add(Tuple.Create(thing, thing.Position, thing.Rotation));
+                    thing.DeSpawn(DestroyMode.Vanish);
+                }
+                RefreshToolCounts();
+                int withoutCount = cachedDeterrents;
+                RegionalSpeciesRecord record = new RegionalSpeciesRecord
+                {
+                    species = predator,
+                    population = 24f,
+                    previousPopulation = 24f,
+                    lastLocalCount = 2,
+                    policy = 0
+                };
+                float without = MigrationPressure(record);
+
+                temporary = ThingMaker.MakeThing(deterrentDef);
+                IntVec3 cell = CellFinder.RandomClosewalkCellNear(map.Center, map, 8);
+                GenSpawn.Spawn(temporary, cell, map, Rot4.North);
+                RefreshToolCounts();
+                int withCount = cachedDeterrents;
+                float with = MigrationPressure(record);
+
+                temporary.Destroy(DestroyMode.Vanish);
+                temporary = null;
+                RefreshToolCounts();
+                float restored = MigrationPressure(record);
+                bool changed = withoutCount == 0 && withCount == 1 && with < without;
+                bool restoredState = cachedDeterrents == 0 && Mathf.Abs(restored - without) < 0.0001f;
+                detail = "without=" + without.ToString("0.000") + " with=" + with.ToString("0.000") +
+                    " restored=" + restored.ToString("0.000") + " counts=" + withoutCount + "/" +
+                    withCount + "/" + cachedDeterrents + " cadence=300";
+                return changed && restoredState;
+            }
+            catch (Exception exception)
+            {
+                detail = exception.GetType().Name + ": " + exception.Message;
+                return false;
+            }
+            finally
+            {
+                if (temporary?.Spawned == true) temporary.Destroy(DestroyMode.Vanish);
+                for (int i = 0; i < parked.Count; i++)
+                {
+                    Thing thing = parked[i].Item1;
+                    if (thing == null || thing.Destroyed || thing.Spawned) continue;
+                    try { GenSpawn.Spawn(thing, parked[i].Item2, map, parked[i].Item3); }
+                    catch { }
+                }
+                RefreshToolCounts();
+            }
+        }
+
         public void EncourageReturn(RoamingAnimalRecord record)
         {
             if (record == null || !CanEncourageReturns) return;
