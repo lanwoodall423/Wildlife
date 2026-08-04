@@ -1337,7 +1337,7 @@ namespace Herds
             kind == WildlifeOpportunityKind.Migration ? "Passing Migration" :
             kind == WildlifeOpportunityKind.NestingSeason ? "Nesting Season" :
             kind == WildlifeOpportunityKind.InjuredAnimal ? "Injured Animal" :
-            kind == WildlifeOpportunityKind.PredatorIncursion ? "Predator Incursion" :
+            kind == WildlifeOpportunityKind.PredatorIncursion ? "Local Predator Encounter" :
             kind == WildlifeOpportunityKind.RareSighting ? "Rare Sighting" :
             kind == WildlifeOpportunityKind.PredatorStalk ? "The Stalk" :
             kind == WildlifeOpportunityKind.LookoutRotation ? "Changing of the Watch" :
@@ -1385,7 +1385,7 @@ namespace Herds
             kind == WildlifeStewardProjectKind.PopulationControl ? "Control Overpopulation" :
             kind == WildlifeStewardProjectKind.RanchDefense ? "Protect Wildlife Habitat" :
             kind == WildlifeStewardProjectKind.ProtectMigration ? "Protect a Migration" :
-            kind == WildlifeStewardProjectKind.SuppressPredators ? "Suppress Predator Pressure" :
+            kind == WildlifeStewardProjectKind.SuppressPredators ? "Respond to Predator Encounters" :
             "Attract Rare Birds";
 
         public static string ProjectDescription(WildlifeStewardProjectKind kind) =>
@@ -1400,7 +1400,7 @@ namespace Herds
                             : kind == WildlifeStewardProjectKind.ProtectMigration
                                 ? "Support a vulnerable migration through repeated patrol and route-maintenance work."
                                 : kind == WildlifeStewardProjectKind.SuppressPredators
-                                    ? "Reduce predator pressure through repeated field patrols. An active deterrent improves each work session."
+                                    ? "Monitor repeated local predator encounters. An active Predator Deterrent discourages ordinary predators."
                                     : "Prepare habitat and water access for rare birds through repeated field surveys and maintenance.";
 
         private static string OpportunityDescription(WildlifeOpportunityKind kind, ThingDef species)
@@ -1409,7 +1409,7 @@ namespace Herds
             if (kind == WildlifeOpportunityKind.Migration) return animal + " are moving through the region. An active migration corridor can guide them safely.";
             if (kind == WildlifeOpportunityKind.NestingSeason) return animal + " have entered a vulnerable breeding period. Protection or a reserve can improve the outcome.";
             if (kind == WildlifeOpportunityKind.InjuredAnimal) return "An injured " + animal + " has been reported. Rescue, recovery, capture, or death will conclude the event.";
-            if (kind == WildlifeOpportunityKind.PredatorIncursion) return "A " + animal + " is ranging close to colony territory. Remove it or activate a predator deterrent.";
+            if (kind == WildlifeOpportunityKind.PredatorIncursion) return "A " + animal + " is ranging close to colony territory. Remove it or activate a Predator Deterrent.";
             if (kind == WildlifeOpportunityKind.RareSighting) return "An unusual " + animal + " has been sighted. Complete a close study before it leaves.";
             return animal + " show signs that may indicate disease. Maintain an observation post" +
                 (WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)

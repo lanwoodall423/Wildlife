@@ -620,7 +620,7 @@ namespace Herds
             bool hasMovement = snapshot?.migrations?.Count > 0 || snapshot?.trails?.Count > 0;
             string movement = hasMovement ? "Movement is active" : snapshot == null ? "No movement baseline" : "Movement is quiet";
             WildlifePredatorPressureKnowledgeState predatorPressure = BestPredatorPressure(activeMap, snapshot, regional);
-            string pressure = predatorPressure == null ? "No recurring defensive pattern" : predatorPressure.PlayerLabel;
+            string pressure = predatorPressure == null ? "No repeated local predator-encounter pattern" : predatorPressure.PlayerLabel;
             bool activeExpedition = expeditions?.ActiveExpeditions?.Any() == true;
             string population = regional?.Records?.Any(record => record?.population < record.previousPopulation * 0.98f) == true
                 ? "Some populations are declining" : regional?.Records?.Any(record =>
@@ -685,11 +685,12 @@ namespace Herds
                     page = WildlifeJournalPage.Expeditions;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Groups and behavior",
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f),
+                predatorPressure?.claimSupported == true ? "Predator Deterrent" : "Groups and behavior",
                 predatorPressure?.claimSupported == true
-                    ? "Predator pressure is supported by repeated defensive responses. Review local wildlife and existing deterrent options."
+                    ? "Repeated local predator encounters support defensive herd behavior. A Predator Deterrent is the existing response for discouraging ordinary predators."
                     : "Select an animal from Local Wildlife or the Living Atlas to inspect its group context.",
-                predatorPressure?.claimSupported == true ? "Review response" : "Use regional detail", regional != null,
+                predatorPressure?.claimSupported == true ? "Open regional management" : "Use regional detail", regional != null,
                 () =>
                 {
                     WildlifeUI.CloseMenus();

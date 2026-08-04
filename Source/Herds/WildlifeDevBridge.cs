@@ -1128,7 +1128,7 @@ namespace Herds
                 !parts[2].Equals("false", StringComparison.OrdinalIgnoreCase);
             WildlifeSignalCultureMapComponent signals =
                 map.GetComponent<WildlifeSignalCultureMapComponent>();
-            signals?.NotifyAnimalSignal(animal.def, kind, animal, null, truthful);
+            signals?.NotifyDeveloperSignal(animal.def, kind, animal, null, truthful);
             return new List<string>
             {
                 "signal=emitted animal:" + id + " species:" + animal.def.defName +

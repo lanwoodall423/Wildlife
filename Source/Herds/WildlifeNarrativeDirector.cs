@@ -279,7 +279,7 @@ namespace Herds
             });
             hypothesis.candidates.Add(new WildlifeHypothesisCandidate
             {
-                explanation = value.variations.Any() ? "A learned regional behavior is altering the usual route" : "Predator pressure or human disturbance is changing the route",
+                explanation = value.variations.Any() ? "A learned regional behavior is altering the usual route" : "Repeated local predator encounters may be provoking defensive behavior",
                 support = value.variations.Any() ? 0.38f : 0.18f,
                 contradiction = value.localCount > 0 && value.nearbyPopulation <= value.localCount ? 0.08f : 0.02f
             });

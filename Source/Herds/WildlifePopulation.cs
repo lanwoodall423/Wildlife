@@ -447,6 +447,34 @@ namespace Herds
         public bool CanEncourageReturns => cachedBait + cachedWater + cachedReserves + cachedCorridors > 0;
         public bool CanDiscourageReturns => cachedDeterrents > 0;
 
+        public float PredatorDeterrentReturnChanceModifier(ThingDef species) =>
+            PredatorDeterrentReturnChanceModifier(species, cachedDeterrents);
+
+        public float PredatorDeterrentMigrationAttractionModifier(ThingDef species) =>
+            PredatorDeterrentMigrationAttractionModifier(species, cachedDeterrents);
+
+        public static float PredatorDeterrentReturnChanceModifier(ThingDef species, int deterrentCount) =>
+            WildlifeSpeciesClassification.IsPredator(species)
+                ? -Mathf.Min(0.20f, Mathf.Max(0, deterrentCount) * 0.05f) : 0f;
+
+        public static float PredatorDeterrentMigrationAttractionModifier(ThingDef species, int deterrentCount) =>
+            WildlifeSpeciesClassification.IsPredator(species) && deterrentCount > 0 ? -0.75f : 0f;
+
+        public static bool PredatorDeterrentEffectSelfTest()
+        {
+            ThingDef predator = DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(value =>
+                value?.race?.Animal == true && WildlifeSpeciesClassification.IsPredator(value));
+            ThingDef ordinary = DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(value =>
+                value?.race?.Animal == true && !WildlifeSpeciesClassification.IsPredator(value));
+            if (predator == null || ordinary == null) return false;
+            return PredatorDeterrentReturnChanceModifier(predator, 0) == 0f &&
+                PredatorDeterrentReturnChanceModifier(predator, 1) < 0f &&
+                PredatorDeterrentReturnChanceModifier(ordinary, 1) == 0f &&
+                PredatorDeterrentMigrationAttractionModifier(predator, 0) == 0f &&
+                PredatorDeterrentMigrationAttractionModifier(predator, 1) == -0.75f &&
+                PredatorDeterrentMigrationAttractionModifier(ordinary, 1) == 0f;
+        }
+
         public void EncourageReturn(RoamingAnimalRecord record)
         {
             if (record == null || !CanEncourageReturns) return;
@@ -932,8 +960,7 @@ namespace Herds
                     Mathf.Min(0.08f, cachedWater * 0.025f) +
                     Mathf.Min(0.08f, cachedReserves * 0.02f) +
                     Mathf.Min(0.10f, cachedCorridors * 0.025f);
-                if (WildlifeSpeciesClassification.IsPredator(record.species))
-                    chance -= Mathf.Min(0.20f, cachedDeterrents * 0.05f);
+                chance += PredatorDeterrentReturnChanceModifier(record.species);
                 if (now < record.encouragedUntilTick) chance += 0.30f;
                 if (now < record.discouragedUntilTick) chance -= 0.42f;
                 if (!Rand.Chance(Mathf.Clamp01(chance))) continue;
@@ -1192,7 +1219,7 @@ namespace Herds
                 attraction += map.GetComponent<WildlifeLandscapeMapComponent>()?
                     .MigrationAttraction(record.species) ?? 0f;
             if (HerdsMod.Settings.enableConservationActions && WildlifeProgression.Unlocked(WildlifeCapability.Stewardship)) attraction += Mathf.Min(0.8f, cachedCorridors * 0.2f);
-            if (WildlifeSpeciesClassification.IsPredator(record.species) && cachedDeterrents > 0) attraction -= 0.75f;
+            attraction += PredatorDeterrentMigrationAttractionModifier(record.species);
             return attraction + (record.population - record.lastLocalCount * 3f) * 0.06f - record.lastLocalCount * 0.08f;
         }
 
@@ -1811,6 +1838,11 @@ namespace Herds
             if (roamers.Count > 0)
                 options.Add(new FloatMenuOption("Known Roaming Animals…",
                     () => Find.WindowStack.Add(new Window_RoamingWildlife(map, record.species))));
+            RoamingAnimalRecord predatorRoamer = roamers.FirstOrDefault(value =>
+                WildlifeSpeciesClassification.IsPredator(value.species));
+            if (predatorRoamer != null && component.CanDiscourageReturns)
+                options.Add(new FloatMenuOption("Predator Deterrent: Discourage Return",
+                    () => component.DiscourageReturn(predatorRoamer)));
             if (HerdsMod.Settings.enableHuntingRegulations || HerdsMod.Settings.enableWildlifeSteward)
                 options.Add(new FloatMenuOption("Species Management…", () => PlayerWildlifeCommandPatch.ShowRegulationMenu(map, record.species)));
             if (HerdsMod.Settings.enableAppliedEcology && WildlifeProgression.Unlocked(WildlifeCapability.AppliedEcology))

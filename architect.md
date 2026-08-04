@@ -61,23 +61,38 @@ companion visibility, and the expected existing `MainButtonDef` window types.
 - Per-plant growth checks iterate that bounded feature cache; they never enumerate the map's full
   thing list. With no grazing grounds, the lookup is constant time and returns zero.
 
-## Predator pressure evidence
+## Local predator-encounter evidence
 
 - `HerdMapComponent.UpdateDefense` and `UpdateSentinels` remain the authorities for group threat
-  detection, defense response, and truthful or false alarm production. `WildlifeSignalCulture`
-  owns the persisted trace and listener gate; no separate pressure simulation or event store is
-  introduced.
-- Eligible listeners contribute a `PredatorPressure` Knowledge Framework observation to the
-  existing population subject and `FacetPopulation` claim. Its stable identity is
-  `wildlife:predator-pressure:<map>:<trace>:<observer>` and its recipe uses unique source-instance
-  accrual. Presentation markers remain on existing signal trace presentations for save-safe retry
-  and reload deduplication.
+  detection, defense response, and truthful or false alarm production. Production sets the
+  persisted `subjectWasPredator` fact only when the established predator classification predicate
+  recognizes the Alarm subject. `WildlifeSignalCulture` owns the persisted trace and listener gate;
+  no separate pressure simulation or event store is introduced.
+- One shared trace produces one colony-level `PredatorPressure` Knowledge Framework observation on
+  the existing population subject and `FacetPopulation` claim. Its stable event identity is
+  `wildlife:predator-encounter:<map>:<trace>`. Observer-specific warning identities remain
+  `wildlife:warning-signal:<map>:<trace>:<observer>`; presentation markers remain on existing
+  signal presentations for save-safe retry and reload deduplication.
+- The compatibility claim identifier remains `predator-pressure`, but its player-facing concept is
+  repeated local predator encounters and observed herd-defense behavior, not regional predator
+  abundance or sustained population pressure.
+- The Region Journal projection names the existing `Predator Deterrent` as the response and opens
+  the retained Regional Wildlife management surface. Its established return and migration
+  calculations remain the only deterrent simulation effects.
 - The adapter owns V3 claim submission and qualitative state queries. Ecology snapshots, the
   Knowledge and Region Journal hubs, and Field Log rows consume those projections without writing
   Journal state. `WildlifeEventRouter` remains session-local and is not durable evidence.
 - The slice reuses existing defense and signal cadences. It adds no map-wide pressure scan or
   persisted aggregate. Missing new fields on old saves default safely; existing warning, legacy
   signal, group, population, and expedition records remain authoritative.
+- `WildlifeSignalTrace.subjectWasPredator` is serialized by the existing trace owner under
+  `subjectWasPredator` and defaults to false for old saves. It is required because response
+  processing occurs after the production classification point and therefore cannot safely infer
+  the fact later. `developerScenario` remains persisted for the same delayed-processing reason.
+- Predator-pressure presentation markers remain on the existing presentation owner. The event
+  source ID is written to its existing marker fields for all eligible observer presentations, while
+  the Knowledge claim itself is submitted once at colony scope. No separate evidence ledger is
+  introduced.
 
 ## Representative signal-family boundary
 

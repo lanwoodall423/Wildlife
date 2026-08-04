@@ -87,20 +87,20 @@ namespace Herds
         public float amount;
         public float confidence;
 
-        public string PlayerLabel => !hasEvidence ? "No recurring predator pattern recorded" :
-            contradictory ? "Predator-pressure evidence conflicts" :
-            claimSupported ? "Predator pressure supports a movement prediction" :
-            meaningInterpreted ? "A recurring predator pressure is being interpreted" :
-            patternRecognized ? "A recurring defensive pattern is forming" :
-            "A defensive consequence was recorded";
+        public string PlayerLabel => !hasEvidence ? "No local predator encounters recorded" :
+            contradictory ? "Predator-encounter evidence conflicts" :
+            claimSupported ? "Nearby predator encounters support a herd-defense prediction" :
+            meaningInterpreted ? "A local predator-encounter explanation is developing" :
+            patternRecognized ? "A recurring local predator-encounter pattern is forming" :
+            "A local defensive response was recorded";
 
         public string PlayerDescription => !hasEvidence ?
-            "No repeated defensive consequence has been recorded for this population." :
-            contradictory ? "The colony has conflicting evidence about whether predators are repeatedly affecting this population." :
-            claimSupported ? "Predators are repeatedly affecting this population. Expect wider defensive movement and inspect local wildlife or trails." :
-            meaningInterpreted ? "Repeated defensive consequences are being compared to determine their likely environmental cause." :
-            patternRecognized ? "Repeated defensive consequences suggest a local pressure, but its cause is not established." :
-            "A herd response was observed, but the colony does not yet know what caused it.";
+            "No local predator encounter has been interpreted for this herd." :
+            contradictory ? "The colony has conflicting evidence about repeated local predator encounters." :
+            claimSupported ? "Repeated local predator encounters support the explanation that nearby predators are provoking defensive herd behavior. Watch for further warning calls, defensive grouping, or avoidance." :
+            meaningInterpreted ? "Repeated local defensive responses are being compared with nearby encounters to learn their likely cause." :
+            patternRecognized ? "Repeated local defensive responses suggest a recurring predator-encounter pattern, but the cause is not established." :
+            "A local defensive response was observed, but its cause is not known.";
     }
 
     /// <summary>
@@ -208,9 +208,13 @@ namespace Herds
             map == null || traceId <= 0 || observer == null ? null :
             "wildlife:predator-pressure:" + map.uniqueID + ":" + traceId + ":" + observer.thingIDNumber;
 
+        public static string PredatorPressureEventSourceInstanceId(Map map, int traceId) =>
+            map == null || traceId <= 0 ? null :
+            "wildlife:predator-encounter:" + map.uniqueID + ":" + traceId;
+
         public static bool IsPredatorPressureTrace(WildlifeSignalTrace trace) => trace != null &&
             trace.kind == WildlifeSignalKind.Alarm && trace.hasSubject && !trace.humanImitation &&
-            !trace.developerScenario;
+            trace.subjectWasPredator && !trace.developerScenario;
 
         public static WildlifeWarningKnowledgeState LegacyWarningState(float understanding, int signalsHeard)
         {
@@ -422,21 +426,22 @@ namespace Herds
             if (PredatorPressureObservationAlreadyApplied(observer, species, map, cell, sourceInstanceId)) return false;
             Register();
             string subjectId = PopulationSubjectId(map, species);
+            bool colonyEvidence = sourceInstanceId.StartsWith("wildlife:predator-encounter:", StringComparison.Ordinal);
             KnowledgeMeasurement measurement = new KnowledgeMeasurement
             {
                 domainId = DomainId,
                 subjectId = subjectId,
                 facetId = FacetPopulation,
                 claimId = ClaimPredatorPressure,
-                observer = observer,
-                scope = KnowledgeScope.Personal,
+                observer = colonyEvidence ? null : observer,
+                scope = colonyEvidence ? KnowledgeScope.Colony : KnowledgeScope.Personal,
                 value = KnowledgeClaimValue.Text(KnowledgeClaimValueType.EnumId, PredatorPressureClaimValue),
                 context = ContextFor(map, cell),
                 quality = Mathf.Clamp(quality, 0.05f, 2f),
                 evidenceWeight = Mathf.Clamp(quality, 0.15f, 2f),
                 confidenceFactor = Mathf.Clamp01(truthful ? 0.82f : 0.45f),
                 disposition = truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
-                source = "Wildlife predator pressure",
+                source = "Wildlife local predator encounter",
                 sourceInstanceId = sourceInstanceId,
                 methodId = "predator-pressure",
                 reasonId = truthful ? "defensive-response" : "false-alarm",
@@ -447,7 +452,7 @@ namespace Herds
             };
             KnowledgeObservation value = new KnowledgeObservation
             {
-                observer = observer,
+                observer = colonyEvidence ? null : observer,
                 domainId = DomainId,
                 subjectId = subjectId,
                 facetId = FacetPopulation,
@@ -456,8 +461,9 @@ namespace Herds
                 quality = Mathf.Clamp(quality, 0.05f, 2f),
                 success = truthful,
                 disposition = truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
-                shareable = true,
-                source = "Wildlife predator pressure",
+                shareable = !colonyEvidence,
+                targetColony = colonyEvidence,
+                source = "Wildlife local predator encounter",
                 sourceInstanceId = sourceInstanceId,
                 reasonId = truthful ? "defensive-response" : "false-alarm",
                 context = ContextFor(map, cell),
@@ -465,7 +471,7 @@ namespace Herds
                 metadata = new Dictionary<string, string>
                 {
                     ["observationLayer"] = "ecology-pressure",
-                    ["pressureFamily"] = "predator",
+                    ["pressureFamily"] = "predator-encounter",
                     ["response"] = "herd-defense",
                     ["traceId"] = sourceInstanceId
                 },
@@ -475,9 +481,9 @@ namespace Herds
             KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
             if (!result.success) return false;
             WildlifeEventUtility.Publish(WildlifeEventKind.Signal, map, observer, null, species,
-                "Ecological consequence", summary ?? "A herd defense response added population-pressure evidence.",
-                "predator-pressure", truthful, quality, truthful ? 0.7f : 0.25f, 0f, false,
-                sourceInstanceId, "predator-pressure", cell, null, value.metadata);
+                "Local predator encounter", summary ?? "A herd defense response added local predator-encounter evidence.",
+                "predator-encounter", truthful, quality, truthful ? 0.7f : 0.25f, 0f, false,
+                sourceInstanceId, "predator-encounter", cell, null, value.metadata);
             return true;
         }
 
@@ -549,8 +555,14 @@ namespace Herds
             if (parts.Length >= 5 && parts[0] == "wildlife" &&
                 (parts[1] == "warning-signal" || parts[1] == "predator-pressure"))
                 return parts[0] + ":" + parts[1] + ":" + parts[2] + ":" + parts[3];
+            if (parts.Length >= 4 && parts[0] == "wildlife" && parts[1] == "predator-encounter")
+                return parts[0] + ":" + parts[1] + ":" + parts[2] + ":" + parts[3];
             return sourceInstanceId;
         }
+
+        private static bool IsPredatorEncounterSource(string sourceInstanceId) =>
+            !sourceInstanceId.NullOrEmpty() &&
+            sourceInstanceId.StartsWith("wildlife:predator-encounter:", StringComparison.Ordinal);
 
         public static WildlifePredatorPressureKnowledgeState PredatorPressureStateFor(Pawn observer,
             ThingDef species, Map map, IntVec3 cell = default(IntVec3), bool colony = false)
@@ -564,24 +576,47 @@ namespace Herds
             KnowledgeContextKey context = ContextFor(map, cell);
             KnowledgeFacetSnapshotV2 facet = KnowledgeQuery.Facet(DomainId, subjectId, FacetPopulation, queryPawn,
                 scope, true, true, context, KnowledgeContextFallbackMode.ParentThenGlobal);
-            KnowledgeSubjectSnapshotV2 subject = KnowledgeQuery.Subject(DomainId, subjectId, queryPawn, scope);
             KnowledgeClaimSnapshot claim = KnowledgeQuery.Claims(DomainId, subjectId, FacetPopulation, queryPawn,
                 scope, context, KnowledgeContextFallbackMode.ParentThenGlobal).FirstOrDefault(value =>
                     value?.claimId == ClaimPredatorPressure);
-            output.stageId = subject?.stageId.NullOrEmpty() == false ? subject.stageId : StageUnknown;
-            output.evidenceCount = facet?.evidenceCount ?? 0;
+            List<KnowledgeClaimMeasurementSnapshot> encounterEvidence = claim?.provenance?.Where(value =>
+                IsPredatorEncounterSource(value?.sourceInstanceId)).ToList() ??
+                new List<KnowledgeClaimMeasurementSnapshot>();
+            HashSet<string> encounterIdentities = new HashSet<string>(StringComparer.Ordinal);
+            foreach (KnowledgeClaimMeasurementSnapshot measurement in encounterEvidence)
+            {
+                string identity = SignalObservationEquivalenceKey(measurement?.sourceInstanceId);
+                if (!identity.NullOrEmpty()) encounterIdentities.Add(identity);
+            }
+            int encounterCount = encounterIdentities.Count;
+            KnowledgeClaimMeasurementSnapshot latest = encounterEvidence.OrderByDescending(value => value?.tick ?? 0).FirstOrDefault();
+            float totalWeight = 0f;
+            float supportingWeight = 0f;
+            bool contradictory = false;
+            for (int i = 0; i < encounterEvidence.Count; i++)
+            {
+                KnowledgeClaimMeasurementSnapshot measurement = encounterEvidence[i];
+                if (measurement == null) continue;
+                float weight = Mathf.Max(0.01f, measurement.evidenceWeight) * Mathf.Clamp(measurement.quality, 0.05f, 2f);
+                totalWeight += weight;
+                if (measurement.disposition == KnowledgeEvidenceDisposition.Supporting) supportingWeight += weight;
+                if (measurement.disposition == KnowledgeEvidenceDisposition.Contradictory) contradictory = true;
+            }
+            output.stageId = encounterCount >= 4 ? StageUnderstood : encounterCount >= 3 ? StageStudied :
+                encounterCount >= 2 ? StageIdentified : encounterCount >= 1 ? StageSighted : StageUnknown;
+            output.evidenceCount = encounterCount;
             output.amount = facet?.amount ?? 0f;
-            output.confidence = claim?.effectiveConfidence ?? facet?.confidence ?? 0f;
-            output.claimObservationCount = UniqueSignalObservationCount(claim);
-            output.contradictory = claim?.contradictory == true;
-            output.claimValue = claim?.value?.textValue;
-            output.source = claim?.bestQualitySource;
-            output.lastConfirmedTick = claim?.lastConfirmedTick ?? 0;
+            output.confidence = totalWeight > 0f ? supportingWeight / totalWeight : 0f;
+            output.claimObservationCount = encounterCount;
+            output.contradictory = contradictory;
+            output.claimValue = latest?.value?.textValue;
+            output.source = latest?.source;
+            output.lastConfirmedTick = latest?.tick ?? 0;
             // FacetPopulation also contains ordinary population observations. Only the
             // dedicated claim can establish predator-pressure evidence.
             output.hasEvidence = output.claimObservationCount > 0;
             output.patternRecognized = output.claimObservationCount >= 2;
-            output.meaningInterpreted = claim != null && output.claimObservationCount >= 2 &&
+            output.meaningInterpreted = output.claimObservationCount >= 3 &&
                 StageOrder(output.stageId) >= StageOrder(StageStudied);
             output.claimSupported = output.meaningInterpreted && !output.contradictory &&
                 StageOrder(output.stageId) >= StageOrder(StageUnderstood) && output.confidence >= 0.64f;
@@ -591,12 +626,15 @@ namespace Herds
         public static bool PredatorPressureObservationAlreadyApplied(Pawn observer, ThingDef species, Map map,
             IntVec3 cell, string sourceInstanceId)
         {
-            if (observer == null || species?.race?.Animal != true || map == null || sourceInstanceId.NullOrEmpty()) return false;
+            if (species?.race?.Animal != true || map == null || sourceInstanceId.NullOrEmpty()) return false;
+            bool colonyEvidence = sourceInstanceId.StartsWith("wildlife:predator-encounter:", StringComparison.Ordinal);
+            if (observer == null && !colonyEvidence) return false;
             Register();
             string subjectId = PopulationSubjectId(map, species);
             KnowledgeContextKey context = ContextFor(map, cell);
             IReadOnlyList<KnowledgeClaimSnapshot> claims = KnowledgeQuery.Claims(DomainId, subjectId,
-                FacetPopulation, observer, KnowledgeScope.Personal, context,
+                FacetPopulation, colonyEvidence ? null : observer,
+                colonyEvidence ? KnowledgeScope.Colony : KnowledgeScope.Personal, context,
                 KnowledgeContextFallbackMode.ParentThenGlobal);
             return claims.Any(claim => claim?.claimId == ClaimPredatorPressure && claim.provenance != null &&
                 claim.provenance.Any(value => value?.sourceInstanceId == sourceInstanceId));
@@ -708,28 +746,32 @@ namespace Herds
                 kind = WildlifeSignalKind.Alarm,
                 truthful = true,
                 hasSubject = true,
-                humanImitation = false
+                humanImitation = false,
+                subjectWasPredator = true
             };
             WildlifeSignalTrace falseTrace = new WildlifeSignalTrace
             {
                 kind = WildlifeSignalKind.Alarm,
                 truthful = false,
                 hasSubject = true,
-                humanImitation = false
+                humanImitation = false,
+                subjectWasPredator = true
             };
             WildlifeSignalTrace humanTrace = new WildlifeSignalTrace
             {
                 kind = WildlifeSignalKind.HumanDanger,
                 truthful = true,
                 hasSubject = true,
-                humanImitation = false
+                humanImitation = false,
+                subjectWasPredator = false
             };
             WildlifeSignalTrace clearTrace = new WildlifeSignalTrace
             {
                 kind = WildlifeSignalKind.AllClear,
                 truthful = true,
                 hasSubject = true,
-                humanImitation = false
+                humanImitation = false,
+                subjectWasPredator = false
             };
             WildlifeSignalTrace developerTrace = new WildlifeSignalTrace
             {
@@ -737,17 +779,19 @@ namespace Herds
                 truthful = true,
                 hasSubject = true,
                 humanImitation = false,
+                subjectWasPredator = true,
                 developerScenario = true
             };
-            return first.PlayerLabel == "A defensive consequence was recorded" &&
-                pattern.PlayerLabel == "A recurring defensive pattern is forming" &&
-                meaning.PlayerLabel == "A recurring predator pressure is being interpreted" &&
-                supported.PlayerDescription.Contains("Predators are repeatedly affecting") &&
-                contradiction.PlayerLabel == "Predator-pressure evidence conflicts" &&
+            return first.PlayerLabel == "A local defensive response was recorded" &&
+                pattern.PlayerLabel == "A recurring local predator-encounter pattern is forming" &&
+                meaning.PlayerLabel == "A local predator-encounter explanation is developing" &&
+                supported.PlayerDescription.Contains("Repeated local predator encounters") &&
+                contradiction.PlayerLabel == "Predator-encounter evidence conflicts" &&
                 IsPredatorPressureTrace(trueTrace) && IsPredatorPressureTrace(falseTrace) &&
                 !IsPredatorPressureTrace(humanTrace) && !IsPredatorPressureTrace(clearTrace) &&
                 !IsPredatorPressureTrace(developerTrace) &&
-                PredatorPressureSourceInstanceId(null, 1, null) == null;
+                PredatorPressureSourceInstanceId(null, 1, null) == null &&
+                PredatorPressureEventSourceInstanceId(null, 1) == null;
         }
 
         public static bool Learn(Pawn observer, ThingDef species, float amount, bool success = false, bool failure = false)
@@ -1122,7 +1166,7 @@ namespace Herds
                 Observation("trail-completion", "Trail completion", 1f, new[] { Outcome(FacetMovement, 12f, 3f), Outcome(FacetPopulation, 8f, 2f), Outcome(FacetHabitat, 5f, 1f) }),
                 Observation("call", "Call or signal", 0.9f, new[] { Outcome(FacetSignals, 12f, 3f), Outcome(FacetSocial, 4f, 1f), Outcome(FacetDanger, 3f, 1f) }),
                 Observation("warning-call", "Warning call", 0.9f, new[] { Outcome(FacetSignals, 12f, 3f), Outcome(FacetSocial, 4f, 1f), Outcome(FacetDanger, 3f, 1f) }),
-                Observation("predator-pressure", "Predator pressure", 0.9f, new[] { Outcome(FacetPopulation, 18f, 3f), Outcome(FacetMovement, 6f, 1f), Outcome(FacetDanger, 4f, 1f) }),
+                Observation("predator-pressure", "Local predator encounter", 0.9f, new[] { Outcome(FacetPopulation, 18f, 3f), Outcome(FacetMovement, 6f, 1f), Outcome(FacetDanger, 4f, 1f) }),
                 Observation("hunt", "Hunt outcome", 0.8f, new[] { Outcome(FacetHunting, 10f, 1f), Outcome(FacetDanger, 5f, 1f), Outcome(FacetAnatomy, 4f, 0f) }),
                 Observation("tending", "Tending", 0.8f, new[] { Outcome(FacetHandling, 8f, 2f), Outcome(FacetAnatomy, 4f, 1f), Outcome(FacetIdentity, 2f, 1f) }),
                 Observation("taming", "Taming or training", 0.9f, new[] { Outcome(FacetHandling, 10f, 2f), Outcome(FacetSocial, 5f, 1f), Outcome(FacetIdentity, 3f, 1f) }),
@@ -1158,7 +1202,7 @@ namespace Herds
                 if (value.StableId == "predator-pressure")
                 {
                     value.accrualPolicy = new KnowledgeAccrualPolicy { uniquePerSourceInstance = true, stateLimit = 4096 };
-                    value.witnessDistribution.policy = KnowledgeWitnessDistributionPolicy.ObserverOnly;
+                    value.witnessDistribution.policy = KnowledgeWitnessDistributionPolicy.ColonyDirect;
                 }
             }
             return values;
@@ -1170,7 +1214,7 @@ namespace Herds
             Claim("movement-direction", "Movement direction", FacetMovement, KnowledgeClaimValueType.Direction, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.Seasonal),
             Claim("habitat-quality", "Habitat quality", FacetHabitat, KnowledgeClaimValueType.Percentage, KnowledgeClaimAggregation.WeightedMean, KnowledgeClaimStalenessPolicy.Seasonal),
             Claim("signal-meaning", "Signal meaning", FacetSignals, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.Contextual),
-            Claim("predator-pressure", "Predator pressure", FacetPopulation, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
+            Claim("predator-pressure", "Repeated local predator encounters", FacetPopulation, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("danger-level", "Danger level", FacetDanger, KnowledgeClaimValueType.Percentage, KnowledgeClaimAggregation.WeightedMean, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("diet-preference", "Diet preference", FacetDiet, KnowledgeClaimValueType.DefReference, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("den-location", "Den or refuge location", FacetHabitat, KnowledgeClaimValueType.Vector, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.Contextual),

@@ -144,6 +144,7 @@ namespace Herds
         public bool truthful;
         public bool humanImitation;
         public bool developerScenario;
+        internal bool subjectWasPredator;
         public int listenerCount;
         public int observerCount;
         public int reactionCount;
@@ -175,6 +176,7 @@ namespace Herds
             Scribe_Values.Look(ref truthful, "truthful", true);
             Scribe_Values.Look(ref humanImitation, "humanImitation", false);
             Scribe_Values.Look(ref developerScenario, "developerScenario", false);
+            Scribe_Values.Look(ref subjectWasPredator, "subjectWasPredator", false);
             Scribe_Values.Look(ref listenerCount, "listenerCount", 0);
             Scribe_Values.Look(ref observerCount, "observerCount", 0);
             Scribe_Values.Look(ref reactionCount, "reactionCount", 0);
@@ -299,7 +301,7 @@ namespace Herds
         }
 
         public WildlifePredatorPressureKnowledgeState PredatorPressureKnowledge(Pawn observer, ThingDef species) =>
-            WildlifeKnowledgeAdapter.PredatorPressureStateFor(observer, species, map);
+            WildlifeKnowledgeAdapter.PredatorPressureStateFor(null, species, map, default(IntVec3), true);
 
         public WildlifePredatorPressureKnowledgeState ColonyPredatorPressure(ThingDef species) =>
             WildlifeKnowledgeAdapter.PredatorPressureStateFor(null, species, map, default(IntVec3), true);
@@ -656,7 +658,10 @@ namespace Herds
             if (HerdsMod.Settings?.enableWildlifeSignalCulture != true || species?.race?.Animal != true) return;
             IntVec3 cell = speaker?.Spawned == true ? speaker.Position :
                 subject?.Spawned == true ? subject.Position : map.Center;
-            Broadcast(species, kind, cell, speaker, subject, truthful, radius, false, developerScenario);
+            bool subjectWasPredator = !developerScenario && kind == WildlifeSignalKind.Alarm &&
+                subject is Pawn predator && WildlifeSpeciesClassification.IsPredator(predator.def);
+            Broadcast(species, kind, cell, speaker, subject, truthful, radius, false, developerScenario,
+                subjectWasPredator);
         }
 
         public void NotifyPredatorCoordination(Pawn predator, Pawn prey)
@@ -752,9 +757,11 @@ namespace Herds
                 " traces:" + signalHistory.Count + " colonistLinks:" + colonistKnowledge.Count +
                 " predatorLinks:" + predatorKnowledge.Count + " journalSignalsTab:" +
                 (HerdsMod.Settings?.enableWildlifeSignalCulture == true) +
-                " warningV3Sources:" + warningKnowledgeSources.Count +
-                " predatorPressureSources:" + signalHistory.Sum(trace => trace?.presentations?.Count(value =>
-                    value?.predatorPressureSubmitted == true) ?? 0)
+                 " warningV3Sources:" + warningKnowledgeSources.Count +
+                 " predatorPressureSources:" + signalHistory.SelectMany(trace => trace?.presentations ??
+                     new List<WildlifeSignalObservationPresentation>()).Where(value =>
+                     value?.predatorPressureSubmitted == true).Select(value =>
+                     value.predatorPressureSourceInstanceId).Where(value => !value.NullOrEmpty()).Distinct().Count()
             };
             lines.AddRange(dialects.OrderByDescending(record => record.lastSignalTick).Take(12).Select(record =>
                 "dialect=" + record.species.defName + " name:" + DialectName(record.species).Replace(' ', '_') +
@@ -787,7 +794,9 @@ namespace Herds
                      .Select(value => BridgeClean(value.warningKnowledgeSourceInstanceId)) ?? Enumerable.Empty<string>()) +
                  " predatorPressureSubmitted:" + (trace.presentations?.Count(value => value?.predatorPressureSubmitted == true) ?? 0) +
                  " predatorPressureSources:" + string.Join(",", trace.presentations?.Where(value => value?.predatorPressureSubmitted == true)
-                     .Select(value => BridgeClean(value.predatorPressureSourceInstanceId)) ?? Enumerable.Empty<string>()) +
+                      .Select(value => BridgeClean(value.predatorPressureSourceInstanceId)).Distinct() ?? Enumerable.Empty<string>()) +
+                  " predatorClassified:" + trace.subjectWasPredator +
+                  " evidenceIdentity:" + BridgeClean(WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, trace.traceId)) +
                  " predatorPressureState:" + BridgeClean(ColonyPredatorPressure(trace.species).PlayerLabel) +
                  " historical:" + BridgeClean(trace.playerFacingDescription) +
                 " current:" + BridgeClean(WildlifeSignalPresentation.Description(trace.kind,
@@ -800,8 +809,10 @@ namespace Herds
         }
 
         private void Broadcast(ThingDef species, WildlifeSignalKind kind, IntVec3 cell, Pawn speaker,
-            Thing subject, bool truthful, float radius, bool humanImitation, bool developerScenario = false)
+            Thing subject, bool truthful, float radius, bool humanImitation, bool developerScenario = false,
+            bool subjectWasPredator = false)
         {
+            subjectWasPredator = subjectWasPredator && !humanImitation && !developerScenario;
             WildlifeDialectRecord dialect = DialectFor(species);
             int now = Find.TickManager.TicksGame;
             dialect.lastSignalTick = now;
@@ -856,6 +867,7 @@ namespace Herds
                 truthful = truthful,
                 humanImitation = humanImitation,
                 developerScenario = developerScenario,
+                subjectWasPredator = subjectWasPredator,
                 listenerCount = active.listenerCount,
                 observerCount = 0,
                 subjectCell = active.subjectCell,
@@ -1154,32 +1166,28 @@ namespace Herds
         private void SubmitPredatorPressureAfterResponse(WildlifeSignalTrace trace)
         {
             if (!WildlifeKnowledgeAdapter.IsPredatorPressureTrace(trace) || trace.presentations == null) return;
+            if (trace.presentations.Any(value => value?.predatorPressureSubmitted == true)) return;
+            Pawn observer = trace.presentations.Select(value => value?.observer).FirstOrDefault(value => value != null);
+            if (observer == null) return;
             bool supporting = trace.truthful && trace.behaviorConsistent;
             float quality = Mathf.Clamp(trace.behaviorConsistent
                 ? (supporting ? 1.25f : 0.65f) : 0.5f, 0.15f, 2f);
             string summary = supporting
                 ? "The herd's defensive response matched the warning call."
                 : "The warning call produced contradictory defensive evidence.";
+            string sourceInstanceId = WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, trace.traceId);
+            if (sourceInstanceId.NullOrEmpty()) return;
+            bool alreadyApplied = WildlifeKnowledgeAdapter.PredatorPressureObservationAlreadyApplied(
+                observer, trace.species, map, trace.cell, sourceInstanceId);
+            bool submitted = alreadyApplied || WildlifeKnowledgeAdapter.ObservePredatorPressure(observer, trace.species,
+                    map, trace.cell, supporting, quality, summary, sourceInstanceId);
+            if (!submitted) return;
             for (int i = 0; i < trace.presentations.Count; i++)
             {
                 WildlifeSignalObservationPresentation presentation = trace.presentations[i];
-                Pawn observer = presentation?.observer;
-                if (observer == null) continue;
-                string sourceInstanceId = WildlifeKnowledgeAdapter.PredatorPressureSourceInstanceId(
-                    map, trace.traceId, observer);
-                bool submitted = presentation.predatorPressureSubmitted &&
-                    presentation.predatorPressureSourceInstanceId == sourceInstanceId;
-                if (!submitted)
-                    submitted = WildlifeKnowledgeAdapter.PredatorPressureObservationAlreadyApplied(
-                        observer, trace.species, map, trace.cell, sourceInstanceId);
-                if (!submitted)
-                    submitted = WildlifeKnowledgeAdapter.ObservePredatorPressure(observer, trace.species,
-                        map, trace.cell, supporting, quality, summary, sourceInstanceId);
-                if (submitted)
-                {
-                    presentation.predatorPressureSourceInstanceId = sourceInstanceId;
-                    presentation.predatorPressureSubmitted = true;
-                }
+                if (presentation == null) continue;
+                presentation.predatorPressureSourceInstanceId = sourceInstanceId;
+                presentation.predatorPressureSubmitted = true;
             }
         }
 
@@ -2013,7 +2021,7 @@ namespace Herds
         public static void EmitSignal(Pawn animal)
         {
             if (animal?.Spawned != true || animal.RaceProps?.Animal != true) return;
-            animal.Map.GetComponent<WildlifeSignalCultureMapComponent>()?.NotifyAnimalSignal(
+            animal.Map.GetComponent<WildlifeSignalCultureMapComponent>()?.NotifyDeveloperSignal(
                 animal.def, WildlifeSignalKind.Alarm, animal, null, true, 35f);
         }
 

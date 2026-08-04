@@ -25,6 +25,72 @@ namespace Herds
 
         public static string ReportPath => Path.Combine(GenFilePaths.SaveDataFolderPath, FileName);
 
+        private static bool LivePredatorDefenseProductionCheck(Map map, out string detail)
+        {
+            detail = "";
+            if (map == null) { detail = "no map"; return false; }
+            if (HerdsMod.Settings?.enableDefensiveBehavior != true)
+            {
+                detail = "defensive behavior disabled";
+                return false;
+            }
+            HerdMapComponent herds = map.GetComponent<HerdMapComponent>();
+            WildlifeSignalCultureMapComponent signals = map.GetComponent<WildlifeSignalCultureMapComponent>();
+            Pawn prey = map.mapPawns.AllPawnsSpawned.FirstOrDefault(value =>
+                value?.Spawned == true && !value.Dead && value.Faction == null &&
+                value.RaceProps?.Animal == true && !WildlifeSpeciesClassification.IsPredator(value.def));
+            Pawn predator = map.mapPawns.AllPawnsSpawned.FirstOrDefault(value =>
+                value?.Spawned == true && !value.Dead && value.Faction == null &&
+                value.RaceProps?.Animal == true && WildlifeSpeciesClassification.IsPredator(value.def));
+            if (herds == null || signals == null || prey == null || predator == null)
+            {
+                detail = "no live prey and predator pair";
+                return false;
+            }
+            bool noThreatBefore = herds.DefenseOrderFor(prey) == null;
+            int lastTraceId = signals.RecentSignals.Count == 0 ? 0 :
+                signals.RecentSignals.Max(value => value?.traceId ?? 0);
+            bool triggered = herds.DebugTriggerDefense(prey, predator, null);
+            WildlifeSignalTrace alarm = signals.RecentSignals.FirstOrDefault(value =>
+                value != null && value.traceId > lastTraceId && value.kind == WildlifeSignalKind.Alarm);
+            bool classified = alarm?.subjectWasPredator == true &&
+                WildlifeKnowledgeAdapter.IsPredatorPressureTrace(alarm);
+            MethodInfo verifySignals = AccessTools.Method(typeof(WildlifeSignalCultureMapComponent), "VerifyActiveSignals");
+            if (verifySignals != null)
+            {
+                try { verifySignals.Invoke(signals, new object[] { (Find.TickManager?.TicksGame ?? 0) + 90 }); }
+                catch { }
+            }
+            int submittedBefore = alarm?.presentations?.Count(value => value?.predatorPressureSubmitted == true) ?? 0;
+            int distinctEventSources = alarm?.presentations?.Where(value => value?.predatorPressureSubmitted == true)
+                .Select(value => value.predatorPressureSourceInstanceId).Distinct().Count() ?? 0;
+            if (verifySignals != null)
+            {
+                try { verifySignals.Invoke(signals, new object[] { (Find.TickManager?.TicksGame ?? 0) + 180 }); }
+                catch { }
+            }
+            int submittedAfter = alarm?.presentations?.Count(value => value?.predatorPressureSubmitted == true) ?? 0;
+            herds.NotifyThreatEnded(prey, predator);
+            MethodInfo updateDefense = AccessTools.Method(typeof(HerdMapComponent), "UpdateDefense");
+            if (updateDefense != null)
+            {
+                try { updateDefense.Invoke(herds, new object[] { (Find.TickManager?.TicksGame ?? 0) + 61 }); }
+                catch { }
+            }
+            bool cleared = signals.RecentSignals.Any(value => value != null && value.traceId > lastTraceId &&
+                value.kind == WildlifeSignalKind.AllClear);
+            bool oneSharedEvent = submittedBefore == submittedAfter &&
+                (distinctEventSources == 0 || distinctEventSources == 1);
+            bool observerGated = alarm == null || alarm.observerCount > 0
+                ? submittedBefore > 0 : submittedBefore == 0;
+            detail = "noThreat=" + noThreatBefore + " triggered=" + triggered +
+                " classified=" + classified + " verified=" + (alarm?.verified == true) +
+                " observerGated=" + observerGated + " sharedEvent=" + oneSharedEvent +
+                " cleared=" + cleared;
+            return noThreatBefore && triggered && classified && alarm?.verified == true &&
+                observerGated && oneSharedEvent && cleared;
+        }
+
         [DebugAction("Wildlife", "Run full in-game test suite", actionType = DebugActionType.Action,
             allowedGameStates = AllowedGameStates.PlayingOnMap)]
         public static void Run()
@@ -424,7 +490,7 @@ namespace Herds
                         !WildlifeKnowledgeAdapter.LegacyWarningState(0.3f, 1).meaningInterpreted,
                         "Legacy warning knowledge remains qualitative without inventing a V3 meaning claim");
                     Check("Signals", WildlifeKnowledgeAdapter.PredatorPressureKnowledgeSelfTest(),
-                        "Predator pressure progresses from a herd consequence through pattern, meaning, support, and contradiction states");
+                        "Local predator encounters progress from a herd consequence through pattern, meaning, support, and contradiction states");
                     Check("Signals", typeof(WildlifeKnowledgeAdapter).GetMethod("ObserveWarningCall") != null &&
                         typeof(WildlifeKnowledgeAdapter).GetMethod("WarningObservationAlreadyApplied") != null &&
                         typeof(WildlifeKnowledgeAdapter).GetMethod("WarningSourceInstanceId") != null,
@@ -432,15 +498,16 @@ namespace Herds
                     Check("Signals", typeof(WildlifeKnowledgeAdapter).GetMethod("ObservePredatorPressure") != null &&
                         typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureObservationAlreadyApplied") != null &&
                         typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureSourceInstanceId") != null &&
+                        typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureEventSourceInstanceId") != null &&
                         typeof(WildlifeKnowledgeAdapter).GetMethod("IsPredatorPressureTrace") != null,
-                        "Predator pressure uses a separate stable V3 observation identity and duplicate guard");
+                        "Local predator encounters use a stable colony event identity and duplicate guard");
                     Check("Signals", typeof(WildlifeSignalObservationPresentation).GetField("warningKnowledgeSubmitted") != null &&
                         typeof(WildlifeSignalCultureMapComponent).GetProperty("WarningKnowledgeSources") != null,
                         "Warning processing markers are retained on existing signal presentation owners");
                     Check("Signals", typeof(WildlifeSignalObservationPresentation).GetField("predatorPressureSubmitted") != null &&
                         typeof(WildlifeSignalObservationPresentation).GetField("predatorPressureSourceInstanceId") != null &&
                         typeof(WildlifeSignalCultureMapComponent).GetMethod("ColonyPredatorPressure") != null,
-                        "Predator pressure markers and qualitative colony projections remain on existing signal owners");
+                        "Predator-encounter markers and qualitative colony projections remain on existing signal owners");
                     Check("Signals", typeof(WildlifeSignalTrace).GetField("developerScenario") != null &&
                         !WildlifeKnowledgeAdapter.IsPredatorPressureTrace(new WildlifeSignalTrace
                         {
@@ -449,6 +516,30 @@ namespace Herds
                             developerScenario = true
                         }),
                         "Developer scenarios cannot become ecological pressure evidence");
+                    Check("Signals", typeof(WildlifeSignalTrace).GetField("subjectWasPredator",
+                        BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public) != null &&
+                        WildlifeKnowledgeAdapter.IsPredatorPressureTrace(new WildlifeSignalTrace
+                        {
+                            kind = WildlifeSignalKind.Alarm,
+                            hasSubject = true,
+                            subjectWasPredator = true
+                        }) &&
+                        !WildlifeKnowledgeAdapter.IsPredatorPressureTrace(new WildlifeSignalTrace
+                        {
+                            kind = WildlifeSignalKind.Alarm,
+                            hasSubject = true,
+                            subjectWasPredator = false
+                        }),
+                        "Only production-classified predator subjects enter local encounter evidence");
+                    Check("Signals", WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, 17) ==
+                        "wildlife:predator-encounter:" + map.uniqueID + ":17",
+                        "One predator encounter trace has one colony-level identity independent of observers");
+                    Check("Signals", RegionalWildlifeMapComponent.PredatorDeterrentEffectSelfTest(),
+                        "Predator Deterrents reduce predator return and migration attraction in the established calculations");
+                    string liveDefenseDetail;
+                    bool liveDefense = LivePredatorDefenseProductionCheck(map, out liveDefenseDetail);
+                    Warn("Signals", liveDefense,
+                        "Production predator threat, Alarm, defensive response, and clearing path: " + liveDefenseDetail);
                     Check("Signals", signals != null && signals.WarningKnowledgeSources.Distinct().Count() ==
                         signals.WarningKnowledgeSources.Count,
                         "Warning source identity ledger remains duplicate-free after load normalization");
@@ -461,7 +552,7 @@ namespace Herds
                         WildlifeKnowledgeAdapter.IsPredatorPressureTrace(trace)).All(trace =>
                         trace.playerFacingDescription.NullOrEmpty() ||
                         !trace.playerFacingDescription.Contains("predator")),
-                        "Predator pressure remains ambiguous before its claim is supported");
+                        "Predator-encounter evidence remains ambiguous before its claim is supported");
                     Check("Signals", WildlifeSignalPresentation.SelfTest(),
                         "Signal descriptions use threshold-safe grammar and animal references");
                     Check("Signals", signals != null && signals.RecentSignals.All(trace => trace.playerFacingTier >= 0 &&
