@@ -136,11 +136,12 @@ namespace Herds
         public readonly bool truthful;
         public readonly bool verified;
         public readonly bool behaviorConsistent;
+        public readonly bool predatorPressureEligible;
         public readonly float radius;
         public readonly string historicalDescription;
         public readonly int historicalTier;
 
-        internal WildlifeSignalSnapshot(WildlifeSignalTrace value)
+        internal WildlifeSignalSnapshot(WildlifeSignalTrace value, Map map)
         {
             species = value.species;
             kind = value.kind;
@@ -149,9 +150,29 @@ namespace Herds
             truthful = value.truthful;
             verified = value.verified;
             behaviorConsistent = value.behaviorConsistent;
+            predatorPressureEligible = WildlifeKnowledgeAdapter.IsPredatorPressureTrace(value);
             radius = value.radius;
-            historicalDescription = value.playerFacingDescription;
-            historicalTier = value.playerFacingTier;
+            if (WildlifeSignalCultureMapComponent.IsWarningCall(value.kind))
+            {
+                WildlifeSignalCultureMapComponent signalCulture = map?.GetComponent<WildlifeSignalCultureMapComponent>();
+                WildlifeWarningKnowledgeState warning = signalCulture?.ColonyWarningKnowledge(value.species);
+                historicalDescription = warning?.PlayerDescription ?? "A warning call was recorded.";
+                if (WildlifeKnowledgeAdapter.IsPredatorPressureTrace(value))
+                {
+                    WildlifePredatorPressureKnowledgeState pressure = signalCulture?.ColonyPredatorPressure(value.species);
+                    if (pressure?.hasEvidence == true)
+                        historicalDescription += " " + pressure.PlayerDescription;
+                }
+                historicalTier = warning == null || !warning.hasEvidence ? (int)WildlifeSignalDisplayTier.Unknown :
+                    warning.claimSupported ? (int)WildlifeSignalDisplayTier.Reliability :
+                    warning.meaningInterpreted ? (int)WildlifeSignalDisplayTier.Exact :
+                    (int)WildlifeSignalDisplayTier.Family;
+            }
+            else
+            {
+                historicalDescription = value.playerFacingDescription;
+                historicalTier = value.playerFacingTier;
+            }
         }
     }
 
@@ -342,7 +363,7 @@ namespace Herds
                 .Where(value => value?.species != null && value.state != RoamingAnimalState.Dead)
                 .Select(value => new WildlifeMigrationSnapshot(value)).ToList();
             List<WildlifeSignalSnapshot> signals = (signalMap?.RecentSignals ?? Array.Empty<WildlifeSignalTrace>())
-                .Where(value => value?.species != null).Take(64).Select(value => new WildlifeSignalSnapshot(value)).ToList();
+                .Where(value => value?.species != null).Take(64).Select(value => new WildlifeSignalSnapshot(value, map)).ToList();
             List<WildlifeSpeciesSnapshot> species = new List<WildlifeSpeciesSnapshot>(defs.Count);
             for (int i = 0; i < defs.Count; i++)
             {

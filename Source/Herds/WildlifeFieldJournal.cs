@@ -925,7 +925,7 @@ namespace Herds
             if (HerdsMod.Settings.enableWildlifeAlerts)
                 Find.LetterStack.ReceiveLetter(title,
                     opportunity.description + "\n\nChoose how the colony responds within " +
-                    MomentTimeRemaining(opportunity) + " in the Wildlife Field Journal.",
+                    MomentTimeRemaining(opportunity) + " in the Wildlife Journal Field Log.",
                     LetterDefOf.NeutralEvent, opportunity.animal);
             else
                 Messages.Message(title, opportunity.animal, MessageTypeDefOf.NeutralEvent, false);
@@ -2059,7 +2059,7 @@ namespace Herds
                     "\n\n" + moment.description +
                     "\n\nAvailable for " +
                     WildlifeFieldJournalMapComponent.MomentTimeRemaining(moment) + "." +
-                    "\n\nOpen the Field Journal to choose or review the colony response.",
+                    "\n\nOpen the Wildlife Journal Field Log to choose or review the colony response.",
                 icon = TexCommand.GatherSpotActive,
                 action = () => Find.WindowStack.Add(
                     new Window_WildlifeFieldJournal(__instance.Map, 2))

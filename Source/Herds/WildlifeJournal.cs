@@ -10,12 +10,16 @@ namespace Herds
 {
     public enum WildlifeJournalPage
     {
-        FieldGuide,
-        LivingAtlas,
-        Signals,
-        Investigations,
-        Expeditions,
-        Stories
+        FieldGuide = 0,
+        LivingAtlas = 1,
+        Signals = 2,
+        Investigations = 3,
+        Expeditions = 4,
+        Stories = 5,
+        FieldLog = 6,
+        Knowledge = 7,
+        Region = 8,
+        Chronicle = 9
     }
 
     /// <summary>One responsive presentation surface for Wildlife's evidence loop.</summary>
@@ -32,9 +36,11 @@ namespace Herds
         private WildlifeEcologySnapshot cachedSnapshot;
         private List<ThingDef> cachedSpecies = new List<ThingDef>();
         private List<AtlasActivity> atlasActivities = new List<AtlasActivity>();
+        private List<FieldLogItem> cachedFieldLog = new List<FieldLogItem>();
         private Pawn signalObserver;
         private Vector2? initialSignalSpeciesScroll;
         private Vector2? initialSignalDetailScroll;
+        private readonly int focusedFieldLogTick;
         private WildlifeSignalJournalPanel signalPanel;
         private readonly Dictionary<string, IReadOnlyList<KnowledgeFacetSnapshotV2>> facetCache =
             new Dictionary<string, IReadOnlyList<KnowledgeFacetSnapshotV2>>(StringComparer.Ordinal);
@@ -59,11 +65,38 @@ namespace Herds
             public int tick;
         }
 
+        private enum FieldLogItemKind
+        {
+            Moment,
+            Signal,
+            Trail,
+            Investigation,
+            Expedition,
+            Outcome
+        }
+
+        private sealed class FieldLogItem
+        {
+            public FieldLogItemKind kind;
+            public string key;
+            public string title;
+            public string detail;
+            public string meaning;
+            public string location;
+            public string certainty;
+            public int tick;
+            public ThingDef species;
+            public bool urgent;
+            public WildlifeTrailLead trail;
+            public WildlifeExperienceEvent outcome;
+        }
+
         public override Vector2 InitialSize => new Vector2(Mathf.Min(1180f, UI.screenWidth * 0.94f), Mathf.Min(780f, UI.screenHeight * 0.90f));
 
-        public Window_WildlifeJournal(Map map, WildlifeJournalPage page = WildlifeJournalPage.FieldGuide,
+        public Window_WildlifeJournal(Map map, WildlifeJournalPage page = WildlifeJournalPage.FieldLog,
             ThingDef selectedSpecies = null, Pawn signalObserver = null,
-            Vector2? signalSpeciesScroll = null, Vector2? signalDetailScroll = null)
+            Vector2? signalSpeciesScroll = null, Vector2? signalDetailScroll = null,
+            int focusedFieldLogTick = -1)
         {
             this.map = map ?? Find.CurrentMap;
             this.page = page;
@@ -71,6 +104,7 @@ namespace Herds
             this.signalObserver = signalObserver;
             initialSignalSpeciesScroll = signalSpeciesScroll;
             initialSignalDetailScroll = signalDetailScroll;
+            this.focusedFieldLogTick = focusedFieldLogTick;
             doCloseX = true;
             absorbInputAroundWindow = true;
             resizeable = true;
@@ -80,18 +114,24 @@ namespace Herds
             Vector2? speciesScroll = null, Vector2? detailScroll = null)
         {
             WildlifeJournalPage targetPage = SignalsVisible()
-                ? WildlifeJournalPage.Signals : WildlifeJournalPage.FieldGuide;
+                ? WildlifeJournalPage.Signals : WildlifeJournalPage.FieldLog;
             Find.WindowStack.Add(new Window_WildlifeJournal(map, targetPage, species, observer,
                 speciesScroll, detailScroll));
+        }
+
+        public static void OpenFieldLog(Map map, int focusedTick = -1)
+        {
+            Find.WindowStack.Add(new Window_WildlifeJournal(map, WildlifeJournalPage.FieldLog,
+                null, null, null, null, focusedTick));
         }
 
         public override void DoWindowContents(Rect inRect)
         {
             Map activeMap = map ?? Find.CurrentMap;
             RefreshModel(activeMap);
-            if (page == WildlifeJournalPage.Expeditions && !ExpeditionsVisible()) page = WildlifeJournalPage.FieldGuide;
+            if (page == WildlifeJournalPage.Expeditions && !ExpeditionsVisible()) page = WildlifeJournalPage.FieldLog;
             if (page == WildlifeJournalPage.Signals && !SignalsVisible())
-                page = WildlifeJournalPage.FieldGuide;
+                page = WildlifeJournalPage.FieldLog;
             Text.Font = GameFont.Medium;
             float freshnessWidth = Mathf.Clamp(inRect.width * 0.30f, 220f, 300f);
             Widgets.Label(new Rect(inRect.x, inRect.y, Mathf.Max(160f, inRect.width - freshnessWidth - 18f), 34f), "Wildlife Journal");
@@ -104,7 +144,14 @@ namespace Herds
 
             Rect tabs = new Rect(inRect.x, inRect.y + 57f, inRect.width, 34f);
             DrawTabs(tabs);
-            Rect body = new Rect(inRect.x, tabs.yMax + 8f, inRect.width, Mathf.Max(1f, inRect.height - 99f));
+            float bodyY = tabs.yMax + 8f;
+            if (!IsHubPage(page))
+            {
+                DrawDetailNavigation(new Rect(inRect.x, bodyY, inRect.width, 28f));
+                bodyY += 36f;
+            }
+            Rect body = new Rect(inRect.x, bodyY, inRect.width,
+                Mathf.Max(1f, inRect.yMax - bodyY));
             if (activeMap == null)
             {
                 Widgets.Label(body, "No active map. Wildlife evidence will appear here when a map is available.");
@@ -112,6 +159,10 @@ namespace Herds
             }
             switch (page)
             {
+                case WildlifeJournalPage.FieldLog: DrawFieldLog(body, activeMap); break;
+                case WildlifeJournalPage.Knowledge: DrawKnowledgeHub(body, activeMap); break;
+                case WildlifeJournalPage.Region: DrawRegionHub(body, activeMap); break;
+                case WildlifeJournalPage.Chronicle: DrawChronicleHub(body, activeMap); break;
                 case WildlifeJournalPage.LivingAtlas: DrawLivingAtlas(body, activeMap); break;
                 case WildlifeJournalPage.Signals: DrawSignals(body, activeMap); break;
                 case WildlifeJournalPage.Investigations: DrawInvestigations(body, activeMap); break;
@@ -154,6 +205,7 @@ namespace Herds
                 .Select(value => value.species)
                 .ToList() ?? new List<ThingDef>();
             atlasActivities = BuildAtlasActivities(activeMap, cachedSnapshot, now);
+            cachedFieldLog = BuildFieldLog(activeMap, now);
             cachedTick = now / 30;
             cachedKnowledgeRevision = knowledgeRevision;
             facetCache.Clear();
@@ -166,31 +218,19 @@ namespace Herds
         {
             GUI.color = Color.white;
             Text.Anchor = TextAnchor.MiddleCenter;
-            List<string> labels = new List<string> { "Field Guide", "Living Atlas" };
+            List<string> labels = new List<string> { "Field Log", "Knowledge", "Region", "Chronicle" };
             List<WildlifeJournalPage> pages = new List<WildlifeJournalPage>
             {
-                WildlifeJournalPage.FieldGuide, WildlifeJournalPage.LivingAtlas
+                WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
+                WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle
             };
-            if (SignalsVisible())
-            {
-                labels.Add("Signals");
-                pages.Add(WildlifeJournalPage.Signals);
-            }
-            labels.Add("Investigations");
-            pages.Add(WildlifeJournalPage.Investigations);
-            if (ExpeditionsVisible())
-            {
-                labels.Add("Expeditions");
-                pages.Add(WildlifeJournalPage.Expeditions);
-            }
-            labels.Add("Stories");
-            pages.Add(WildlifeJournalPage.Stories);
             Widgets.DrawBoxSolid(rect, new Color(0.11f, 0.13f, 0.13f, 1f));
             float width = rect.width / labels.Count;
             for (int i = 0; i < labels.Count; i++)
             {
                 Rect tab = new Rect(rect.x + i * width, rect.y, width, rect.height);
-                if (page == pages[i]) Widgets.DrawBoxSolid(tab.ContractedBy(1f), new Color(0.28f, 0.43f, 0.33f, 1f));
+                if (page == pages[i] || HubForPage(page) == pages[i])
+                    Widgets.DrawBoxSolid(tab.ContractedBy(1f), new Color(0.28f, 0.43f, 0.33f, 1f));
                 else Widgets.DrawHighlightIfMouseover(tab.ContractedBy(1f));
                 if (Widgets.ButtonInvisible(tab))
                 {
@@ -206,6 +246,58 @@ namespace Herds
             Text.Anchor = TextAnchor.UpperLeft;
         }
 
+        private void DrawDetailNavigation(Rect rect)
+        {
+            WildlifeJournalPage hub = HubForPage(page);
+            Widgets.DrawMenuSection(rect);
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.68f, 0.78f, 0.70f);
+            Widgets.Label(new Rect(rect.x + 9f, rect.y + 6f, rect.width - 190f, 18f),
+                HubLabel(hub) + " / " + DetailLabel(page));
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+            if (Widgets.ButtonText(new Rect(rect.xMax - 178f, rect.y + 2f, 168f, 24f),
+                "Back to " + HubLabel(hub)))
+            {
+                page = hub;
+                bodyScroll = Vector2.zero;
+                leftScroll = Vector2.zero;
+            }
+        }
+
+        private static bool IsHubPage(WildlifeJournalPage value) =>
+            value == WildlifeJournalPage.FieldLog || value == WildlifeJournalPage.Knowledge ||
+            value == WildlifeJournalPage.Region || value == WildlifeJournalPage.Chronicle;
+
+        private static WildlifeJournalPage HubForPage(WildlifeJournalPage value)
+        {
+            switch (value)
+            {
+                case WildlifeJournalPage.FieldGuide:
+                case WildlifeJournalPage.Signals:
+                    return WildlifeJournalPage.Knowledge;
+                case WildlifeJournalPage.LivingAtlas:
+                case WildlifeJournalPage.Expeditions:
+                    return WildlifeJournalPage.Region;
+                case WildlifeJournalPage.Investigations:
+                case WildlifeJournalPage.Stories:
+                    return WildlifeJournalPage.Chronicle;
+                default:
+                    return value == WildlifeJournalPage.Knowledge || value == WildlifeJournalPage.Region ||
+                        value == WildlifeJournalPage.Chronicle ? value : WildlifeJournalPage.FieldLog;
+            }
+        }
+
+        private static string HubLabel(WildlifeJournalPage value) => value == WildlifeJournalPage.Knowledge
+            ? "Knowledge" : value == WildlifeJournalPage.Region ? "Region" :
+            value == WildlifeJournalPage.Chronicle ? "Chronicle" : "Field Log";
+
+        private static string DetailLabel(WildlifeJournalPage value) => value == WildlifeJournalPage.FieldGuide
+            ? "Field Guide" : value == WildlifeJournalPage.LivingAtlas ? "Living Atlas" :
+            value == WildlifeJournalPage.Signals ? "Signals" : value == WildlifeJournalPage.Investigations
+                ? "Investigations" : value == WildlifeJournalPage.Expeditions ? "Expeditions" :
+                value == WildlifeJournalPage.Stories ? "Stories" : "Detail";
+
         private void DrawFreshnessMark(Rect rect)
         {
             float pulse = 0.50f + Mathf.Sin(Time.realtimeSinceStartup * 2.2f) * 0.08f;
@@ -213,11 +305,20 @@ namespace Herds
             Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 8f, 8f, 8f), GUI.color);
             GUI.color = new Color(0.68f, 0.76f, 0.69f);
             Widgets.Label(new Rect(rect.x + 14f, rect.y, rect.width - 14f, rect.height),
-                "Evidence cached at " + (cachedSnapshot?.tick.ToString() ?? "-") + " ticks");
+                cachedSnapshot == null ? "Waiting for field evidence" : "Live evidence view");
             GUI.color = Color.white;
         }
 
         public static bool SignalsVisible() => HerdsMod.Settings?.enableWildlifeSignalCulture == true;
+
+        internal static IReadOnlyList<WildlifeJournalPage> TopLevelPagesForTesting() =>
+            new[]
+            {
+                WildlifeJournalPage.FieldLog,
+                WildlifeJournalPage.Knowledge,
+                WildlifeJournalPage.Region,
+                WildlifeJournalPage.Chronicle
+            };
 
         public static bool ExpeditionsVisible() => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
             WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition);
@@ -226,7 +327,7 @@ namespace Herds
         {
             if (!SignalsVisible())
             {
-                page = WildlifeJournalPage.FieldGuide;
+                page = WildlifeJournalPage.FieldLog;
                 Widgets.Label(rect, "Signal culture is disabled in Wildlife settings.");
                 return;
             }
@@ -240,6 +341,775 @@ namespace Herds
             signalPanel.DrawJournalPanel(rect);
             selectedSpecies = signalPanel.SelectedSpecies;
             signalObserver = signalPanel.Observer;
+        }
+
+        private void DrawFieldLog(Rect rect, Map activeMap)
+        {
+            const float headerHeight = 78f;
+            const float rowHeight = 88f;
+            List<FieldLogItem> attention = cachedFieldLog.Where(item => item.urgent).Take(6).ToList();
+            List<FieldLogItem> recent = cachedFieldLog.Where(item => !item.urgent).Take(20).ToList();
+            if (attention.Count == 0 && recent.Count == 0)
+            {
+                Widgets.DrawMenuSection(new Rect(rect.x, rect.y, rect.width, headerHeight + 132f));
+                Text.Font = GameFont.Medium;
+                Widgets.Label(new Rect(rect.x + 12f, rect.y + 12f, rect.width - 24f, 28f), "Field Log");
+                Text.Font = GameFont.Small;
+                Widgets.Label(new Rect(rect.x + 12f, rect.y + 48f, rect.width - 24f, 74f),
+                    "The Field Log is empty. Records will appear after the colony sees wildlife, hears a call, follows a sign, responds to a moment, or receives a field report.\n\n" +
+                    "Keep a colonist near wildlife, study a sign, or survey the region to begin reading the living world.");
+                return;
+            }
+
+            float contentHeight = headerHeight +
+                (attention.Count > 0 ? 38f + attention.Count * rowHeight : 0f) +
+                (recent.Count > 0 ? 48f + recent.Count * rowHeight : 0f);
+            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
+            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
+                Mathf.Max(outer.height, contentHeight));
+            Widgets.BeginScrollView(outer, ref bodyScroll, view);
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(0f, 0f, view.width, 28f), "Field Log");
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(0f, 32f, view.width, 38f),
+                "Recent observations, interpretations, and decisions. Each note points back to the existing record or action that produced it.");
+            float y = headerHeight;
+            if (attention.Count > 0)
+            {
+                Text.Font = GameFont.Medium;
+                Widgets.Label(new Rect(0f, y, view.width, 28f), "Needs attention");
+                Text.Font = GameFont.Small;
+                y += 38f;
+                for (int i = 0; i < attention.Count; i++)
+                {
+                    DrawFieldLogRow(new Rect(0f, y, view.width, rowHeight - 6f), attention[i], activeMap);
+                    y += rowHeight;
+                }
+            }
+            if (recent.Count > 0)
+            {
+                Text.Font = GameFont.Medium;
+                Widgets.Label(new Rect(0f, y, view.width, 28f), "Recent notes");
+                Text.Font = GameFont.Small;
+                y += 42f;
+                for (int i = 0; i < recent.Count; i++)
+                {
+                    DrawFieldLogRow(new Rect(0f, y, view.width, rowHeight - 6f), recent[i], activeMap);
+                    y += rowHeight;
+                }
+            }
+            Widgets.EndScrollView();
+        }
+
+        private void DrawFieldLogRow(Rect rect, FieldLogItem item, Map activeMap)
+        {
+            bool focused = focusedFieldLogTick >= 0 && item.tick == focusedFieldLogTick;
+            Widgets.DrawMenuSection(rect);
+            if (focused) Widgets.DrawBoxSolid(rect, new Color(0.22f, 0.36f, 0.23f, 0.9f));
+            Color accent = item.urgent ? new Color(0.88f, 0.34f, 0.25f) : item.kind == FieldLogItemKind.Signal
+                ? new Color(0.45f, 0.38f, 0.72f) : item.kind == FieldLogItemKind.Trail
+                    ? new Color(0.35f, 0.68f, 0.78f) : new Color(0.42f, 0.68f, 0.47f);
+            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, 5f, rect.height), accent);
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.68f, 0.78f, 0.70f);
+            Widgets.Label(new Rect(rect.x + 14f, rect.y + 7f, rect.width * 0.28f, 18f),
+                FieldLogKindLabel(item.kind));
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+            float buttonWidth = FieldLogHasAction(item) ? 104f : 0f;
+            float textWidth = Mathf.Max(100f, rect.width - 30f - buttonWidth);
+            Widgets.Label(new Rect(rect.x + 14f, rect.y + 25f, textWidth, 22f), item.title);
+            Widgets.Label(new Rect(rect.x + 14f, rect.y + 48f, textWidth, 30f),
+                (item.detail ?? "A field record was preserved.") + "\n" +
+                (item.meaning ?? "The colony is still interpreting this record."));
+            Text.Anchor = TextAnchor.MiddleRight;
+            GUI.color = new Color(0.62f, 0.73f, 0.66f);
+            string time = item.tick <= 0 ? "Recently" :
+                Mathf.Max(0, (Find.TickManager?.TicksGame ?? item.tick) - item.tick).ToStringTicksToPeriod() + " ago";
+            Widgets.Label(new Rect(rect.x + 14f, rect.y + 70f, textWidth - 4f, 16f),
+                (item.location ?? "Field record") + "  |  " + item.certainty + "  |  " +
+                FreshnessLabel(item.tick) + "  |  " + time);
+            GUI.color = Color.white;
+            Text.Anchor = TextAnchor.UpperLeft;
+            if (FieldLogHasAction(item) && Widgets.ButtonText(
+                new Rect(rect.xMax - buttonWidth - 10f, rect.y + 27f, buttonWidth, 30f), FieldLogActionLabel(item)))
+                OpenFieldLogItem(item, activeMap);
+            TooltipHandler.TipRegion(rect, item.detail + "\n" + item.meaning + "\n" +
+                (item.location ?? "Field record") + "\n" + item.certainty + ".");
+        }
+
+        private void DrawKnowledgeHub(Rect rect, Map activeMap)
+        {
+            List<WildlifeSpeciesSnapshot> records = cachedSnapshot?.species
+                ?.Where(value => value?.species != null && cachedSpecies.Contains(value.species))
+                .OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId))
+                .ThenBy(value => value.species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase)
+                .Take(8).ToList() ?? new List<WildlifeSpeciesSnapshot>();
+            float contentHeight = 74f + 84f + 82f + 42f + Mathf.Max(104f, records.Count * 74f);
+            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
+            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
+                Mathf.Max(outer.height, contentHeight));
+            Widgets.BeginScrollView(outer, ref bodyScroll, view);
+            DrawHubHeader(new Rect(0f, 0f, view.width, 74f), "Knowledge",
+                "What the colony understands: species, behavior, interpreted signals, and the evidence behind each working conclusion.");
+            bool hasSignals = SignalsVisible();
+            WildlifeSignalCultureMapComponent signalCulture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
+            bool hasWarningTraces = signalCulture != null && records.Any(value =>
+                signalCulture.HasWarningSignals(value.species));
+            WildlifeWarningKnowledgeState warningKnowledge = records.Select(value =>
+                signalCulture?.ColonyWarningKnowledge(value.species)).FirstOrDefault(value => value?.hasEvidence == true);
+            bool hasEvidence = records.Any(value => value.evidence?.Count > 0 || value.signals?.Count > 0 ||
+                value.trails?.Count > 0 || value.migrations?.Count > 0);
+            string recordState = records.Count == 0 ? "No field record yet" : records.Any(value =>
+                WildlifeKnowledgeAdapter.StageOrder(value.stageId) >= 5) ? "Some records are documented" : "Records are growing";
+            string behaviorState = records.Any(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId) >= 3)
+                ? "Behavior patterns are emerging" : records.Count == 0 ? "No behavior pattern yet" : "Behavior remains a working hypothesis";
+            string signalState = !hasSignals ? "Signal culture is unavailable" :
+                warningKnowledge != null ? warningKnowledge.PlayerLabel :
+                hasWarningTraces ? "Warning calls are being compared" :
+                cachedSnapshot?.signals?.Count > 0 ? "Recent interpretations are available" : "No interpreted calls yet";
+            float statusWidth = Mathf.Max(80f, (view.width - 16f) / 3f);
+            DrawHubStatus(new Rect(0f, 82f, statusWidth, 72f), "Species records", recordState,
+                new Color(0.34f, 0.64f, 0.48f),
+                "The Knowledge page only lists species the colony has encountered or learned about.");
+            DrawHubStatus(new Rect(statusWidth + 8f, 82f, statusWidth, 72f), "Learned behavior", behaviorState,
+                new Color(0.43f, 0.57f, 0.76f),
+                "Repeated observations turn unfamiliar behavior into a usable pattern.");
+            DrawHubStatus(new Rect((statusWidth + 8f) * 2f, 82f, statusWidth, 72f), "Interpreted signals", signalState,
+                new Color(0.60f, 0.43f, 0.72f),
+                "Signal detail remains available without treating internal thresholds as player knowledge.");
+
+            float actionY = 164f;
+            float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
+            DrawHubAction(new Rect(0f, actionY, actionWidth, 72f), "Field Guide",
+                "Read species records, provenance, and the next useful observation.", "Open Field Guide", true,
+                () =>
+                {
+                    page = WildlifeJournalPage.FieldGuide;
+                    bodyScroll = Vector2.zero;
+                });
+            DrawHubAction(new Rect(actionWidth + 8f, actionY, actionWidth, 72f), "Signals",
+                hasSignals ? "Review interpreted calls and compare observers." : "Enable signal culture to study animal calls.",
+                hasSignals ? "Review Signals" : "Unavailable", hasSignals,
+                () =>
+                {
+                    page = WildlifeJournalPage.Signals;
+                    bodyScroll = Vector2.zero;
+                });
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, actionY, actionWidth, 72f), "Colony knowledge",
+                "Open the existing colony-wide knowledge detail window.", "Open details", true,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge());
+                });
+
+            float y = actionY + 90f;
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(0f, y, view.width, 28f), "Working records");
+            Text.Font = GameFont.Small;
+            y += 34f;
+            if (records.Count == 0)
+            {
+                DrawHubEmpty(new Rect(0f, y, view.width, 94f),
+                    "No wildlife knowledge has been preserved yet.",
+                    "Observe an animal, study a sign, follow a trail, or review a signal to begin a record.");
+            }
+            else
+            {
+                for (int i = 0; i < records.Count; i++)
+                {
+                    DrawKnowledgeRecord(new Rect(0f, y + i * 74f, view.width, 68f), records[i], activeMap);
+                }
+            }
+            if (hasEvidence)
+            {
+                GUI.color = new Color(0.66f, 0.76f, 0.68f);
+                Widgets.Label(new Rect(0f, y + Mathf.Max(94f, records.Count * 74f) + 8f, view.width, 24f),
+                    "The colony's conclusions remain provisional until repeated evidence agrees.");
+                GUI.color = Color.white;
+            }
+            Widgets.EndScrollView();
+        }
+
+        private void DrawKnowledgeRecord(Rect rect, WildlifeSpeciesSnapshot value, Map activeMap)
+        {
+            Widgets.DrawMenuSection(rect);
+            if (value?.species != null) Widgets.ThingIcon(new Rect(rect.x + 8f, rect.y + 9f, 48f, 48f), value.species);
+            string stage = WildlifeKnowledgeAdapter.StageLabel(value?.stageId);
+            string source = KnowledgeSourceLabel(value);
+            string detail = stage + "  |  " + ConfidenceLabel(value?.confidence ?? 0f) + "  |  " +
+                FreshnessLabel(AtlasLatestTick(value)) + "\n" + source + ". " + KnowledgeMeaning(value);
+            WildlifeSignalCultureMapComponent signalCulture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
+            if (signalCulture?.HasWarningSignals(value?.species) == true)
+            {
+                WildlifeWarningKnowledgeState warning = signalCulture.ColonyWarningKnowledge(value.species);
+                detail += "\nWarning calls: " + warning.PlayerLabel + ".";
+            }
+            WildlifePredatorPressureKnowledgeState predatorPressure = signalCulture?.ColonyPredatorPressure(value?.species);
+            if (predatorPressure?.hasEvidence == true)
+                detail += "\nEcological pattern: " + predatorPressure.PlayerLabel + ".";
+            Widgets.Label(new Rect(rect.x + 66f, rect.y + 8f, rect.width - 178f, 52f),
+                (value?.species?.LabelCap ?? "Unknown wildlife") + "\n" + detail);
+            if (Widgets.ButtonText(new Rect(rect.xMax - 102f, rect.y + 18f, 92f, 30f), "Field Guide"))
+            {
+                selectedSpecies = value.species;
+                page = WildlifeJournalPage.FieldGuide;
+                bodyScroll = Vector2.zero;
+            }
+        }
+
+        private static string KnowledgeSourceLabel(WildlifeSpeciesSnapshot value)
+        {
+            if (value == null) return "No source has been preserved";
+            if (value.evidence?.Any(item => item != null &&
+                (item.observerCount > 0 || !item.observerName.NullOrEmpty())) == true)
+                return "Direct field observation";
+            if (value.signals?.Count > 0) return "Interpreted animal signals";
+            if (value.trails?.Count > 0) return "Signs and tracking evidence";
+            if (value.migrations?.Count > 0) return "Regional movement";
+            return "A working field record";
+        }
+
+        private static string KnowledgeMeaning(WildlifeSpeciesSnapshot value)
+        {
+            int order = WildlifeKnowledgeAdapter.StageOrder(value?.stageId);
+            return order >= 5 ? "The colony can make a cautious prediction from it." :
+                order >= 3 ? "Repeated observation is turning it into a pattern." :
+                "More observation is needed before acting on it.";
+        }
+
+        private static WildlifePredatorPressureKnowledgeState BestPredatorPressure(Map activeMap,
+            WildlifeEcologySnapshot snapshot, RegionalWildlifeMapComponent regional)
+        {
+            WildlifeSignalCultureMapComponent signalCulture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
+            if (signalCulture == null) return null;
+            HashSet<ThingDef> species = new HashSet<ThingDef>();
+            if (snapshot?.species != null)
+                for (int i = 0; i < snapshot.species.Count; i++)
+                    if (snapshot.species[i]?.species != null) species.Add(snapshot.species[i].species);
+            if (regional?.Records != null)
+                for (int i = 0; i < regional.Records.Count; i++)
+                    if (regional.Records[i]?.species != null) species.Add(regional.Records[i].species);
+            return species.Select(signalCulture.ColonyPredatorPressure)
+                .Where(state => state?.hasEvidence == true)
+                .OrderByDescending(state => state.claimSupported)
+                .ThenByDescending(state => state.meaningInterpreted)
+                .ThenByDescending(state => state.patternRecognized)
+                .ThenByDescending(state => state.claimObservationCount)
+                .FirstOrDefault();
+        }
+
+        private void DrawRegionHub(Rect rect, Map activeMap)
+        {
+            WildlifeEcologySnapshot snapshot = cachedSnapshot;
+            RegionalWildlifeMapComponent regional = activeMap?.GetComponent<RegionalWildlifeMapComponent>();
+            WildlifeLandscapeMapComponent landscape = activeMap?.GetComponent<WildlifeLandscapeMapComponent>();
+            WildlifeTrailMapComponent trails = activeMap?.GetComponent<WildlifeTrailMapComponent>();
+            HuntingExpeditionMapComponent expeditions = activeMap?.GetComponent<HuntingExpeditionMapComponent>();
+            float contentHeight = 74f + 84f + 82f + 42f + 162f;
+            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
+            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
+                Mathf.Max(outer.height, contentHeight));
+            Widgets.BeginScrollView(outer, ref bodyScroll, view);
+            DrawHubHeader(new Rect(0f, 0f, view.width, 74f), "Region",
+                "What is happening around the colony: habitat, populations, movement, groups, trails, and expeditions.");
+            string habitat = snapshot == null ? "Unknown baseline" :
+                snapshot.habitatQuality >= 0.70f ? "Habitat is stable" :
+                snapshot.habitatQuality >= 0.40f ? "Habitat is under observation" : "Habitat is under pressure";
+            bool hasMovement = snapshot?.migrations?.Count > 0 || snapshot?.trails?.Count > 0;
+            string movement = hasMovement ? "Movement is active" : snapshot == null ? "No movement baseline" : "Movement is quiet";
+            WildlifePredatorPressureKnowledgeState predatorPressure = BestPredatorPressure(activeMap, snapshot, regional);
+            string pressure = predatorPressure == null ? "No recurring defensive pattern" : predatorPressure.PlayerLabel;
+            bool activeExpedition = expeditions?.ActiveExpeditions?.Any() == true;
+            string population = regional?.Records?.Any(record => record?.population < record.previousPopulation * 0.98f) == true
+                ? "Some populations are declining" : regional?.Records?.Any(record =>
+                    record?.population > record.previousPopulation * 1.02f) == true ? "Some populations are increasing" :
+                    regional == null ? "Population outlook unavailable" : "Population trend is mixed or stable";
+            float statusWidth = Mathf.Max(80f, (view.width - 16f) / 3f);
+            DrawHubStatus(new Rect(0f, 82f, statusWidth, 72f), "Habitat", habitat,
+                new Color(0.34f, 0.64f, 0.40f),
+                "Habitat reflects seasonal, landscape, water, shelter, and disturbance evidence.");
+            DrawHubStatus(new Rect(statusWidth + 8f, 82f, statusWidth, 72f), "Population pressure", population,
+                new Color(0.72f, 0.49f, 0.30f),
+                "Population changes are presented as trends until the colony has enough evidence to act with confidence.");
+            DrawHubStatus(new Rect((statusWidth + 8f) * 2f, 82f, statusWidth, 72f), "Movement and pressure",
+                movement + ".\n" + pressure,
+                new Color(0.34f, 0.62f, 0.74f),
+                "Trails, migration, and repeated defensive responses show where attention may be useful next.");
+
+            float y = 164f;
+            float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
+            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Living Atlas",
+                "Review activity sectors, habitat, and population patterns.", "Open Atlas", true,
+                () =>
+                {
+                    page = WildlifeJournalPage.LivingAtlas;
+                    bodyScroll = Vector2.zero;
+                });
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Local wildlife",
+                regional == null ? "Local population information is unavailable." :
+                    "Open detailed local populations, groups, and management actions.",
+                regional == null ? "Unavailable" : "Open local wildlife", regional != null,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
+                });
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Landscape",
+                landscape == null ? "Landscape information is unavailable." :
+                    "Review persistent habitat features and developing places.",
+                landscape == null ? "Unavailable" : "Open landscape", landscape != null,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_WildlifeLandscape(activeMap));
+                });
+            y += 82f;
+            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Trail leads",
+                trails == null ? "Tracking information is unavailable." :
+                    "Inspect physical signs and decide whether to follow them.",
+                trails == null ? "Unavailable" : "Open trail leads", trails != null,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_WildlifeTrailBoard(activeMap));
+                });
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Expeditions",
+                !ExpeditionsVisible() ? "Expeditions are unavailable until their research and settings are ready." :
+                    activeExpedition ? "An expedition is in the field. Review its course or plan another investigation." :
+                    "Review active parties or plan an investigation beyond the local map.",
+                !ExpeditionsVisible() ? "Unavailable" : "Open expeditions", ExpeditionsVisible(),
+                () =>
+                {
+                    page = WildlifeJournalPage.Expeditions;
+                    bodyScroll = Vector2.zero;
+                });
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Groups and behavior",
+                predatorPressure?.claimSupported == true
+                    ? "Predator pressure is supported by repeated defensive responses. Review local wildlife and existing deterrent options."
+                    : "Select an animal from Local Wildlife or the Living Atlas to inspect its group context.",
+                predatorPressure?.claimSupported == true ? "Review response" : "Use regional detail", regional != null,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
+                });
+            Widgets.EndScrollView();
+        }
+
+        private void DrawChronicleHub(Rect rect, Map activeMap)
+        {
+            WildlifeNarrativeDirector director = WildlifeNarrativeUtility.For(activeMap);
+            WildlifeMemoryMapComponent memory = activeMap?.GetComponent<WildlifeMemoryMapComponent>();
+            NotableWildlifeMapComponent notables = activeMap?.GetComponent<NotableWildlifeMapComponent>();
+            WildlifeMysteryMapComponent mysteries = activeMap?.GetComponent<WildlifeMysteryMapComponent>();
+            List<WildlifeExperienceEvent> outcomes = Current.Game?.GetComponent<WildlifeExperienceGameComponent>()?.Events
+                ?.Where(IsChronicleOutcome).Take(8).ToList() ?? new List<WildlifeExperienceEvent>();
+            bool hasStories = director?.Stories?.Any() == true;
+            bool hasMemory = memory?.Memories?.Any() == true || memory?.SocialMemories?.Any() == true;
+            bool hasFolklore = memory?.Folklore?.Any() == true;
+            bool hasNotables = notables?.Records?.Any() == true;
+            bool hasMysteryHistory = mysteries?.Mysteries?.Any(value => value?.Solved == true || value?.Resolved == true) == true;
+            float contentHeight = Mathf.Max(464f, 364f + outcomes.Count * 58f);
+            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
+            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
+                Mathf.Max(outer.height, contentHeight));
+            Widgets.BeginScrollView(outer, ref bodyScroll, view);
+            DrawHubHeader(new Rect(0f, 0f, view.width, 74f), "Chronicle",
+                "What has become part of the colony's history: survivors, memories, stories, mysteries, and consequences.");
+            DrawHubStatus(new Rect(0f, 82f, (view.width - 16f) / 3f, 72f), "Notable animals",
+                hasNotables ? "Individual histories are taking shape" : "No notable history yet",
+                new Color(0.75f, 0.57f, 0.28f),
+                "Notable animals emerge from actual encounters, survival, and recognition.");
+            DrawHubStatus(new Rect((view.width - 16f) / 3f + 8f, 82f, (view.width - 16f) / 3f, 72f), "Memory and folklore",
+                hasFolklore ? "Encounters are being retold" : hasMemory ? "Encounters are being remembered" :
+                    "No memory has been preserved yet",
+                new Color(0.63f, 0.42f, 0.70f),
+                "Memories, traditions, ceremonies, and folklore remain owned by the memory systems.");
+            DrawHubStatus(new Rect(((view.width - 16f) / 3f + 8f) * 2f, 82f,
+                (view.width - 16f) / 3f, 72f), "Consequences",
+                hasMysteryHistory || outcomes.Count > 0 || hasStories ? "History is accumulating" : "No resolved consequence yet",
+                new Color(0.43f, 0.65f, 0.54f),
+                "Resolved mysteries and persisted outcomes become part of the colony's account of wildlife.");
+
+            float y = 164f;
+            float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
+            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Stories",
+                "Read narrative interpretations, folklore, and recognized animals.", "Open stories", true,
+                () =>
+                {
+                    page = WildlifeJournalPage.Stories;
+                    bodyScroll = Vector2.zero;
+                });
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Theories and resolutions",
+                "Review hypotheses, evidence, and resolved investigations.", "Open investigations", true,
+                () =>
+                {
+                    page = WildlifeJournalPage.Investigations;
+                    bodyScroll = Vector2.zero;
+                });
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Notable animals",
+                hasNotables ? "Open the existing individual animal story detail." : "No notable animal story is available yet.",
+                hasNotables ? "Open stories" : "Unavailable", hasNotables,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 4));
+                });
+            y += 82f;
+            bool memoryAnimal = TryFindMemoryAnimal(activeMap, memory, out Pawn animal);
+            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Folklore and traditions",
+                hasFolklore ? "Review retellings and hold ceremonies through the retained detail window." :
+                    "No folklore is available yet, but future encounters will appear here.",
+                hasFolklore ? "Open folklore" : "Unavailable", hasFolklore,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 5));
+                });
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Animal memory",
+                memoryAnimal ? "Open the timeline and social web for a remembered animal." :
+                    "No remembered animal is currently available on this map.",
+                memoryAnimal ? "Open memory" : "Unavailable", memoryAnimal,
+                () =>
+                {
+                    WildlifeUI.CloseMenus();
+                    Find.WindowStack.Add(new Window_AnimalMemoryTimeline(animal));
+                });
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Field Log",
+                "Return to recent observations, evidence, and actionable records.", "Open Field Log", true,
+                () =>
+                {
+                    page = WildlifeJournalPage.FieldLog;
+                    bodyScroll = Vector2.zero;
+                });
+            y += 90f;
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(0f, y, view.width, 28f), "Persisted consequences");
+            Text.Font = GameFont.Small;
+            y += 34f;
+            if (outcomes.Count == 0)
+            {
+                DrawHubEmpty(new Rect(0f, y, view.width, 94f),
+                    "No durable wildlife outcome has entered the chronicle yet.",
+                    "Expedition results, discoveries, mysteries, and remarkable encounters will appear after their owning system records them.");
+            }
+            else
+            {
+                for (int i = 0; i < outcomes.Count; i++)
+                    DrawChronicleOutcome(new Rect(0f, y + i * 58f, view.width, 52f), outcomes[i]);
+            }
+            Widgets.EndScrollView();
+        }
+
+        private static bool IsChronicleOutcome(WildlifeExperienceEvent value)
+        {
+            if (value == null || value.text.NullOrEmpty() || value.category.NullOrEmpty()) return false;
+            return value.category.IndexOf("Expedition", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.category.IndexOf("Notable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.category.IndexOf("Mystery", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.category.IndexOf("Folklore", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.category.IndexOf("Roaming", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                value.category.IndexOf("Story", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool TryFindMemoryAnimal(Map activeMap, WildlifeMemoryMapComponent memory, out Pawn animal)
+        {
+            animal = activeMap?.mapPawns?.AllPawnsSpawned?.FirstOrDefault(pawn => pawn?.RaceProps?.Animal == true &&
+                (memory?.Memories?.Any(value => value?.animal == pawn) == true ||
+                 memory?.SocialMemories?.Any(value => value?.animal == pawn) == true));
+            return animal != null;
+        }
+
+        private void DrawChronicleOutcome(Rect rect, WildlifeExperienceEvent outcome)
+        {
+            Widgets.DrawMenuSection(rect);
+            GUI.color = WildlifeExperience.IsNegative(outcome)
+                ? new Color(0.88f, 0.48f, 0.38f) : new Color(0.55f, 0.78f, 0.60f);
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width * 0.30f, 18f), outcome.category);
+            GUI.color = Color.white;
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 25f, rect.width - 170f, 22f), outcome.text);
+            Text.Anchor = TextAnchor.MiddleRight;
+            GUI.color = new Color(0.64f, 0.73f, 0.66f);
+            Widgets.Label(new Rect(rect.x + rect.width - 154f, rect.y + 8f, 144f, 18f), FreshnessLabel(outcome.tick));
+            GUI.color = Color.white;
+            Text.Anchor = TextAnchor.UpperLeft;
+            if (outcome.thingId >= 0 && Widgets.ButtonText(new Rect(rect.xMax - 104f, rect.y + 25f, 94f, 22f), "Focus"))
+            {
+                Thing thing = WildlifeExperience.ResolveThing(outcome.thingId);
+                if (thing != null) WildlifeUI.Focus(thing);
+            }
+            TooltipHandler.TipRegion(rect, outcome.text + "\n" + FreshnessLabel(outcome.tick));
+        }
+
+        private static void DrawHubHeader(Rect rect, string title, string description)
+        {
+            Widgets.DrawMenuSection(rect);
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 26f), title);
+            Text.Font = GameFont.Small;
+            GUI.color = new Color(0.70f, 0.78f, 0.71f);
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 36f, rect.width - 20f, 30f), description);
+            GUI.color = Color.white;
+        }
+
+        private static void DrawHubStatus(Rect rect, string label, string value, Color accent, string tooltip)
+        {
+            Widgets.DrawBoxSolid(rect, new Color(0.09f, 0.14f, 0.15f, 0.94f));
+            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, 5f, rect.height), accent);
+            Text.Font = GameFont.Tiny;
+            GUI.color = new Color(0.66f, 0.78f, 0.72f);
+            Widgets.Label(new Rect(rect.x + 12f, rect.y + 7f, rect.width - 20f, 17f), label);
+            GUI.color = Color.white;
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(rect.x + 12f, rect.y + 26f, rect.width - 20f, rect.height - 30f), value);
+            TooltipHandler.TipRegion(rect, tooltip);
+        }
+
+        private static void DrawHubAction(Rect rect, string title, string detail, string button,
+            bool enabled, Action action)
+        {
+            Widgets.DrawMenuSection(rect);
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width - 126f, 23f), title);
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 31f, rect.width - 126f, 34f), detail);
+            if (Widgets.ButtonText(new Rect(rect.xMax - 116f, rect.y + 20f, 106f, 30f), button, active: enabled) &&
+                enabled) action?.Invoke();
+            TooltipHandler.TipRegion(rect, detail);
+        }
+
+        private static void DrawHubEmpty(Rect rect, string title, string detail)
+        {
+            Widgets.DrawMenuSection(rect);
+            Text.Font = GameFont.Medium;
+            Widgets.Label(new Rect(rect.x + 12f, rect.y + 10f, rect.width - 24f, 26f), title);
+            Text.Font = GameFont.Small;
+            Widgets.Label(new Rect(rect.x + 12f, rect.y + 42f, rect.width - 24f, rect.height - 50f), detail);
+        }
+
+        private static string FieldLogKindLabel(FieldLogItemKind kind) => kind == FieldLogItemKind.Moment
+            ? "WILDLIFE MOMENT" : kind == FieldLogItemKind.Signal ? "SIGNAL" :
+            kind == FieldLogItemKind.Trail ? "TRAIL" : kind == FieldLogItemKind.Investigation
+                ? "INVESTIGATION" : kind == FieldLogItemKind.Expedition ? "EXPEDITION" : "OUTCOME";
+
+        private static string FieldLogActionLabel(FieldLogItem item) => item.kind == FieldLogItemKind.Moment
+            ? "Respond" : item.kind == FieldLogItemKind.Signal ? "Review signal" :
+            item.kind == FieldLogItemKind.Trail ? "Inspect trail" : item.kind == FieldLogItemKind.Investigation
+                ? "Review evidence" : item.kind == FieldLogItemKind.Expedition ? "Open details" : "Focus";
+
+        private static bool FieldLogHasAction(FieldLogItem item) => item?.kind != FieldLogItemKind.Outcome ||
+            (item.outcome != null && item.outcome.thingId >= 0);
+
+        private void OpenFieldLogItem(FieldLogItem item, Map activeMap)
+        {
+            if (item == null || activeMap == null) return;
+            if (item.kind == FieldLogItemKind.Signal)
+            {
+                OpenSignals(activeMap, signalObserver, item.species);
+                return;
+            }
+            if (item.kind == FieldLogItemKind.Trail && item.trail != null)
+            {
+                WildlifeUI.CloseMenus();
+                Find.WindowStack.Add(new Window_WildlifeTrail(activeMap, item.trail));
+                return;
+            }
+            if (item.kind == FieldLogItemKind.Moment)
+            {
+                WildlifeUI.CloseMenus();
+                Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 2));
+                return;
+            }
+            if (item.kind == FieldLogItemKind.Investigation)
+            {
+                WildlifeUI.CloseMenus();
+                Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 1));
+                return;
+            }
+            if (item.kind == FieldLogItemKind.Expedition)
+            {
+                WildlifeUI.CloseMenus();
+                Find.WindowStack.Add(new Window_WildlifeExpeditions(activeMap));
+                return;
+            }
+            Thing thing = WildlifeExperience.ResolveThing(item.outcome?.thingId ?? -1);
+            if (thing != null) WildlifeUI.Focus(thing);
+        }
+
+        private List<FieldLogItem> BuildFieldLog(Map activeMap, int now)
+        {
+            List<FieldLogItem> items = new List<FieldLogItem>();
+            if (activeMap == null) return items;
+            WildlifeFieldJournalMapComponent fieldJournal = activeMap.GetComponent<WildlifeFieldJournalMapComponent>();
+            WildlifeOpportunityRecord opportunity = fieldJournal?.Opportunity;
+            if (opportunity != null)
+            {
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Moment,
+                    key = "moment:" + opportunity.eventKey,
+                    title = WildlifeFieldJournalMapComponent.OpportunityLabel(opportunity.kind),
+                    detail = opportunity.description,
+                    meaning = opportunity.response == WildlifeMomentResponse.None
+                        ? "The colony has not chosen a response." : "The response is underway: " + opportunity.response + ".",
+                    location = SectorName(activeMap, opportunity.focusCell),
+                    certainty = "Direct observation",
+                    tick = opportunity.startedTick,
+                    species = opportunity.species,
+                    urgent = opportunity.response == WildlifeMomentResponse.None
+                });
+            }
+            foreach (WildlifeMomentOutcomeRecord outcome in fieldJournal?.MomentHistory?.Take(8) ??
+                Enumerable.Empty<WildlifeMomentOutcomeRecord>())
+            {
+                if (outcome == null) continue;
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Moment,
+                    key = "moment-outcome:" + (outcome.species?.defName ?? "wildlife") + ":" + outcome.tick,
+                    title = WildlifeFieldJournalMapComponent.OpportunityLabel(outcome.kind) + " resolved",
+                    detail = outcome.text,
+                    meaning = outcome.success ? "The colony learned from the encounter." : "The encounter left an unresolved lesson.",
+                    location = "Field record",
+                    certainty = "Recorded",
+                    tick = outcome.tick,
+                    species = outcome.species,
+                    urgent = false
+                });
+            }
+
+            foreach (WildlifeSignalSnapshot signal in cachedSnapshot?.signals?.OrderByDescending(value => value.tick).Take(8) ??
+                Enumerable.Empty<WildlifeSignalSnapshot>())
+            {
+                if (signal?.species == null) continue;
+                WildlifeSignalCultureMapComponent signalCulture = activeMap.GetComponent<WildlifeSignalCultureMapComponent>();
+                bool warningSignal = WildlifeSignalCultureMapComponent.IsWarningCall(signal.kind);
+                WildlifeWarningKnowledgeState warning = warningSignal
+                    ? signalCulture?.ColonyWarningKnowledge(signal.species) : null;
+                WildlifePredatorPressureKnowledgeState predatorPressure = signal.predatorPressureEligible
+                        ? signalCulture?.ColonyPredatorPressure(signal.species) : null;
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Signal,
+                    key = "signal:" + signal.species.defName + ":" + signal.tick + ":" + signal.cell,
+                    title = signal.species.LabelCap + " signal",
+                    detail = signal.historicalDescription.NullOrEmpty()
+                        ? "A wildlife signal was recorded." : signal.historicalDescription,
+                    meaning = predatorPressure?.hasEvidence == true ? predatorPressure.PlayerDescription :
+                        warningSignal ? warning?.PlayerDescription ?? "A warning call was recorded, but its meaning remains uncertain." :
+                        signal.verified ? "The colony currently treats this interpretation as confirmed." :
+                            signal.behaviorConsistent ? "The pattern is becoming familiar, but remains incomplete." :
+                            "The colony is still deciding what this signal means.",
+                    location = SectorName(activeMap, signal.cell),
+                    certainty = predatorPressure?.claimSupported == true ? "Supported pattern" :
+                        predatorPressure?.patternRecognized == true ? "Developing pattern" :
+                        warningSignal ? warning?.claimSupported == true ? "Supported interpretation" :
+                            warning?.meaningInterpreted == true ? "Interpreted" :
+                            warning?.familyRecognized == true ? "Family recognized" : "Uncertain" :
+                        signal.verified ? "Confirmed" : signal.behaviorConsistent ? "Probable" : "Uncertain",
+                    tick = signal.tick,
+                    species = signal.species,
+                    urgent = false
+                });
+            }
+
+            foreach (WildlifeTrailLead trail in activeMap.GetComponent<WildlifeTrailMapComponent>()?.TrailLeads
+                ?.Where(value => value?.species != null && value.expiresTick > now)
+                .OrderByDescending(value => value.createdTick).Take(8) ?? Enumerable.Empty<WildlifeTrailLead>())
+            {
+                IntVec3 cell = trail.predictedCell.IsValid ? trail.predictedCell : trail.departureCell;
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Trail,
+                    key = "trail:" + trail.species.defName + ":" + trail.createdTick + ":" + trail.departureCell,
+                    title = trail.species.LabelCap + " trail",
+                    detail = trail.lastOutcome.NullOrEmpty() ?
+                        "Signs point toward " + SectorName(activeMap, cell) + "." : trail.lastOutcome,
+                    meaning = trail.state == WildlifeTrailState.BeyondMap
+                        ? "The trail continues beyond the local map." : trail.viableLead
+                            ? "This lead can support a tracking response." : "The direction remains uncertain.",
+                    location = SectorName(activeMap, cell),
+                    certainty = ConfidenceLabel(trail.confidence),
+                    tick = trail.createdTick,
+                    species = trail.species,
+                    urgent = trail.state == WildlifeTrailState.LiveQuarry || trail.state == WildlifeTrailState.Pursuit,
+                    trail = trail
+                });
+            }
+
+            foreach (WildlifeMysteryRecord mystery in activeMap.GetComponent<WildlifeMysteryMapComponent>()?.Mysteries
+                ?.Where(value => value != null && !value.Resolved)
+                .OrderByDescending(value => value.startedTick).Take(4) ?? Enumerable.Empty<WildlifeMysteryRecord>())
+            {
+                IntVec3 cell = mystery.animal?.Spawned == true ? mystery.animal.Position : IntVec3.Invalid;
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Investigation,
+                    key = "mystery:" + mystery.id,
+                    title = mystery.title,
+                    detail = mystery.Solved ? mystery.explanation : mystery.anomaly,
+                    meaning = mystery.Solved ? "A cause has been identified; the colony must choose a response." :
+                        "The colony is comparing evidence before acting.",
+                    location = SectorName(activeMap, cell),
+                    certainty = mystery.Solved ? "Confirmed" : "Uncertain",
+                    tick = mystery.Solved && mystery.solvedTick > 0 ? mystery.solvedTick : mystery.startedTick,
+                    species = mystery.species,
+                    urgent = mystery == activeMap.GetComponent<WildlifeMysteryMapComponent>()?.Active
+                });
+            }
+
+            foreach (HuntingExpeditionRecord expedition in activeMap.GetComponent<HuntingExpeditionMapComponent>()?.ActiveExpeditions
+                ?.Where(value => value != null).Take(4) ?? Enumerable.Empty<HuntingExpeditionRecord>())
+            {
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Expedition,
+                    key = "expedition:" + expedition.id,
+                    title = "Wildlife expedition in progress",
+                    detail = "Objective: " + expedition.objective + "." +
+                        (expedition.targetSpecies == null ? string.Empty : " Target: " + expedition.targetSpecies.LabelCap + "."),
+                    meaning = expedition.needsRescue ? "The field party needs assistance." :
+                        "The colony is waiting for the next report from beyond the local map.",
+                    location = "Beyond the local map",
+                    certainty = expedition.needsRescue ? "Urgent report" : "Tracked",
+                    tick = expedition.stageStartedTick > 0 ? expedition.stageStartedTick : expedition.departureTick,
+                    species = expedition.targetSpecies,
+                    urgent = expedition.needsRescue
+                });
+            }
+
+            foreach (WildlifeExperienceEvent outcome in Current.Game?.GetComponent<WildlifeExperienceGameComponent>()?.Events
+                ?.Where(value => value != null && !value.text.NullOrEmpty()).Take(30) ??
+                Enumerable.Empty<WildlifeExperienceEvent>())
+            {
+                if (items.Any(item => item.tick == outcome.tick &&
+                    string.Equals(item.detail, outcome.text, StringComparison.Ordinal))) continue;
+                items.Add(new FieldLogItem
+                {
+                    kind = FieldLogItemKind.Outcome,
+                    key = "outcome:" + outcome.category + ":" + outcome.tick + ":" + outcome.thingId,
+                    title = outcome.category.NullOrEmpty() ? "Wildlife outcome" : outcome.category,
+                    detail = outcome.text,
+                    meaning = WildlifeExperience.IsNegative(outcome)
+                        ? "The colony recorded a setback or warning." : "The colony recorded what happened for later understanding.",
+                    location = "Colony record",
+                    certainty = "Recorded",
+                    tick = outcome.tick,
+                    urgent = false,
+                    outcome = outcome
+                });
+            }
+
+            Dictionary<string, FieldLogItem> unique = new Dictionary<string, FieldLogItem>(StringComparer.Ordinal);
+            foreach (FieldLogItem item in items.Where(value => value != null))
+            {
+                if (item.key.NullOrEmpty()) item.key = item.kind + ":" + item.tick + ":" + item.title;
+                if (!unique.ContainsKey(item.key)) unique.Add(item.key, item);
+            }
+            return unique.Values.OrderByDescending(value => value.urgent)
+                .ThenByDescending(value => value.tick).Take(28).ToList();
         }
 
         private void ShowSignals(Pawn observer, ThingDef species)

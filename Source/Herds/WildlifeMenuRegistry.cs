@@ -90,9 +90,9 @@ namespace Herds
         {
             if (builtInsRegistered) return;
             builtInsRegistered = true;
-            Register("wildlife.overview", "Wildlife Overview",
-                "Open the unified Wildlife Journal: field guide, living atlas, signals, investigations, expeditions, and stories.",
-                OverviewOrder, null, () => Find.WindowStack.Add(new Window_WildlifeJournal(Find.CurrentMap, WildlifeJournalPage.FieldGuide)));
+            Register("wildlife.overview", "Wildlife Journal",
+                "Open the Wildlife Journal Field Log: recent observations, interpretations, and actions.",
+                OverviewOrder, null, () => Window_WildlifeJournal.OpenFieldLog(Find.CurrentMap));
             Register("wildlife.expeditions", "Expeditions",
                 "Review every active wildlife expedition or send a new party.",
                 ExpeditionsOrder,

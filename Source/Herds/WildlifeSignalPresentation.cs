@@ -19,6 +19,10 @@ namespace Herds
         public float understanding;
         public int tier;
         public string description;
+        public string warningKnowledgeSourceInstanceId;
+        public bool warningKnowledgeSubmitted;
+        public string predatorPressureSourceInstanceId;
+        public bool predatorPressureSubmitted;
 
         public void ExposeData()
         {
@@ -26,6 +30,10 @@ namespace Herds
             Scribe_Values.Look(ref understanding, "understanding", 0f);
             Scribe_Values.Look(ref tier, "tier", 0);
             Scribe_Values.Look(ref description, "description");
+            Scribe_Values.Look(ref warningKnowledgeSourceInstanceId, "warningKnowledgeSourceInstanceId");
+            Scribe_Values.Look(ref warningKnowledgeSubmitted, "warningKnowledgeSubmitted", false);
+            Scribe_Values.Look(ref predatorPressureSourceInstanceId, "predatorPressureSourceInstanceId");
+            Scribe_Values.Look(ref predatorPressureSubmitted, "predatorPressureSubmitted", false);
         }
     }
 
@@ -108,6 +116,14 @@ namespace Herds
             ThingDef species, Map map)
         {
             if (trace == null) return "No signal evidence has been recorded.";
+            if (WildlifeSignalCultureMapComponent.IsWarningCall(trace.kind))
+            {
+                WildlifeSignalCultureMapComponent signals = map?.GetComponent<WildlifeSignalCultureMapComponent>();
+                WildlifeWarningKnowledgeState warning = observer == null
+                    ? signals?.ColonyWarningKnowledge(species)
+                    : signals?.WarningKnowledge(observer, species);
+                return warning?.PlayerDescription ?? "A warning call was recorded.";
+            }
             WildlifeSignalObservationPresentation presentation = trace.presentations?.Find(value =>
                 value?.observer == observer);
             if (presentation?.description.NullOrEmpty() == false) return presentation.description;

@@ -904,7 +904,7 @@ namespace Herds
                 baselineStudies = notable.studies
             };
             Find.LetterStack.ReceiveLetter(legendQuest.title, LegendQuestDescription(legendQuest) +
-                "\n\nTrack this challenge in the Wildlife Field Journal.", LetterDefOf.NeutralEvent, notable.animal);
+                "\n\nTrack this challenge in the Wildlife Journal Field Log.", LetterDefOf.NeutralEvent, notable.animal);
         }
 
         private bool LegendQuestComplete()

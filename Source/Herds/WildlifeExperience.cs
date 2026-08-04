@@ -31,7 +31,7 @@ namespace Herds
             WildlifeUI.CloseMenus();
             Map targetMap = map ?? Find.CurrentMap;
             if (targetMap != null)
-                Find.WindowStack.Add(new Window_WildlifeFieldJournal(targetMap, 5, storyTick));
+                Window_WildlifeJournal.OpenFieldLog(targetMap, storyTick);
         }
     }
 
@@ -117,7 +117,7 @@ namespace Herds
             if (settings.enablePlayerOnboarding && !introductionShown && tick > 1200)
             {
                 introductionShown = true;
-                Find.LetterStack.ReceiveLetter("Wildlife", "Wild animals form social groups, seek homes, evade danger, and hunt with distinct tactics. Open Wildlife Overview at the top of the Wildlife tab to review the colony's knowledge and options.", LetterDefOf.NeutralEvent);
+                Find.LetterStack.ReceiveLetter("Wildlife", "Wild animals form social groups, seek homes, evade danger, and hunt with distinct tactics. Open Wildlife Journal at the top of the Wildlife tab to review the latest field notes and decide what to investigate next.", LetterDefOf.NeutralEvent);
             }
             if (!settings.enableUnlockLetters) return;
             WildlifeCapability[] values = (WildlifeCapability[])Enum.GetValues(typeof(WildlifeCapability));
@@ -127,7 +127,7 @@ namespace Herds
                 if ((unlockedMask & bit) != 0 || !WildlifeProgression.Unlocked(values[i])) continue;
                 unlockedMask |= bit;
                 if (tick > 6000)
-                    Find.LetterStack.ReceiveLetter("Wildlife Capability Available", WildlifeProgression.Label(values[i]) + " is now available. Open Wildlife Overview for related actions.", LetterDefOf.PositiveEvent);
+                    Find.LetterStack.ReceiveLetter("Wildlife Capability Available", WildlifeProgression.Label(values[i]) + " is now available. Open Wildlife Journal for related actions.", LetterDefOf.PositiveEvent);
             }
         }
 
@@ -149,7 +149,7 @@ namespace Herds
             if (expeditionTutorialShown || HerdsMod.Settings?.enablePlayerOnboarding != true) return;
             expeditionTutorialShown = true;
             Find.LetterStack.ReceiveLetter("First Wildlife Expedition",
-                "Use Wildlife > Wildlife Expeditions to manage every field party. Send New Expedition opens the World Map; select a valid tile, then choose the objective, party, route, and supplies.\n\n" +
+                "Open Wildlife Journal, then choose Expeditions to manage every field party. Send New Expedition opens the World Map; select a valid tile, then choose the objective, party, route, and supplies.\n\n" +
                 "Expeditions become visible caravans after leaving the colony. Scouting reveals unknown tiles, while Animal Knowledge and fieldcraft improve later outcomes. " +
                 "Food is consumed normally during travel. Review warnings in the expedition list, and send assistance there if a party becomes stranded.",
                 LetterDefOf.NeutralEvent);
@@ -215,6 +215,7 @@ namespace Herds
         private Vector2 scroll;
         private int nextTrailSuggestionTick;
         private int cachedUrgentTrailCount;
+        private bool redirectedToJournal;
         public override Vector2 InitialSize => new Vector2(850f, 720f);
 
         public Window_WildlifeOverview(Map map)
@@ -226,8 +227,15 @@ namespace Herds
 
         public override void DoWindowContents(Rect rect)
         {
+            if (!redirectedToJournal)
+            {
+                redirectedToJournal = true;
+                Close(false);
+                Window_WildlifeJournal.OpenFieldLog(map);
+                return;
+            }
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, rect.width, 34f), "Wildlife Overview");
+            Widgets.Label(new Rect(0f, 0f, rect.width, 34f), "Wildlife Journal");
             Text.Font = GameFont.Small;
             GUI.color = new Color(0.72f, 0.78f, 0.72f);
             Widgets.Label(new Rect(0f, 29f, rect.width, 24f), "The colony's relationship with local and regional wildlife.");
@@ -391,11 +399,10 @@ namespace Herds
                 HerdsMod.Settings.enableWildlifeFolklore)
                 ? new OverviewNavigation
                 {
-                    title = "Field Journal", detail = "Moments, mysteries, and stories",
-                    tooltip = "Review the field guide, respond to Wildlife Moments, investigate mysteries, and manage stories.",
+                    title = "Field Log", detail = "Moments, mysteries, and stories",
+                    tooltip = "Review recent wildlife observations, respond to moments, investigate mysteries, and follow recorded outcomes.",
                     accent = new Color(0.42f, 0.62f, 0.38f),
-                    action = () => Find.WindowStack.Add(new Window_WildlifeFieldJournal(map,
-                        map.GetComponent<WildlifeFieldJournalMapComponent>()?.Opportunity != null ? 2 : 0))
+                    action = () => Window_WildlifeJournal.OpenFieldLog(map)
                 } : null;
             OverviewNavigation progression = HerdsMod.Settings.enableResearchProgression
                 ? new OverviewNavigation
@@ -417,7 +424,7 @@ namespace Herds
                 return "Wildlife Moment: " +
                     WildlifeFieldJournalMapComponent.OpportunityLabel(moment.kind) +
                     (moment.response == WildlifeMomentResponse.None
-                        ? " is waiting for a response in the Field Journal."
+                        ? " is waiting for a response in the Wildlife Journal Field Log."
                         : " - " + moment.response + " is underway.");
             if (HerdsMod.Settings.enableTrailReading && HerdsDefOf.Herds_WildlifeSign != null)
             {
@@ -437,9 +444,9 @@ namespace Herds
             WildlifeMysteryRecord mystery = HerdsMod.Settings.enableWildlifeMysteries
                 ? map?.GetComponent<WildlifeMysteryMapComponent>()?.Active : null;
             if (mystery != null)
-                return mystery.Solved
-                    ? "Suggested next step: choose a response to " + mystery.title + " in the Field Journal."
-                    : "Suggested next step: investigate " + mystery.title + " in the Field Journal.";
+                    return mystery.Solved
+                    ? "Suggested next step: choose a response to " + mystery.title + " in the Wildlife Journal Field Log."
+                    : "Suggested next step: investigate " + mystery.title + " in the Wildlife Journal Field Log.";
             if (!WildlifeProgression.Unlocked(WildlifeCapability.BasicHunting)) return "Suggested next step: research Hunting to organize early hunts.";
             if (!DefDatabase<ThingDef>.AllDefsListForReading.Any(def => def.race?.Animal == true && HuntingKnowledgeMapComponent.ColonyExperience(def) > 0f))
                 return "Suggested next step: observe wildlife from a manned observation post.";

@@ -26,7 +26,9 @@ namespace Herds
         MysteryEvidence,
         Storytelling,
         Report,
-        Documentation
+        Documentation,
+        WarningCall,
+        PredatorPressure
     }
 
     public sealed class WildlifePassiveObservationResult
@@ -36,6 +38,69 @@ namespace Herds
         public string discoveryKind;
         public string summary;
         public KnowledgeChange change;
+    }
+
+    public sealed class WildlifeWarningKnowledgeState
+    {
+        public bool hasEvidence;
+        public bool familyRecognized;
+        public bool meaningInterpreted;
+        public bool claimSupported;
+        public bool contradictory;
+        public string stageId = WildlifeKnowledgeAdapter.StageUnknown;
+        public string claimValue;
+        public string source;
+        public int evidenceCount;
+        public int claimObservationCount;
+        public int lastConfirmedTick;
+        public float amount;
+        public float confidence;
+
+        public string PlayerLabel => !hasEvidence ? "No warning pattern recorded" :
+            contradictory ? "Warning evidence conflicts" :
+            claimSupported ? "Warning pattern supports a cautious prediction" :
+            meaningInterpreted ? "Warning meaning is becoming supported" :
+            familyRecognized ? "Warning family recognized" : "Warning call recorded";
+
+        public string PlayerDescription => !hasEvidence ?
+            "No warning call has been interpreted for this observer." :
+            contradictory ? "The colony has conflicting evidence about what this warning call means." :
+            claimSupported ? "Repeated warning calls now support a cautious danger prediction." :
+            meaningInterpreted ? "Repeated warning calls are being compared to learn their meaning." :
+            familyRecognized ? "The colony recognizes this as a warning family, but not a dependable meaning yet." :
+            "The colony has recorded an unfamiliar warning call.";
+    }
+
+    public sealed class WildlifePredatorPressureKnowledgeState
+    {
+        public bool hasEvidence;
+        public bool patternRecognized;
+        public bool meaningInterpreted;
+        public bool claimSupported;
+        public bool contradictory;
+        public string stageId = WildlifeKnowledgeAdapter.StageUnknown;
+        public string claimValue;
+        public string source;
+        public int evidenceCount;
+        public int claimObservationCount;
+        public int lastConfirmedTick;
+        public float amount;
+        public float confidence;
+
+        public string PlayerLabel => !hasEvidence ? "No recurring predator pattern recorded" :
+            contradictory ? "Predator-pressure evidence conflicts" :
+            claimSupported ? "Predator pressure supports a movement prediction" :
+            meaningInterpreted ? "A recurring predator pressure is being interpreted" :
+            patternRecognized ? "A recurring defensive pattern is forming" :
+            "A defensive consequence was recorded";
+
+        public string PlayerDescription => !hasEvidence ?
+            "No repeated defensive consequence has been recorded for this population." :
+            contradictory ? "The colony has conflicting evidence about whether predators are repeatedly affecting this population." :
+            claimSupported ? "Predators are repeatedly affecting this population. Expect wider defensive movement and inspect local wildlife or trails." :
+            meaningInterpreted ? "Repeated defensive consequences are being compared to determine their likely environmental cause." :
+            patternRecognized ? "Repeated defensive consequences suggest a local pressure, but its cause is not established." :
+            "A herd response was observed, but the colony does not yet know what caused it.";
     }
 
     /// <summary>
@@ -63,12 +128,23 @@ namespace Herds
         public const string FacetHandling = "handling";
         public const string FacetPopulation = "population-ecology";
 
+        public const string ClaimSignalMeaning = "signal-meaning";
+        public const string WarningCallClaimValue = "warning-call";
+        public const string ClaimPredatorPressure = "predator-pressure";
+        public const string PredatorPressureClaimValue = "predator-pressure";
+
         public const string StageUnknown = "unknown";
         public const string StageSighted = "sighted";
         public const string StageIdentified = "identified";
         public const string StageStudied = "studied";
         public const string StageUnderstood = "understood";
         public const string StageDocumented = "documented";
+
+        // The framework supplies stage thresholds, but not claim-repeat thresholds.
+        // Keep these family-specific defaults at the V3 boundary rather than in UI code.
+        private const int WarningFamilyObservationCount = 2;
+        private const int WarningMeaningObservationCount = 3;
+        private const float WarningSupportedConfidence = 0.64f;
 
         public const string ContextSector = "wildlife.map-sector";
         public const string ContextMap = "wildlife.map";
@@ -120,6 +196,35 @@ namespace Herds
         public static string RegionSubjectId(Map map) => map == null ? null : "region:" + map.uniqueID;
         public static string BiomeSubjectId(BiomeDef biome) => biome == null ? null : "biome:" + biome.defName;
         public static string DialectSubjectId(Map map, ThingDef species) => map == null || species == null ? null : "dialect:" + map.uniqueID + ":" + species.defName;
+
+        public static bool IsWarningCall(WildlifeSignalKind kind) =>
+            kind == WildlifeSignalKind.Alarm || kind == WildlifeSignalKind.HumanDanger;
+
+        public static string WarningSourceInstanceId(Map map, int traceId, Pawn observer) =>
+            map == null || traceId <= 0 || observer == null ? null :
+            "wildlife:warning-signal:" + map.uniqueID + ":" + traceId + ":" + observer.thingIDNumber;
+
+        public static string PredatorPressureSourceInstanceId(Map map, int traceId, Pawn observer) =>
+            map == null || traceId <= 0 || observer == null ? null :
+            "wildlife:predator-pressure:" + map.uniqueID + ":" + traceId + ":" + observer.thingIDNumber;
+
+        public static bool IsPredatorPressureTrace(WildlifeSignalTrace trace) => trace != null &&
+            trace.kind == WildlifeSignalKind.Alarm && trace.hasSubject && !trace.humanImitation &&
+            !trace.developerScenario;
+
+        public static WildlifeWarningKnowledgeState LegacyWarningState(float understanding, int signalsHeard)
+        {
+            WildlifeWarningKnowledgeState output = new WildlifeWarningKnowledgeState
+            {
+                amount = Mathf.Clamp01(understanding) * 92f,
+                evidenceCount = Math.Max(0, signalsHeard),
+                source = "Legacy signal knowledge"
+            };
+            output.hasEvidence = output.evidenceCount > 0 || understanding > 0f;
+            output.familyRecognized = output.hasEvidence && understanding >= 0.15f;
+            output.stageId = output.familyRecognized ? StageIdentified : StageSighted;
+            return output;
+        }
 
         public static KnowledgeContextKey ContextFor(Map map, IntVec3 cell = default(IntVec3))
         {
@@ -242,6 +347,407 @@ namespace Herds
                 return true;
             }
             return false;
+        }
+
+        public static bool ObserveWarningCall(Pawn observer, ThingDef species, WildlifeSignalKind kind,
+            Map map, IntVec3 cell, bool truthful, float quality, string summary, string sourceInstanceId)
+        {
+            if (observer == null || species?.race?.Animal != true || !IsWarningCall(kind) ||
+                map == null || sourceInstanceId.NullOrEmpty()) return false;
+            if (WarningObservationAlreadyApplied(observer, species, map, cell, sourceInstanceId)) return false;
+            Register();
+            KnowledgeMeasurement measurement = new KnowledgeMeasurement
+            {
+                domainId = DomainId,
+                subjectId = DialectSubjectId(map, species),
+                facetId = FacetSignals,
+                claimId = ClaimSignalMeaning,
+                observer = observer,
+                scope = KnowledgeScope.Personal,
+                value = KnowledgeClaimValue.Text(KnowledgeClaimValueType.EnumId, WarningCallClaimValue),
+                context = ContextFor(map, cell),
+                quality = Mathf.Clamp(quality, 0.05f, 2f),
+                evidenceWeight = Mathf.Clamp(quality, 0.15f, 2f),
+                confidenceFactor = Mathf.Clamp01(truthful ? 0.8f : 0.45f),
+                disposition = truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
+                source = "Wildlife warning call",
+                sourceInstanceId = sourceInstanceId,
+                methodId = "warning-call",
+                reasonId = truthful ? "warning-observed" : "warning-misleading",
+                summary = summary,
+                tick = Find.TickManager?.TicksGame ?? 0,
+                documented = false,
+                revealed = false
+            };
+            KnowledgeObservation value = new KnowledgeObservation
+            {
+                observer = observer,
+                domainId = DomainId,
+                subjectId = DialectSubjectId(map, species),
+                facetId = FacetSignals,
+                observationId = RecipeId(WildlifeKnowledgeObservation.WarningCall),
+                methodId = "warning-call",
+                quality = Mathf.Clamp(quality, 0.05f, 2f),
+                success = truthful,
+                disposition = truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
+                shareable = true,
+                source = "Wildlife warning call",
+                sourceInstanceId = sourceInstanceId,
+                reasonId = truthful ? "warning-observed" : "warning-misleading",
+                context = ContextFor(map, cell),
+                summary = summary,
+                metadata = new Dictionary<string, string>
+                {
+                    ["observationLayer"] = "signal-warning",
+                    ["signalFamily"] = "warning",
+                    ["signalKind"] = kind.ToString(),
+                    ["signalTraceId"] = sourceInstanceId
+                },
+                claimMeasurements = new[] { measurement },
+                notify = false
+            };
+            KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
+            if (!result.success) return false;
+            WildlifeEventUtility.Publish(WildlifeEventKind.Signal, map, observer, null, species,
+                "Warning call knowledge", summary ?? "A warning call added evidence to the animal dialect record.",
+                "warning-call", truthful, quality, truthful ? 0.7f : 0.25f, 0f, false,
+                sourceInstanceId, "warning-call", cell, null, value.metadata);
+            return true;
+        }
+
+        public static bool ObservePredatorPressure(Pawn observer, ThingDef species, Map map, IntVec3 cell,
+            bool truthful, float quality, string summary, string sourceInstanceId)
+        {
+            if (observer == null || species?.race?.Animal != true || map == null || sourceInstanceId.NullOrEmpty()) return false;
+            if (PredatorPressureObservationAlreadyApplied(observer, species, map, cell, sourceInstanceId)) return false;
+            Register();
+            string subjectId = PopulationSubjectId(map, species);
+            KnowledgeMeasurement measurement = new KnowledgeMeasurement
+            {
+                domainId = DomainId,
+                subjectId = subjectId,
+                facetId = FacetPopulation,
+                claimId = ClaimPredatorPressure,
+                observer = observer,
+                scope = KnowledgeScope.Personal,
+                value = KnowledgeClaimValue.Text(KnowledgeClaimValueType.EnumId, PredatorPressureClaimValue),
+                context = ContextFor(map, cell),
+                quality = Mathf.Clamp(quality, 0.05f, 2f),
+                evidenceWeight = Mathf.Clamp(quality, 0.15f, 2f),
+                confidenceFactor = Mathf.Clamp01(truthful ? 0.82f : 0.45f),
+                disposition = truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
+                source = "Wildlife predator pressure",
+                sourceInstanceId = sourceInstanceId,
+                methodId = "predator-pressure",
+                reasonId = truthful ? "defensive-response" : "false-alarm",
+                summary = summary,
+                tick = Find.TickManager?.TicksGame ?? 0,
+                documented = false,
+                revealed = false
+            };
+            KnowledgeObservation value = new KnowledgeObservation
+            {
+                observer = observer,
+                domainId = DomainId,
+                subjectId = subjectId,
+                facetId = FacetPopulation,
+                observationId = RecipeId(WildlifeKnowledgeObservation.PredatorPressure),
+                methodId = "predator-pressure",
+                quality = Mathf.Clamp(quality, 0.05f, 2f),
+                success = truthful,
+                disposition = truthful ? KnowledgeEvidenceDisposition.Supporting : KnowledgeEvidenceDisposition.Contradictory,
+                shareable = true,
+                source = "Wildlife predator pressure",
+                sourceInstanceId = sourceInstanceId,
+                reasonId = truthful ? "defensive-response" : "false-alarm",
+                context = ContextFor(map, cell),
+                summary = summary,
+                metadata = new Dictionary<string, string>
+                {
+                    ["observationLayer"] = "ecology-pressure",
+                    ["pressureFamily"] = "predator",
+                    ["response"] = "herd-defense",
+                    ["traceId"] = sourceInstanceId
+                },
+                claimMeasurements = new[] { measurement },
+                notify = false
+            };
+            KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
+            if (!result.success) return false;
+            WildlifeEventUtility.Publish(WildlifeEventKind.Signal, map, observer, null, species,
+                "Ecological consequence", summary ?? "A herd defense response added population-pressure evidence.",
+                "predator-pressure", truthful, quality, truthful ? 0.7f : 0.25f, 0f, false,
+                sourceInstanceId, "predator-pressure", cell, null, value.metadata);
+            return true;
+        }
+
+        public static WildlifeWarningKnowledgeState WarningStateFor(Pawn observer, ThingDef species, Map map,
+            IntVec3 cell = default(IntVec3), bool colony = false)
+        {
+            WildlifeWarningKnowledgeState output = new WildlifeWarningKnowledgeState();
+            if (species?.race?.Animal != true || map == null) return output;
+            Register();
+            KnowledgeScope scope = colony ? KnowledgeScope.Colony : KnowledgeScope.Personal;
+            Pawn queryPawn = colony ? null : observer;
+            string subjectId = DialectSubjectId(map, species);
+            KnowledgeContextKey context = ContextFor(map, cell);
+            KnowledgeFacetSnapshotV2 facet = KnowledgeQuery.Facet(DomainId, subjectId, FacetSignals, queryPawn,
+                scope, true, true, context, KnowledgeContextFallbackMode.ParentThenGlobal);
+            KnowledgeSubjectSnapshotV2 subject = KnowledgeQuery.Subject(DomainId, subjectId, queryPawn, scope);
+            KnowledgeClaimSnapshot claim = KnowledgeQuery.Claims(DomainId, subjectId, FacetSignals, queryPawn, scope,
+                context, KnowledgeContextFallbackMode.ParentThenGlobal).FirstOrDefault(value => value?.claimId == ClaimSignalMeaning);
+            output.stageId = subject?.stageId.NullOrEmpty() == false ? subject.stageId : StageUnknown;
+            output.evidenceCount = facet?.evidenceCount ?? 0;
+            output.amount = facet?.amount ?? 0f;
+            output.confidence = facet?.confidence ?? 0f;
+            output.claimObservationCount = UniqueSignalObservationCount(claim);
+            output.contradictory = claim?.contradictory == true;
+            output.claimValue = claim?.value?.textValue;
+            output.source = claim?.bestQualitySource;
+            output.lastConfirmedTick = claim?.lastConfirmedTick ?? 0;
+            output.hasEvidence = output.claimObservationCount > 0;
+            output.familyRecognized = output.claimObservationCount >= WarningFamilyObservationCount &&
+                StageOrder(output.stageId) >= StageOrder(StageSighted);
+            output.meaningInterpreted = claim != null && output.claimObservationCount >= WarningMeaningObservationCount &&
+                StageOrder(output.stageId) >= StageOrder(StageStudied);
+            output.claimSupported = output.meaningInterpreted && !output.contradictory &&
+                StageOrder(output.stageId) >= StageOrder(StageUnderstood) && output.confidence >= WarningSupportedConfidence;
+            return output;
+        }
+
+        public static bool WarningObservationAlreadyApplied(Pawn observer, ThingDef species, Map map, IntVec3 cell,
+            string sourceInstanceId)
+        {
+            if (observer == null || species?.race?.Animal != true || map == null || sourceInstanceId.NullOrEmpty()) return false;
+            Register();
+            string subjectId = DialectSubjectId(map, species);
+            KnowledgeContextKey context = ContextFor(map, cell);
+            IReadOnlyList<KnowledgeClaimSnapshot> claims = KnowledgeQuery.Claims(DomainId, subjectId, FacetSignals,
+                observer, KnowledgeScope.Personal, context, KnowledgeContextFallbackMode.ParentThenGlobal);
+            return claims.Any(claim => claim?.claimId == ClaimSignalMeaning && claim.provenance != null &&
+                claim.provenance.Any(value => value?.sourceInstanceId == sourceInstanceId));
+        }
+
+        private static int UniqueSignalObservationCount(KnowledgeClaimSnapshot claim)
+        {
+            if (claim == null) return 0;
+            if (claim.provenance == null || claim.provenance.Count == 0)
+                return claim.observationCount;
+            HashSet<string> identities = new HashSet<string>(StringComparer.Ordinal);
+            foreach (KnowledgeClaimMeasurementSnapshot measurement in claim.provenance)
+            {
+                string identity = SignalObservationEquivalenceKey(measurement?.sourceInstanceId);
+                if (!identity.NullOrEmpty()) identities.Add(identity);
+            }
+            return Math.Max(identities.Count, claim.observationCount > 0 && identities.Count == 0 ? 1 : 0);
+        }
+
+        private static string SignalObservationEquivalenceKey(string sourceInstanceId)
+        {
+            if (sourceInstanceId.NullOrEmpty()) return null;
+            string[] parts = sourceInstanceId.Split(':');
+            if (parts.Length >= 5 && parts[0] == "wildlife" &&
+                (parts[1] == "warning-signal" || parts[1] == "predator-pressure"))
+                return parts[0] + ":" + parts[1] + ":" + parts[2] + ":" + parts[3];
+            return sourceInstanceId;
+        }
+
+        public static WildlifePredatorPressureKnowledgeState PredatorPressureStateFor(Pawn observer,
+            ThingDef species, Map map, IntVec3 cell = default(IntVec3), bool colony = false)
+        {
+            WildlifePredatorPressureKnowledgeState output = new WildlifePredatorPressureKnowledgeState();
+            if (species?.race?.Animal != true || map == null) return output;
+            Register();
+            KnowledgeScope scope = colony ? KnowledgeScope.Colony : KnowledgeScope.Personal;
+            Pawn queryPawn = colony ? null : observer;
+            string subjectId = PopulationSubjectId(map, species);
+            KnowledgeContextKey context = ContextFor(map, cell);
+            KnowledgeFacetSnapshotV2 facet = KnowledgeQuery.Facet(DomainId, subjectId, FacetPopulation, queryPawn,
+                scope, true, true, context, KnowledgeContextFallbackMode.ParentThenGlobal);
+            KnowledgeSubjectSnapshotV2 subject = KnowledgeQuery.Subject(DomainId, subjectId, queryPawn, scope);
+            KnowledgeClaimSnapshot claim = KnowledgeQuery.Claims(DomainId, subjectId, FacetPopulation, queryPawn,
+                scope, context, KnowledgeContextFallbackMode.ParentThenGlobal).FirstOrDefault(value =>
+                    value?.claimId == ClaimPredatorPressure);
+            output.stageId = subject?.stageId.NullOrEmpty() == false ? subject.stageId : StageUnknown;
+            output.evidenceCount = facet?.evidenceCount ?? 0;
+            output.amount = facet?.amount ?? 0f;
+            output.confidence = claim?.effectiveConfidence ?? facet?.confidence ?? 0f;
+            output.claimObservationCount = UniqueSignalObservationCount(claim);
+            output.contradictory = claim?.contradictory == true;
+            output.claimValue = claim?.value?.textValue;
+            output.source = claim?.bestQualitySource;
+            output.lastConfirmedTick = claim?.lastConfirmedTick ?? 0;
+            // FacetPopulation also contains ordinary population observations. Only the
+            // dedicated claim can establish predator-pressure evidence.
+            output.hasEvidence = output.claimObservationCount > 0;
+            output.patternRecognized = output.claimObservationCount >= 2;
+            output.meaningInterpreted = claim != null && output.claimObservationCount >= 2 &&
+                StageOrder(output.stageId) >= StageOrder(StageStudied);
+            output.claimSupported = output.meaningInterpreted && !output.contradictory &&
+                StageOrder(output.stageId) >= StageOrder(StageUnderstood) && output.confidence >= 0.64f;
+            return output;
+        }
+
+        public static bool PredatorPressureObservationAlreadyApplied(Pawn observer, ThingDef species, Map map,
+            IntVec3 cell, string sourceInstanceId)
+        {
+            if (observer == null || species?.race?.Animal != true || map == null || sourceInstanceId.NullOrEmpty()) return false;
+            Register();
+            string subjectId = PopulationSubjectId(map, species);
+            KnowledgeContextKey context = ContextFor(map, cell);
+            IReadOnlyList<KnowledgeClaimSnapshot> claims = KnowledgeQuery.Claims(DomainId, subjectId,
+                FacetPopulation, observer, KnowledgeScope.Personal, context,
+                KnowledgeContextFallbackMode.ParentThenGlobal);
+            return claims.Any(claim => claim?.claimId == ClaimPredatorPressure && claim.provenance != null &&
+                claim.provenance.Any(value => value?.sourceInstanceId == sourceInstanceId));
+        }
+
+        public static bool WarningKnowledgeSelfTest()
+        {
+            WildlifeWarningKnowledgeState first = new WildlifeWarningKnowledgeState
+            {
+                hasEvidence = true,
+                familyRecognized = false,
+                stageId = StageIdentified,
+                claimObservationCount = 1,
+                confidence = 0.35f
+            };
+            WildlifeWarningKnowledgeState family = new WildlifeWarningKnowledgeState
+            {
+                hasEvidence = true,
+                familyRecognized = true,
+                stageId = StageIdentified,
+                claimObservationCount = WarningFamilyObservationCount,
+                confidence = 0.4f
+            };
+            WildlifeWarningKnowledgeState meaning = new WildlifeWarningKnowledgeState
+            {
+                hasEvidence = true,
+                familyRecognized = true,
+                meaningInterpreted = true,
+                stageId = StageStudied,
+                claimObservationCount = WarningMeaningObservationCount,
+                confidence = 0.5f
+            };
+            WildlifeWarningKnowledgeState contradiction = new WildlifeWarningKnowledgeState
+            {
+                hasEvidence = true,
+                familyRecognized = true,
+                meaningInterpreted = true,
+                contradictory = true,
+                stageId = StageStudied,
+                claimObservationCount = 2,
+                confidence = 0.5f
+            };
+            WildlifeWarningKnowledgeState supported = new WildlifeWarningKnowledgeState
+            {
+                hasEvidence = true,
+                familyRecognized = true,
+                meaningInterpreted = true,
+                claimSupported = true,
+                stageId = StageUnderstood,
+                claimObservationCount = WarningMeaningObservationCount,
+                confidence = WarningSupportedConfidence
+            };
+            WildlifeWarningKnowledgeState unobserved = new WildlifeWarningKnowledgeState();
+            return IsWarningCall(WildlifeSignalKind.Alarm) && IsWarningCall(WildlifeSignalKind.HumanDanger) &&
+                !IsWarningCall(WildlifeSignalKind.AllClear) && first.PlayerLabel == "Warning call recorded" &&
+                family.PlayerLabel == "Warning family recognized" &&
+                meaning.PlayerLabel == "Warning meaning is becoming supported" &&
+                supported.PlayerLabel == "Warning pattern supports a cautious prediction" &&
+                contradiction.PlayerLabel == "Warning evidence conflicts" &&
+                unobserved.PlayerLabel == "No warning pattern recorded" &&
+                WarningSourceInstanceId(null, 1, null) == null;
+        }
+
+        public static bool PredatorPressureKnowledgeSelfTest()
+        {
+            WildlifePredatorPressureKnowledgeState first = new WildlifePredatorPressureKnowledgeState
+            {
+                hasEvidence = true,
+                stageId = StageSighted,
+                evidenceCount = 1
+            };
+            WildlifePredatorPressureKnowledgeState pattern = new WildlifePredatorPressureKnowledgeState
+            {
+                hasEvidence = true,
+                patternRecognized = true,
+                stageId = StageIdentified,
+                evidenceCount = 2
+            };
+            WildlifePredatorPressureKnowledgeState meaning = new WildlifePredatorPressureKnowledgeState
+            {
+                hasEvidence = true,
+                patternRecognized = true,
+                meaningInterpreted = true,
+                stageId = StageStudied,
+                evidenceCount = 3,
+                claimObservationCount = 2,
+                confidence = 0.5f
+            };
+            WildlifePredatorPressureKnowledgeState supported = new WildlifePredatorPressureKnowledgeState
+            {
+                hasEvidence = true,
+                patternRecognized = true,
+                meaningInterpreted = true,
+                claimSupported = true,
+                stageId = StageUnderstood,
+                evidenceCount = 5,
+                claimObservationCount = 3,
+                confidence = 0.64f
+            };
+            WildlifePredatorPressureKnowledgeState contradiction = new WildlifePredatorPressureKnowledgeState
+            {
+                hasEvidence = true,
+                contradictory = true,
+                stageId = StageStudied,
+                claimObservationCount = 2
+            };
+            WildlifeSignalTrace trueTrace = new WildlifeSignalTrace
+            {
+                kind = WildlifeSignalKind.Alarm,
+                truthful = true,
+                hasSubject = true,
+                humanImitation = false
+            };
+            WildlifeSignalTrace falseTrace = new WildlifeSignalTrace
+            {
+                kind = WildlifeSignalKind.Alarm,
+                truthful = false,
+                hasSubject = true,
+                humanImitation = false
+            };
+            WildlifeSignalTrace humanTrace = new WildlifeSignalTrace
+            {
+                kind = WildlifeSignalKind.HumanDanger,
+                truthful = true,
+                hasSubject = true,
+                humanImitation = false
+            };
+            WildlifeSignalTrace clearTrace = new WildlifeSignalTrace
+            {
+                kind = WildlifeSignalKind.AllClear,
+                truthful = true,
+                hasSubject = true,
+                humanImitation = false
+            };
+            WildlifeSignalTrace developerTrace = new WildlifeSignalTrace
+            {
+                kind = WildlifeSignalKind.Alarm,
+                truthful = true,
+                hasSubject = true,
+                humanImitation = false,
+                developerScenario = true
+            };
+            return first.PlayerLabel == "A defensive consequence was recorded" &&
+                pattern.PlayerLabel == "A recurring defensive pattern is forming" &&
+                meaning.PlayerLabel == "A recurring predator pressure is being interpreted" &&
+                supported.PlayerDescription.Contains("Predators are repeatedly affecting") &&
+                contradiction.PlayerLabel == "Predator-pressure evidence conflicts" &&
+                IsPredatorPressureTrace(trueTrace) && IsPredatorPressureTrace(falseTrace) &&
+                !IsPredatorPressureTrace(humanTrace) && !IsPredatorPressureTrace(clearTrace) &&
+                !IsPredatorPressureTrace(developerTrace) &&
+                PredatorPressureSourceInstanceId(null, 1, null) == null;
         }
 
         public static bool Learn(Pawn observer, ThingDef species, float amount, bool success = false, bool failure = false)
@@ -615,6 +1121,8 @@ namespace Herds
                 Observation("tracks", "Tracks and signs", 0.8f, new[] { Outcome(FacetMovement, 8f, 2f), Outcome(FacetHabitat, 5f, 1f), Outcome(FacetPopulation, 4f, 1f) }),
                 Observation("trail-completion", "Trail completion", 1f, new[] { Outcome(FacetMovement, 12f, 3f), Outcome(FacetPopulation, 8f, 2f), Outcome(FacetHabitat, 5f, 1f) }),
                 Observation("call", "Call or signal", 0.9f, new[] { Outcome(FacetSignals, 12f, 3f), Outcome(FacetSocial, 4f, 1f), Outcome(FacetDanger, 3f, 1f) }),
+                Observation("warning-call", "Warning call", 0.9f, new[] { Outcome(FacetSignals, 12f, 3f), Outcome(FacetSocial, 4f, 1f), Outcome(FacetDanger, 3f, 1f) }),
+                Observation("predator-pressure", "Predator pressure", 0.9f, new[] { Outcome(FacetPopulation, 18f, 3f), Outcome(FacetMovement, 6f, 1f), Outcome(FacetDanger, 4f, 1f) }),
                 Observation("hunt", "Hunt outcome", 0.8f, new[] { Outcome(FacetHunting, 10f, 1f), Outcome(FacetDanger, 5f, 1f), Outcome(FacetAnatomy, 4f, 0f) }),
                 Observation("tending", "Tending", 0.8f, new[] { Outcome(FacetHandling, 8f, 2f), Outcome(FacetAnatomy, 4f, 1f), Outcome(FacetIdentity, 2f, 1f) }),
                 Observation("taming", "Taming or training", 0.9f, new[] { Outcome(FacetHandling, 10f, 2f), Outcome(FacetSocial, 5f, 1f), Outcome(FacetIdentity, 3f, 1f) }),
@@ -645,6 +1153,13 @@ namespace Herds
                 };
                 if (value.StableId == "legacy-import")
                     value.accrualPolicy = new KnowledgeAccrualPolicy { uniquePerSourceInstance = true, stateLimit = 2048 };
+                if (value.StableId == "warning-call")
+                    value.accrualPolicy = new KnowledgeAccrualPolicy { uniquePerSourceInstance = true, stateLimit = 4096 };
+                if (value.StableId == "predator-pressure")
+                {
+                    value.accrualPolicy = new KnowledgeAccrualPolicy { uniquePerSourceInstance = true, stateLimit = 4096 };
+                    value.witnessDistribution.policy = KnowledgeWitnessDistributionPolicy.ObserverOnly;
+                }
             }
             return values;
         }
@@ -655,6 +1170,7 @@ namespace Herds
             Claim("movement-direction", "Movement direction", FacetMovement, KnowledgeClaimValueType.Direction, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.Seasonal),
             Claim("habitat-quality", "Habitat quality", FacetHabitat, KnowledgeClaimValueType.Percentage, KnowledgeClaimAggregation.WeightedMean, KnowledgeClaimStalenessPolicy.Seasonal),
             Claim("signal-meaning", "Signal meaning", FacetSignals, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.Contextual),
+            Claim("predator-pressure", "Predator pressure", FacetPopulation, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("danger-level", "Danger level", FacetDanger, KnowledgeClaimValueType.Percentage, KnowledgeClaimAggregation.WeightedMean, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("diet-preference", "Diet preference", FacetDiet, KnowledgeClaimValueType.DefReference, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("den-location", "Den or refuge location", FacetHabitat, KnowledgeClaimValueType.Vector, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.Contextual),
@@ -885,7 +1401,10 @@ namespace Herds
             observation == WildlifeKnowledgeObservation.MysteryEvidence ? "mystery-evidence" :
             observation == WildlifeKnowledgeObservation.Storytelling ? "storytelling" :
             observation == WildlifeKnowledgeObservation.Documentation ? "documentation" :
-            observation == WildlifeKnowledgeObservation.Report ? "report" : observation.ToString().ToLowerInvariant();
+            observation == WildlifeKnowledgeObservation.Report ? "report" :
+            observation == WildlifeKnowledgeObservation.WarningCall ? "warning-call" :
+            observation == WildlifeKnowledgeObservation.PredatorPressure ? "predator-pressure" :
+            observation.ToString().ToLowerInvariant();
 
         private static WildlifeEventKind EventKindFor(WildlifeKnowledgeObservation observation) =>
             observation == WildlifeKnowledgeObservation.Sighting ? WildlifeEventKind.Sighting :
@@ -893,6 +1412,8 @@ namespace Herds
             observation == WildlifeKnowledgeObservation.Tracks ? WildlifeEventKind.Tracks :
             observation == WildlifeKnowledgeObservation.TrailCompletion ? WildlifeEventKind.TrailCompletion :
             observation == WildlifeKnowledgeObservation.Call ? WildlifeEventKind.Signal :
+            observation == WildlifeKnowledgeObservation.WarningCall ? WildlifeEventKind.Signal :
+            observation == WildlifeKnowledgeObservation.PredatorPressure ? WildlifeEventKind.Signal :
             observation == WildlifeKnowledgeObservation.Hunt ? WildlifeEventKind.Hunt :
             observation == WildlifeKnowledgeObservation.Tending ? WildlifeEventKind.Tending :
             observation == WildlifeKnowledgeObservation.Taming ? WildlifeEventKind.Taming :

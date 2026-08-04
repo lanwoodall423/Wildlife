@@ -314,7 +314,7 @@ namespace Herds
                             availableLeadSigns.Concat(availableLeadSigns)) == urgentLeadCount &&
                         urgentLeadCount <= availableLeadSigns.Select(sign =>
                             sign.sourceAnimal).Distinct().Count(),
-                        "Wildlife Overview counts grouped Trail Leads rather than individual clues");
+                        "Wildlife tracking counts grouped Trail Leads rather than individual clues");
                     Check("Fieldcraft", JobDriver_StudyNotableAnimal.MinimumStudyDistance >= 18f &&
                         JobDriver_StudyNotableAnimal.MaximumStudyDistance >
                             JobDriver_StudyNotableAnimal.MinimumStudyDistance &&
@@ -416,6 +416,52 @@ namespace Herds
                         "Solitary or ungrouped signalers are safe during response verification");
                     Check("Signals", WildlifeSignalCultureMapComponent.IdentifiedSignalTextSelfTest(),
                         "Signal meaning labels appear only after exact identification");
+                    Check("Signals", WildlifeKnowledgeAdapter.WarningKnowledgeSelfTest(),
+                        "Warning calls progress from first evidence through family, meaning, support, and contradiction states");
+                    Check("Signals", WildlifeKnowledgeAdapter.LegacyWarningState(0f, 1).hasEvidence &&
+                        !WildlifeKnowledgeAdapter.LegacyWarningState(0f, 1).familyRecognized &&
+                        WildlifeKnowledgeAdapter.LegacyWarningState(0.3f, 1).familyRecognized &&
+                        !WildlifeKnowledgeAdapter.LegacyWarningState(0.3f, 1).meaningInterpreted,
+                        "Legacy warning knowledge remains qualitative without inventing a V3 meaning claim");
+                    Check("Signals", WildlifeKnowledgeAdapter.PredatorPressureKnowledgeSelfTest(),
+                        "Predator pressure progresses from a herd consequence through pattern, meaning, support, and contradiction states");
+                    Check("Signals", typeof(WildlifeKnowledgeAdapter).GetMethod("ObserveWarningCall") != null &&
+                        typeof(WildlifeKnowledgeAdapter).GetMethod("WarningObservationAlreadyApplied") != null &&
+                        typeof(WildlifeKnowledgeAdapter).GetMethod("WarningSourceInstanceId") != null,
+                        "Warning knowledge uses a stable V3 observation identity and explicit duplicate guard");
+                    Check("Signals", typeof(WildlifeKnowledgeAdapter).GetMethod("ObservePredatorPressure") != null &&
+                        typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureObservationAlreadyApplied") != null &&
+                        typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureSourceInstanceId") != null &&
+                        typeof(WildlifeKnowledgeAdapter).GetMethod("IsPredatorPressureTrace") != null,
+                        "Predator pressure uses a separate stable V3 observation identity and duplicate guard");
+                    Check("Signals", typeof(WildlifeSignalObservationPresentation).GetField("warningKnowledgeSubmitted") != null &&
+                        typeof(WildlifeSignalCultureMapComponent).GetProperty("WarningKnowledgeSources") != null,
+                        "Warning processing markers are retained on existing signal presentation owners");
+                    Check("Signals", typeof(WildlifeSignalObservationPresentation).GetField("predatorPressureSubmitted") != null &&
+                        typeof(WildlifeSignalObservationPresentation).GetField("predatorPressureSourceInstanceId") != null &&
+                        typeof(WildlifeSignalCultureMapComponent).GetMethod("ColonyPredatorPressure") != null,
+                        "Predator pressure markers and qualitative colony projections remain on existing signal owners");
+                    Check("Signals", typeof(WildlifeSignalTrace).GetField("developerScenario") != null &&
+                        !WildlifeKnowledgeAdapter.IsPredatorPressureTrace(new WildlifeSignalTrace
+                        {
+                            kind = WildlifeSignalKind.Alarm,
+                            hasSubject = true,
+                            developerScenario = true
+                        }),
+                        "Developer scenarios cannot become ecological pressure evidence");
+                    Check("Signals", signals != null && signals.WarningKnowledgeSources.Distinct().Count() ==
+                        signals.WarningKnowledgeSources.Count,
+                        "Warning source identity ledger remains duplicate-free after load normalization");
+                    Check("Signals", signals != null && signals.RecentSignals.Where(trace =>
+                        WildlifeSignalCultureMapComponent.IsWarningCall(trace.kind)).All(trace =>
+                        trace.playerFacingDescription.NullOrEmpty() ||
+                        !trace.playerFacingDescription.Contains("human-danger")),
+                        "Warning projections do not expose hidden call identity in normal descriptions");
+                    Check("Signals", signals != null && signals.RecentSignals.Where(trace =>
+                        WildlifeKnowledgeAdapter.IsPredatorPressureTrace(trace)).All(trace =>
+                        trace.playerFacingDescription.NullOrEmpty() ||
+                        !trace.playerFacingDescription.Contains("predator")),
+                        "Predator pressure remains ambiguous before its claim is supported");
                     Check("Signals", WildlifeSignalPresentation.SelfTest(),
                         "Signal descriptions use threshold-safe grammar and animal references");
                     Check("Signals", signals != null && signals.RecentSignals.All(trace => trace.playerFacingTier >= 0 &&
@@ -753,6 +799,39 @@ namespace Herds
                         "Living Atlas derives bounded species activity state from the ecology snapshot");
                     Check("Journal", typeof(WildlifeEcologySnapshotMapComponent).GetMethod("DebugOverviewLines") != null,
                         "Living Atlas exposes bounded bridge diagnostics");
+                    Check("Journal", typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureStateFor") != null &&
+                        typeof(WildlifeSignalCultureMapComponent).GetMethod("ColonyPredatorPressure") != null,
+                        "Region and Knowledge hubs can query qualitative predator-pressure state without owning it");
+                    Window_WildlifeJournal defaultJournal = new Window_WildlifeJournal(map);
+                    object defaultPage = AccessTools.Field(typeof(Window_WildlifeJournal), "page")?.GetValue(defaultJournal);
+                    Check("Journal", defaultPage is WildlifeJournalPage &&
+                        (WildlifeJournalPage)defaultPage == WildlifeJournalPage.FieldLog,
+                        "Journal opens to the Field Log by default");
+                    Check("Journal", (int)WildlifeJournalPage.FieldGuide == 0 &&
+                        (int)WildlifeJournalPage.LivingAtlas == 1 &&
+                        (int)WildlifeJournalPage.Signals == 2 &&
+                        (int)WildlifeJournalPage.Investigations == 3 &&
+                        (int)WildlifeJournalPage.Expeditions == 4 &&
+                        (int)WildlifeJournalPage.Stories == 5 &&
+                        (int)WildlifeJournalPage.FieldLog == 6 &&
+                        Window_WildlifeJournal.TopLevelPagesForTesting().SequenceEqual(new[]
+                        {
+                            WildlifeJournalPage.FieldLog,
+                            WildlifeJournalPage.Knowledge,
+                            WildlifeJournalPage.Region,
+                            WildlifeJournalPage.Chronicle
+                        }),
+                        "Journal preserves legacy page values and exposes four top-level hubs");
+                    WildlifeJournalPage[] journalPages =
+                    {
+                        WildlifeJournalPage.FieldGuide, WildlifeJournalPage.LivingAtlas,
+                        WildlifeJournalPage.Signals, WildlifeJournalPage.Investigations,
+                        WildlifeJournalPage.Expeditions, WildlifeJournalPage.Stories,
+                        WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
+                        WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle
+                    };
+                    Check("Journal", journalPages.All(value => new Window_WildlifeJournal(map, value) != null),
+                        "Journal constructors retain direct page deep links");
                     WildlifeMenuEntry signalEntry = WildlifeMenuRegistry.VisibleEntriesForTesting()
                         .FirstOrDefault(entry => entry.id == "wildlife.signals");
                     Check("Journal", signalEntry == null &&
@@ -941,6 +1020,13 @@ namespace Herds
                         typeof(Window_WildlifeFieldJournal).GetConstructor(new[]
                         { typeof(Map), typeof(int), typeof(int) }) != null,
                         "Colony Story letters can reopen Folklore at a saved story tick");
+                    Check("UI", typeof(Window_WildlifeTrail).GetConstructor(new[]
+                            { typeof(Map), typeof(WildlifeTrailLead) }) != null &&
+                        typeof(Window_WildlifeTrailBoard).GetConstructor(new[] { typeof(Map) }) != null &&
+                        typeof(Window_WildlifeLandscape).GetConstructor(new[] { typeof(Map) }) != null &&
+                        typeof(Window_RegionalWildlife).GetConstructor(new[] { typeof(Map) }) != null &&
+                        typeof(Window_WildlifeExpeditions).GetConstructor(new[] { typeof(Map) }) != null,
+                        "Journal detail destinations retain trail, region, landscape, and expedition constructors");
                     Check("UI", typeof(Window_WildlifeSignals).GetConstructor(new[]
                         {
                             typeof(Map), typeof(Pawn), typeof(ThingDef),
@@ -954,7 +1040,7 @@ namespace Herds
                         "Focus actions share menu-closing target navigation");
                     Check("UI", wildlifeMenu.FirstOrDefault()?.id == "wildlife.overview" &&
                         wildlifeMenu.First().order == WildlifeMenuRegistry.OverviewOrder,
-                        "Wildlife Overview is the first shared Wildlife menu button");
+                         "Wildlife Journal is the first shared Wildlife menu button");
                     bool horticultureActive = ModsConfig.IsActive("lan.horticulture.novelseeds");
                     MainButtonDef cultivarRegistry =
                         DefDatabase<MainButtonDef>.GetNamedSilentFail("HNS_CultivarRegistry");
@@ -971,7 +1057,7 @@ namespace Herds
                         (!aquacultureActive || aquacultureJournal?.tabWindowClass?.FullName ==
                             "AquacultureFishing.MainTabWindow_AquacultureJournal"),
                         "Optional Aquaculture button reuses the existing Fish Journal");
-                    List<string> expectedSharedButtons = new List<string> { "Wildlife Overview" };
+                    List<string> expectedSharedButtons = new List<string> { "Wildlife Journal" };
                     if (horticultureActive) expectedSharedButtons.Add("Horticulture");
                     if (aquacultureActive) expectedSharedButtons.Add("Aquaculture");
                     Check("UI", wildlifeMenu.Take(expectedSharedButtons.Count)

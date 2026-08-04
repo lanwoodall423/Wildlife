@@ -176,7 +176,7 @@ namespace Herds
             if (mysteries.Count > 12) mysteries.RemoveRange(12, mysteries.Count - 12);
             CreateInitialSign(mystery);
             Find.LetterStack.ReceiveLetter("A Wildlife Mystery", mystery.anomaly +
-                "\n\nEvidence has been added to the Wildlife Field Journal.",
+                "\n\nEvidence has been added to the Wildlife Journal Field Log.",
                 LetterDefOf.NeutralEvent, mystery.animal?.Spawned == true ? (LookTargets)mystery.animal : null);
             WildlifeExperience.Record("Wildlife Mystery", mystery.anomaly, mystery.animal);
             if (WildlifeTestLog.Enabled) WildlifeTestLog.Write("MysteryStarted",
@@ -330,7 +330,7 @@ namespace Herds
             {
                 mystery.solvedTick = Find.TickManager.TicksGame;
                 Find.LetterStack.ReceiveLetter("Wildlife Mystery Solved", mystery.title + "\n\n" +
-                    mystery.explanation + "\n\nChoose a response in the Wildlife Field Journal.",
+                    mystery.explanation + "\n\nChoose a response in the Wildlife Journal Field Log.",
                     LetterDefOf.PositiveEvent, mystery.animal?.Spawned == true ? (LookTargets)mystery.animal : null);
                 WildlifeExperience.Record("Wildlife Discovery", mystery.explanation, mystery.animal);
             }

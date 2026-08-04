@@ -6,8 +6,12 @@ own overview and expedition destinations; optional companion mods register their
 
 ## Invariants
 
-- Navigation order is Wildlife Overview (0), Horticulture (10), Aquaculture (20), then
+- Navigation order is Wildlife Journal (0), Horticulture (10), Aquaculture (20), then
   Expeditions (30).
+- The stable `wildlife.overview` entry opens the Journal Field Log; integrations should keep
+  using the existing ID and public `Register` signature.
+- The Journal top-level navigation is Field Log, Knowledge, Region, and Chronicle. Existing
+  detail pages remain available through contextual links and direct constructors.
 - Reserved menu height and rendered button wrapping use the same live content width.
 - Companion assemblies are never referenced by Wildlife, and companions do not reference
   the Wildlife assembly at compile time.
@@ -56,3 +60,43 @@ companion visibility, and the expected existing `MainButtonDef` window types.
   scan, and updates immediately when a grazing ground forms.
 - Per-plant growth checks iterate that bounded feature cache; they never enumerate the map's full
   thing list. With no grazing grounds, the lookup is constant time and returns zero.
+
+## Predator pressure evidence
+
+- `HerdMapComponent.UpdateDefense` and `UpdateSentinels` remain the authorities for group threat
+  detection, defense response, and truthful or false alarm production. `WildlifeSignalCulture`
+  owns the persisted trace and listener gate; no separate pressure simulation or event store is
+  introduced.
+- Eligible listeners contribute a `PredatorPressure` Knowledge Framework observation to the
+  existing population subject and `FacetPopulation` claim. Its stable identity is
+  `wildlife:predator-pressure:<map>:<trace>:<observer>` and its recipe uses unique source-instance
+  accrual. Presentation markers remain on existing signal trace presentations for save-safe retry
+  and reload deduplication.
+- The adapter owns V3 claim submission and qualitative state queries. Ecology snapshots, the
+  Knowledge and Region Journal hubs, and Field Log rows consume those projections without writing
+  Journal state. `WildlifeEventRouter` remains session-local and is not durable evidence.
+- The slice reuses existing defense and signal cadences. It adds no map-wide pressure scan or
+  persisted aggregate. Missing new fields on old saves default safely; existing warning, legacy
+  signal, group, population, and expedition records remain authoritative.
+
+## Representative signal-family boundary
+
+- The representative family is the existing animal `Alarm` call. `HerdSimulation` emits it through
+  `WildlifeSignalCultureMapComponent.NotifyAnimalSignal`; `Broadcast` persists the trace;
+  `TeachColonists` gates eligible listeners by signal proximity or manned observation-post
+  influence; and `VerifyActiveSignals` records the observable response after the existing delay.
+- Eligible warning observations use `WildlifeKnowledgeAdapter.ObserveWarningCall` on the map/species
+  dialect subject, `FacetSignals`, and the existing `signal-meaning` claim. The first claim remains
+  an unfamiliar warning record, repeated trace identities establish family recognition, later
+  observations can interpret meaning, and non-contradictory understood evidence can support a
+  cautious prediction. Same-trace colony/witness copies are counted as one equivalent observation.
+- `HuntingKnowledge` remains a loadable legacy compatibility view. If an old save has signal
+  understanding but no V3 claim, the signal component supplies a qualitative legacy projection;
+  it does not fabricate a V3 meaning claim or write new evidence.
+- `WildlifeSignalTrace` and its existing observer presentations remain the persisted signal and
+  processing owners. Stable source identities, claim provenance, presentation markers, and the
+  existing history/presentation caps prevent replay after reload. Developer scenarios are marked
+  on the trace and cannot become ecological pressure evidence.
+- Normal signal detail, Field Log, Knowledge, Region, and Ecology Snapshot surfaces use qualitative
+  warning language. Hidden cause, trace identity, listener processing, claim provenance, and exact
+  response diagnostics remain in developer-only bridge traces.
