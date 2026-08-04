@@ -42,6 +42,7 @@ namespace Herds
             public bool cleared;
             public bool allClearExcluded;
             public bool normalizationIdempotent;
+            public bool scribeRoundTrip;
             public bool uiNonMutating;
             public bool warningPathPreserved;
             public bool deterrentRoute;
@@ -50,11 +51,15 @@ namespace Herds
 
         public static string ReportPath => Path.Combine(GenFilePaths.SaveDataFolderPath, FileName);
 
-        private static PawnKindDef TestAnimalKind(bool predator)
+        private static PawnKindDef TestAnimalKind(bool predator, Map map,
+            WildlifeSignalCultureMapComponent signals)
         {
-            return DefDatabase<PawnKindDef>.AllDefsListForReading.FirstOrDefault(value =>
-                value?.race?.race?.Animal == true &&
-                WildlifeSpeciesClassification.IsPredator(value.race) == predator);
+            return DefDatabase<PawnKindDef>.AllDefsListForReading
+                .Where(value => value?.race?.race?.Animal == true &&
+                    WildlifeSpeciesClassification.IsPredator(value.race) == predator &&
+                    (!predator || value.race.race.Humanlike != true))
+                .OrderBy(value => signals?.ColonyPredatorPressure(value.race)?.claimObservationCount ?? 0)
+                .FirstOrDefault(value => (signals?.ColonyPredatorPressure(value.race)?.claimObservationCount ?? 0) == 0);
         }
 
         private static bool TryTestCell(Map map, IntVec3 origin, float minDistance, float maxDistance,
@@ -86,13 +91,13 @@ namespace Herds
 
         private static int MaxTraceId(WildlifeSignalCultureMapComponent signals)
         {
-            return signals?.RecentSignals?.Select(value => value?.traceId ?? 0).DefaultIfEmpty(0).Max() ?? 0;
+            return (signals?.RecentSignals?.Select(value => value?.traceId ?? -1).DefaultIfEmpty(-1).Max() ?? -1) + 1;
         }
 
         private static WildlifeSignalTrace NewTrace(WildlifeSignalCultureMapComponent signals, int previousId,
             WildlifeSignalKind kind)
         {
-            return signals?.RecentSignals?.FirstOrDefault(value => value != null && value.traceId > previousId &&
+            return signals?.RecentSignals?.FirstOrDefault(value => value != null && value.traceId >= previousId &&
                 value.kind == kind);
         }
 
@@ -120,73 +125,185 @@ namespace Herds
             catch { return false; }
         }
 
-        private static void RemoveTestSignalState(WildlifeSignalCultureMapComponent signals,
-            HashSet<int> traceIds)
+        private static MethodInfo ScribeLookMethod()
         {
-            if (signals == null || traceIds == null || traceIds.Count == 0) return;
-            foreach (string fieldName in new[] { "signalHistory", "activeSignals" })
-            {
-                FieldInfo field = typeof(WildlifeSignalCultureMapComponent).GetField(fieldName,
-                    BindingFlags.Instance | BindingFlags.NonPublic);
-                if (!(field?.GetValue(signals) is System.Collections.IList list)) continue;
-                for (int i = list.Count - 1; i >= 0; i--)
-                {
-                    FieldInfo traceIdField = list[i]?.GetType().GetField("traceId");
-                    if (traceIdField != null && traceIds.Contains((int)traceIdField.GetValue(list[i]))) list.RemoveAt(i);
-                }
-            }
-            FieldInfo sourceField = typeof(WildlifeSignalCultureMapComponent).GetField("warningKnowledgeSources",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-            if (sourceField?.GetValue(signals) is System.Collections.IList sources)
-                for (int i = sources.Count - 1; i >= 0; i--)
-                    if (traceIds.Any(id => sources[i]?.ToString().Contains(":" + id + ":") == true)) sources.RemoveAt(i);
+            return typeof(Scribe_Deep).GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .Where(method => method.Name == "Look" && method.IsGenericMethodDefinition)
+                .Where(method => method.GetGenericArguments().Length == 1)
+                .Where(method => method.GetParameters().Length == 3)
+                .FirstOrDefault();
         }
 
-        private static void RemoveTestKnowledgeState(Map map, ThingDef species, HashSet<string> sourceIds)
+        private static object ScribeLook(Type type, object value, string label, params object[] ctorArgs)
         {
-            if (map == null || species == null || sourceIds == null || sourceIds.Count == 0) return;
-            object component = Type.GetType("KnowledgeFramework.GameComponent_KnowledgeFramework, KnowledgeFramework")?
-                .GetProperty("Current", BindingFlags.Static | BindingFlags.Public)?.GetValue(null, null);
-            if (component == null) return;
-            Type componentType = component.GetType();
-            string subjectId = WildlifeKnowledgeAdapter.PopulationSubjectId(map, species);
-            FieldInfo claimsField = componentType.GetField("claimsV3", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (claimsField?.GetValue(component) is System.Collections.IList claims)
-                for (int i = claims.Count - 1; i >= 0; i--)
-                {
-                    object claim = claims[i];
-                    if (claim == null) continue;
-                    FieldInfo subjectField = claim.GetType().GetField("subjectId");
-                    FieldInfo measurementsField = claim.GetType().GetField("measurements");
-                    if (subjectField?.GetValue(claim) as string != subjectId) continue;
-                    if (measurementsField?.GetValue(claim) is System.Collections.IList measurements)
-                        for (int j = measurements.Count - 1; j >= 0; j--)
-                        {
-                            FieldInfo sourceField = measurements[j]?.GetType().GetField("sourceInstanceId");
-                            if (sourceIds.Contains(sourceField?.GetValue(measurements[j]) as string)) measurements.RemoveAt(j);
-                        }
-                    if (measurementsField?.GetValue(claim) is System.Collections.IList remaining && remaining.Count == 0)
-                        claims.RemoveAt(i);
-                }
-            foreach (string fieldName in new[] { "contextFacetsV3", "accrualV3" })
+            MethodInfo method = ScribeLookMethod();
+            if (method == null || type == null) return null;
+            object[] arguments = { value, label, ctorArgs };
+            method.MakeGenericMethod(type).Invoke(null, arguments);
+            return arguments[0];
+        }
+
+        private static Type KnowledgeComponentType()
+        {
+            return AccessTools.TypeByName("KnowledgeFramework.GameComponent_KnowledgeFramework");
+        }
+
+        private static object CurrentKnowledgeComponent(Type type)
+        {
+            return type?.GetProperty("Current", BindingFlags.Static | BindingFlags.Public)?.GetValue(null, null);
+        }
+
+        private static bool WriteScribeFixtureState(Map map, string path, out string detail)
+        {
+            detail = "";
+            Type knowledgeType = KnowledgeComponentType();
+            object knowledge = CurrentKnowledgeComponent(knowledgeType);
+            WildlifeSignalCultureMapComponent signals = map?.GetComponent<WildlifeSignalCultureMapComponent>();
+            if (knowledge == null || signals == null || map == null) { detail = "Scribe owners unavailable"; return false; }
+            bool started = false;
+            try
             {
-                FieldInfo field = componentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-                if (!(field?.GetValue(component) is System.Collections.IList records)) continue;
-                for (int i = records.Count - 1; i >= 0; i--)
-                {
-                    object record = records[i];
-                    FieldInfo subjectField = record?.GetType().GetField("subjectId");
-                    FieldInfo sourceField = record?.GetType().GetField("sourceInstanceId");
-                    FieldInfo sourcesField = record?.GetType().GetField("sourceInstanceIds");
-                    bool subjectMatch = subjectField?.GetValue(record) as string == subjectId;
-                    bool sourceMatch = sourceIds.Contains(sourceField?.GetValue(record) as string) ||
-                        (sourcesField?.GetValue(record) is IEnumerable<string> values && values.Any(sourceIds.Contains));
-                    if (subjectMatch || sourceMatch) records.RemoveAt(i);
-                }
+                Scribe.saver.InitSaving(path, "wildlifePredatorFixture");
+                started = true;
+                ScribeLook(typeof(WildlifeSignalCultureMapComponent), signals, "signalCulture", map);
+                ScribeLook(knowledgeType, knowledge, "knowledgeFramework", Current.Game);
+                Scribe.saver.FinalizeSaving();
+                return true;
             }
-            MethodInfo rebuild = componentType.GetMethod("RebuildV3Indexes",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-            rebuild?.Invoke(component, null);
+            catch (Exception exception)
+            {
+                detail = exception.GetBaseException().Message;
+                if (started) try { Scribe.saver.FinalizeSaving(); } catch { }
+                return false;
+            }
+        }
+
+        private static bool ReadScribeFixtureState(Map map, string path, out WildlifeSignalCultureMapComponent signals,
+            out object knowledge, out Type knowledgeType, out string detail)
+        {
+            signals = null;
+            knowledge = null;
+            knowledgeType = KnowledgeComponentType();
+            detail = "";
+            try
+            {
+                Scribe.loader.InitLoading(path);
+                signals = ScribeLook(typeof(WildlifeSignalCultureMapComponent), null, "signalCulture", map)
+                    as WildlifeSignalCultureMapComponent;
+                knowledge = ScribeLook(knowledgeType, null, "knowledgeFramework", Current.Game);
+                Scribe.loader.FinalizeLoading();
+                return signals != null && knowledge != null;
+            }
+            catch (Exception exception)
+            {
+                detail = exception.GetBaseException().Message;
+                try { Scribe.loader.FinalizeLoading(); } catch { }
+                return false;
+            }
+        }
+
+        private static void RestoreScribeField(object target, object source, string fieldName)
+        {
+            if (target == null || source == null) return;
+            FieldInfo targetField = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo sourceField = source.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (targetField != null && sourceField != null) targetField.SetValue(target, sourceField.GetValue(source));
+        }
+
+        private static bool RestoreScribeFixtureState(Map map, string path, out string detail)
+        {
+            detail = "";
+            if (!ReadScribeFixtureState(map, path, out WildlifeSignalCultureMapComponent savedSignals,
+                out object savedKnowledge, out Type knowledgeType, out detail)) return false;
+            WildlifeSignalCultureMapComponent liveSignals = map?.GetComponent<WildlifeSignalCultureMapComponent>();
+            object liveKnowledge = CurrentKnowledgeComponent(knowledgeType);
+            foreach (string fieldName in new[] { "dialects", "colonistKnowledge", "predatorKnowledge", "activeSignals",
+                "signalHistory", "warningKnowledgeSources", "nextResourceSignalTick", "nextTraceId" })
+                RestoreScribeField(liveSignals, savedSignals, fieldName);
+            foreach (string fieldName in new[] { "colonyKnowledge", "pawnKnowledge", "pawnExpertise", "claimsV3",
+                "contextFacetsV3", "milestonesV3", "relationsV3", "accrualV3", "subjectOverridesV3",
+                "sharedExpertiseV3", "consumerMigrationsV3" })
+                RestoreScribeField(liveKnowledge, savedKnowledge, fieldName);
+            Type liveType = liveKnowledge?.GetType();
+            foreach (string methodName in new[] { "RebuildIndexes", "RebuildV2Indexes", "RebuildV3Indexes" })
+                liveType?.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(liveKnowledge, null);
+            return true;
+        }
+
+        private static bool ScribeRoundTripCheck(Map map, WildlifeSignalTrace expected, string eventSourceId,
+            out string detail)
+        {
+            detail = "";
+            string path = Path.Combine(GenFilePaths.SaveDataFolderPath,
+                "Wildlife-Predator-Encounter-RoundTrip-" + Guid.NewGuid().ToString("N") + ".xml");
+            try
+            {
+                if (map == null || expected == null || eventSourceId.NullOrEmpty())
+                {
+                    detail = "round-trip inputs unavailable";
+                    return false;
+                }
+                Type knowledgeType = KnowledgeComponentType();
+                object knowledge = CurrentKnowledgeComponent(knowledgeType);
+                FieldInfo claimsField = knowledgeType?.GetField("claimsV3", BindingFlags.Instance | BindingFlags.NonPublic);
+                object expectedClaim = null;
+                if (claimsField?.GetValue(knowledge) is System.Collections.IEnumerable claims)
+                    foreach (object claim in claims)
+                    {
+                        FieldInfo measurementsField = claim?.GetType().GetField("measurements");
+                        if (!(measurementsField?.GetValue(claim) is System.Collections.IEnumerable measurements)) continue;
+                        if (measurements.Cast<object>().Any(measurement =>
+                            measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string == eventSourceId))
+                        {
+                            expectedClaim = claim;
+                            break;
+                        }
+                    }
+                Pawn expectedObserver = expected.presentations.FirstOrDefault(value => value?.observer != null)?.observer;
+                if (expectedClaim == null || expectedObserver == null)
+                {
+                    detail = "round-trip claim or observer unavailable";
+                    return false;
+                }
+                Scribe.saver.InitSaving(path, "wildlifePredatorEncounterRoundTrip");
+                Pawn savedObserver = expectedObserver;
+                Scribe_References.Look(ref savedObserver, "observer");
+                ScribeLook(typeof(WildlifeSignalTrace), expected, "signalTrace");
+                ScribeLook(expectedClaim.GetType(), expectedClaim, "knowledgeClaim");
+                Scribe.saver.FinalizeSaving();
+
+                Scribe.loader.InitLoading(path);
+                Pawn loadedObserver = null;
+                Scribe_References.Look(ref loadedObserver, "observer");
+                WildlifeSignalTrace loadedTrace = ScribeLook(typeof(WildlifeSignalTrace), null, "signalTrace") as WildlifeSignalTrace;
+                object loadedClaim = ScribeLook(expectedClaim.GetType(), null, "knowledgeClaim");
+                Scribe.loader.FinalizeLoading();
+
+                bool claimSourceLoaded = false;
+                FieldInfo loadedMeasurementsField = loadedClaim?.GetType().GetField("measurements");
+                if (loadedMeasurementsField?.GetValue(loadedClaim) is System.Collections.IEnumerable loadedMeasurements)
+                    claimSourceLoaded = loadedMeasurements.Cast<object>().Any(measurement =>
+                        measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string == eventSourceId);
+                bool traceLoaded = loadedTrace != null && loadedTrace.subjectWasPredator == expected.subjectWasPredator &&
+                    loadedTrace.presentations.Any(value => value?.observer == loadedObserver &&
+                        value.predatorPressureSubmitted == true &&
+                        value.predatorPressureSourceInstanceId == eventSourceId) &&
+                    loadedTrace.presentations.Any(value => value?.predatorPressureSubmitted == true &&
+                        value.predatorPressureSourceInstanceId == eventSourceId);
+                bool alreadyApplied = WildlifeKnowledgeAdapter.PredatorPressureObservationAlreadyApplied(null,
+                    expected.species, map, expected.cell, eventSourceId);
+                detail = "trace=" + traceLoaded + " claim=" + claimSourceLoaded + " alreadyApplied=" + alreadyApplied;
+                return traceLoaded && claimSourceLoaded && alreadyApplied;
+            }
+            catch (Exception exception)
+            {
+                detail = exception.GetBaseException().Message;
+                return false;
+            }
+            finally
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { }
+            }
         }
 
         private static DeterministicPredatorPressureResult DeterministicPredatorPressureCheck(Map map)
@@ -196,23 +313,28 @@ namespace Herds
             List<Tuple<Pawn, IntVec3, Rot4>> parkedColonists = new List<Tuple<Pawn, IntVec3, Rot4>>();
             HashSet<IntVec3> used = new HashSet<IntVec3>();
             HashSet<int> traceIds = new HashSet<int>();
-            HashSet<string> sourceIds = new HashSet<string>();
             bool oldDefense = HerdsMod.Settings?.enableDefensiveBehavior == true;
             bool oldSignals = HerdsMod.Settings?.enableWildlifeSignalCulture == true;
             ThingDef preySpecies = null;
+            string initialScribePath = null;
             try
             {
                 if (map == null || HerdsMod.Settings == null) throw new InvalidOperationException("test map/settings unavailable");
                 HerdsMod.Settings.enableDefensiveBehavior = true;
                 HerdsMod.Settings.enableWildlifeSignalCulture = true;
-                foreach (Pawn pawn in map.mapPawns.FreeColonistsSpawned.ToList())
+                initialScribePath = Path.Combine(GenFilePaths.SaveDataFolderPath,
+                    "Wildlife-Predator-Encounter-Initial-" + Guid.NewGuid().ToString("N") + ".xml");
+                if (!WriteScribeFixtureState(map, initialScribePath, out string initialScribeDetail))
+                    throw new InvalidOperationException("initial Scribe snapshot failed: " + initialScribeDetail);
+                foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned.ToList())
                 {
                     if (pawn?.Spawned != true) continue;
                     parkedColonists.Add(Tuple.Create(pawn, pawn.Position, pawn.Rotation));
                     pawn.DeSpawn(DestroyMode.Vanish);
                 }
-                PawnKindDef preyKind = TestAnimalKind(false);
-                PawnKindDef predatorKind = TestAnimalKind(true);
+                WildlifeSignalCultureMapComponent existingSignals = map.GetComponent<WildlifeSignalCultureMapComponent>();
+                PawnKindDef preyKind = TestAnimalKind(false, map, existingSignals);
+                PawnKindDef predatorKind = TestAnimalKind(true, map, existingSignals);
                 if (preyKind == null || predatorKind == null) throw new InvalidOperationException("animal Def fixture unavailable");
                 preySpecies = preyKind.race;
                 if (!TryTestCell(map, map.Center, 0f, 999f, used, out IntVec3 preyCell) ||
@@ -240,9 +362,17 @@ namespace Herds
                     (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) == baselineClaimCount;
 
                 int beforeFirst = MaxTraceId(signals);
+                herds.NotifyThreat(prey, predator, 3000);
                 bool triggered = herds.DebugTriggerDefense(prey, predator, null);
                 WildlifeSignalTrace firstAlarm = NewTrace(signals, beforeFirst, WildlifeSignalKind.Alarm);
-                if (firstAlarm == null) throw new InvalidOperationException("production Alarm was not emitted");
+                if (firstAlarm == null) throw new InvalidOperationException("production Alarm was not emitted triggered=" +
+                    triggered + " herd=" + (herds.HerdFor(prey) != null) + " order=" +
+                    (herds.DefenseOrderFor(prey) != null) + " traces=" + MaxTraceId(signals) +
+                    " setting=" + HerdsMod.Settings.enableWildlifeSignalCulture + " recent=" +
+                    string.Join(",", signals.RecentSignals.Select(value => value == null ? "null" :
+                        value.traceId + ":" + value.kind)) + " prey=" + prey.def.defName +
+                    " predator=" + predator.def.defName + " humanlike=" + predator.RaceProps.Humanlike +
+                    " classified=" + WildlifeSpeciesClassification.IsPredator(predator.def));
                 traceIds.Add(firstAlarm.traceId);
                 bool firstObserved = VerifySignals(signals, firstAlarm.tick + 90);
                 int firstClaimCount = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
@@ -265,7 +395,9 @@ namespace Herds
                 result.reprocessingIdempotent = (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) == afterFirst;
                 for (int i = 0; i < firstAlarm.presentations.Count; i++)
                     if (firstAlarm.presentations[i]?.predatorPressureSourceInstanceId != null)
-                        sourceIds.Add(firstAlarm.presentations[i].predatorPressureSourceInstanceId);
+                        traceIds.Add(firstAlarm.traceId);
+                string firstEventSource = WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, firstAlarm.traceId);
+                result.scribeRoundTrip = ScribeRoundTripCheck(map, firstAlarm, firstEventSource, out string scribeDetail);
 
                 MoveTestPawn(map, colonistA, prey.Position, 4f, used);
                 MoveTestPawn(map, colonistB, prey.Position, 60f, used);
@@ -278,7 +410,7 @@ namespace Herds
                     filtered.presentations.Count == 1 && filtered.presentations[0].observer == colonistA &&
                     filtered.presentations.All(value => value.observer != colonistB);
                 if (filtered != null) foreach (WildlifeSignalObservationPresentation value in filtered.presentations)
-                    if (!value.predatorPressureSourceInstanceId.NullOrEmpty()) sourceIds.Add(value.predatorPressureSourceInstanceId);
+                    if (!value.predatorPressureSourceInstanceId.NullOrEmpty()) traceIds.Add(filtered.traceId);
 
                 MoveTestPawn(map, colonistA, prey.Position, 60f, used);
                 MoveTestPawn(map, colonistB, prey.Position, 70f, used);
@@ -325,6 +457,7 @@ namespace Herds
                     signals.WarningKnowledgeSources.Count == warningBeforeDebug;
 
                 int beforeSimulated = MaxTraceId(signals);
+                herds.NotifyThreat(prey, predator, 3000);
                 bool simulated = herds.DebugStartHunted(prey, predator);
                 WildlifeSignalTrace simulatedAlarm = NewTrace(signals, beforeSimulated, WildlifeSignalKind.Alarm);
                 if (simulatedAlarm != null) traceIds.Add(simulatedAlarm.traceId);
@@ -344,8 +477,6 @@ namespace Herds
                     if (repeated == null) throw new InvalidOperationException("repeat Alarm was not emitted");
                     traceIds.Add(repeated.traceId);
                     VerifySignals(signals, repeated.tick + 90);
-                    foreach (WildlifeSignalObservationPresentation presentation in repeated.presentations)
-                        if (!presentation.predatorPressureSourceInstanceId.NullOrEmpty()) sourceIds.Add(presentation.predatorPressureSourceInstanceId);
                 }
                 WildlifePredatorPressureKnowledgeState finalState = signals.ColonyPredatorPressure(preySpecies);
                 result.laterEncounterReinforced = (finalState?.claimObservationCount ?? 0) == claimsBeforeReinforcement + 3;
@@ -403,8 +534,8 @@ namespace Herds
                 result.deterrentRoute = selectedDeterrent || unavailableDeterrent;
                 if (selectedDeterrent) Find.DesignatorManager.Deselect();
                 result.detail = "first=" + firstClaimCount + " final=" + (finalState?.claimObservationCount ?? 0) +
-                    " event=" + firstSourceCount + " traces=" + traceIds.Count + " source=" +
-                    WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, firstAlarm.traceId);
+                    " event=" + firstSourceCount + " traces=" + traceIds.Count + " scribe=" + scribeDetail +
+                    " source=" + firstEventSource;
                 return result;
             }
             catch (Exception exception)
@@ -414,10 +545,14 @@ namespace Herds
             }
             finally
             {
-                RemoveTestSignalState(map?.GetComponent<WildlifeSignalCultureMapComponent>(), traceIds);
-                RemoveTestKnowledgeState(map, preySpecies, sourceIds);
                 for (int i = created.Count - 1; i >= 0; i--)
                     if (created[i]?.Spawned == true) created[i].Destroy(DestroyMode.Vanish);
+                if (initialScribePath != null)
+                {
+                    try { RestoreScribeFixtureState(map, initialScribePath, out _); }
+                    catch { }
+                    try { if (File.Exists(initialScribePath)) File.Delete(initialScribePath); } catch { }
+                }
                     if (HerdsMod.Settings != null)
                     {
                         HerdsMod.Settings.enableDefensiveBehavior = oldDefense;
@@ -889,28 +1024,31 @@ namespace Herds
                     Check("Signals", RegionalWildlifeMapComponent.PredatorDeterrentEffectSelfTest(),
                         "Predator Deterrents reduce predator return and migration attraction in the established calculations");
                     DeterministicPredatorPressureResult predatorFixture = DeterministicPredatorPressureCheck(map);
+                    Log.Message("[WildlifeTest][PredatorFixture] " + predatorFixture.detail);
                     Check("Signals", predatorFixture.noQualifyingThreat,
-                        "No qualifying threat produces no predator-encounter evidence");
+                        "No qualifying threat produces no predator-encounter evidence: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.genuineDefense && predatorFixture.productionClassification,
-                        "A genuine predator drives UpdateDefense, production classification, Alarm, and response verification");
+                        "A genuine predator drives UpdateDefense, production classification, Alarm, and response verification: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.sharedPresentations && predatorFixture.oneColonyEvent,
-                        "Two eligible observers receive one shared colony encounter event");
+                        "Two eligible observers receive one shared colony encounter event: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.firstEvidenceAmbiguous && predatorFixture.localPredictionBounded,
-                        "First evidence is ambiguous and later local encounters progress to a bounded prediction");
+                        "First evidence is ambiguous and later local encounters progress to a bounded prediction: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.reprocessingIdempotent && predatorFixture.laterEncounterReinforced,
-                        "Repeated processing is idempotent and later distinct encounters reinforce knowledge");
+                        "Repeated processing is idempotent and later distinct encounters reinforce knowledge: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.hostileNonPredatorExcluded && predatorFixture.unobservedExcluded &&
                         predatorFixture.ineligibleObserverExcluded,
-                        "Hostile non-predators and unobserved or ineligible listeners cannot create predator evidence");
+                        "Hostile non-predators and unobserved or ineligible listeners cannot create predator evidence: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.fabricatedExcluded && predatorFixture.simulatedPredatorEligible,
-                        "Fabricated debug signals are excluded while naturally simulated predator actors remain eligible");
+                        "Fabricated debug signals are excluded while naturally simulated predator actors remain eligible: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.cleared && predatorFixture.allClearExcluded,
-                        "Threat clearing emits AllClear without creating warning or predator-encounter evidence");
+                        "Threat clearing emits AllClear without creating warning or predator-encounter evidence: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.normalizationIdempotent && predatorFixture.uiNonMutating &&
                         predatorFixture.warningPathPreserved,
-                        "Save normalization, Journal/detail construction, and warning compatibility remain non-mutating");
+                        "Save normalization, Journal/detail construction, and warning compatibility remain non-mutating: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.scribeRoundTrip,
+                        "Signal traces and Knowledge Framework claims round-trip through Scribe without replay: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.deterrentRoute,
-                        "Supported local encounters expose Predator Deterrent construction or a qualitative unavailable reason");
+                        "Supported local encounters expose Predator Deterrent construction or a qualitative unavailable reason: " + predatorFixture.detail);
                     string deterrentDetail = "regional ecology component unavailable";
                     RegionalWildlifeMapComponent regionalForTest = map.GetComponent<RegionalWildlifeMapComponent>();
                     bool deterrentResult = regionalForTest != null &&

@@ -512,6 +512,7 @@ namespace Herds
                 float without = MigrationPressure(record);
 
                 temporary = ThingMaker.MakeThing(deterrentDef);
+                temporary.SetFaction(Faction.OfPlayer);
                 IntVec3 cell = CellFinder.RandomClosewalkCellNear(map.Center, map, 8);
                 GenSpawn.Spawn(temporary, cell, map, Rot4.North);
                 RefreshToolCounts();
