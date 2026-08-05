@@ -46,7 +46,155 @@ namespace Herds
             public bool uiNonMutating;
             public bool warningPathPreserved;
             public bool deterrentRoute;
+            public bool deterrentEffect;
+            public bool isolatedCleanup;
+            public bool activeStateUntouched;
             public string detail;
+        }
+
+        private sealed class IsolatedMapFixture
+        {
+            public Game previousGame;
+            public Game game;
+            public Map map;
+            public MapParent parent;
+
+            public static bool TryCreate(Map activeMap, out IsolatedMapFixture fixture, out string detail)
+            {
+                fixture = null;
+                detail = "";
+                if (activeMap == null || Current.Game == null)
+                {
+                    detail = "active game/map unavailable";
+                    return false;
+                }
+
+                IsolatedMapFixture candidate = new IsolatedMapFixture
+                {
+                    previousGame = Current.Game,
+                    game = new Game()
+                };
+                string phase = "constructing isolated game";
+                try
+                {
+                    phase = "sharing world";
+                    candidate.game.World = candidate.previousGame.World;
+                    FieldInfo infoField = typeof(Game).GetField("info",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    infoField?.SetValue(candidate.game, new GameInfo
+                    {
+                        startingTile = activeMap.Tile,
+                        startingAndOptionalPawns = new List<Pawn>()
+                    });
+                    candidate.game.InitData = new GameInitData
+                    {
+                        startingTile = activeMap.Tile,
+                        mapGeneratorDef = MapGeneratorDefOf.Base_Player,
+                        mapSize = 80,
+                        startingAndOptionalPawns = new List<Pawn>(),
+                        startingPawnCount = 0,
+                        playerFaction = Faction.OfPlayer
+                    };
+                    FieldInfo tickField = typeof(Game).GetField("tickManager",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    tickField?.SetValue(candidate.game, tickField.GetValue(candidate.previousGame));
+                    FieldInfo storytellerField = typeof(Game).GetField("storyteller",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    storytellerField?.SetValue(candidate.game, storytellerField.GetValue(candidate.previousGame));
+                    phase = "constructing map parent";
+                    candidate.parent = WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.PocketMap) as MapParent;
+                    if (candidate.parent == null)
+                        throw new InvalidOperationException("Pocket MapParent unavailable");
+                    if (candidate.parent is PocketMapParent pocketParent)
+                        pocketParent.sourceMap = activeMap;
+                    PlanetTile generationTile = activeMap.Tile;
+                    if (Find.WorldGrid[generationTile]?.PrimaryBiome == null)
+                        for (int tileId = 0; tileId < Find.WorldGrid.TilesCount; tileId++)
+                            if (Find.WorldGrid[(PlanetTile)tileId]?.PrimaryBiome != null)
+                            {
+                                generationTile = (PlanetTile)tileId;
+                                break;
+                            }
+                    candidate.parent.Tile = generationTile;
+                    candidate.parent.SetFaction(Faction.OfPlayer);
+                    phase = "constructing map";
+                    Current.Game = candidate.game;
+                    candidate.map = MapGenerator.GenerateMap(new IntVec3(80, 1, 80), candidate.parent,
+                        MapGeneratorDefOf.Encounter, null, generated =>
+                        {
+                            FieldInfo pocketTileField = typeof(Map).GetField("pocketTileInfo",
+                                BindingFlags.Instance | BindingFlags.NonPublic);
+                            Tile isolatedTile = new Tile(generationTile)
+                            ;
+                            typeof(Tile).GetField("biome", BindingFlags.Instance | BindingFlags.NonPublic)
+                                ?.SetValue(isolatedTile, candidate.parent.Biome ?? activeMap.Biome);
+                            pocketTileField?.SetValue(generated, isolatedTile);
+                        }, true, false);
+                    if (candidate.map == null)
+                        throw new InvalidOperationException("MapGenerator returned no map");
+                    foreach (IntVec3 cell in candidate.map.AllCells)
+                        candidate.map.terrainGrid.SetTerrain(cell, TerrainDefOf.Sand);
+                    Type componentsUtility = AccessTools.TypeByName("Verse.MapComponentsUtility");
+                    AccessTools.Method(componentsUtility, "MapGenerated")?.Invoke(null, new object[] { candidate.map });
+                    phase = "registering generated map";
+                    candidate.game.AddMap(candidate.map);
+                    candidate.game.CurrentMap = candidate.map;
+                    phase = "initializing required components";
+                    if (candidate.map.GetComponent<HerdMapComponent>() == null ||
+                        candidate.map.GetComponent<WildlifeSignalCultureMapComponent>() == null ||
+                        candidate.map.GetComponent<RegionalWildlifeMapComponent>() == null)
+                        throw new InvalidOperationException("isolated map components unavailable");
+                    fixture = candidate;
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    detail = "isolated map creation failed during " + phase + ": " + exception;
+                    Map generatedMap = typeof(MapGenerator).GetField("mapBeingGenerated",
+                        BindingFlags.Static | BindingFlags.NonPublic)?.GetValue(null) as Map;
+                    if (generatedMap != null)
+                        detail += " generatedBiome=" + (generatedMap.Biome?.defName ?? "null") +
+                            " tile=" + generatedMap.Tile;
+                    detail += " activeTile=" + activeMap.Tile +
+                        " activeBiome=" + (activeMap.Biome?.defName ?? "null") +
+                        " parentBiome=" + (candidate.parent?.Biome?.defName ?? "null") +
+                        " parentDef=" + (candidate.parent?.def?.defName ?? "null");
+                    Log.Error("[WildlifeTest][IsolatedMap] " + detail);
+                    candidate.Cleanup(out string cleanupDetail);
+                    if (!cleanupDetail.NullOrEmpty()) detail += "; cleanup: " + cleanupDetail;
+                    return false;
+                }
+            }
+
+            public bool Cleanup(out string detail)
+            {
+                detail = "";
+                Exception cleanupException = null;
+                try
+                {
+                    if (map != null && game != null && game.Maps.Contains(map))
+                        game.DeinitAndRemoveMap(map, true);
+                    else if (map != null)
+                        AccessTools.Method(typeof(Map), "Finalize")?.Invoke(map, null);
+                }
+                catch (Exception exception)
+                {
+                    cleanupException = exception.GetBaseException();
+                }
+                finally
+                {
+                    Current.Game = previousGame;
+                }
+                if (cleanupException != null)
+                {
+                    detail = cleanupException.GetType().Name + ": " + cleanupException.Message;
+                    return false;
+                }
+                map = null;
+                game = null;
+                parent = null;
+                return true;
+            }
         }
 
         public static string ReportPath => Path.Combine(GenFilePaths.SaveDataFolderPath, FileName);
@@ -125,6 +273,18 @@ namespace Herds
             catch { return false; }
         }
 
+        private static string GameFingerprint(Game game)
+        {
+            if (game?.Maps == null) return "";
+            return string.Join("|", game.Maps.OrderBy(value => value?.uniqueID ?? -1).Select(map =>
+                (map?.uniqueID ?? -1) + ":" + string.Join(",", (map?.mapPawns?.AllPawnsSpawned ?? new List<Pawn>())
+                    .OrderBy(value => value?.thingIDNumber ?? -1)
+                    .Select(value => (value?.thingIDNumber ?? -1) + "/" + value?.def?.defName + "/" + value?.Position)) + ":" +
+                string.Join(",", (map?.listerThings?.AllThings ?? new List<Thing>())
+                    .OrderBy(value => value?.thingIDNumber ?? -1)
+                    .Select(value => (value?.thingIDNumber ?? -1) + "/" + value?.def?.defName + "/" + value?.Position))));
+        }
+
         private static MethodInfo ScribeLookMethod()
         {
             return typeof(Scribe_Deep).GetMethods(BindingFlags.Static | BindingFlags.Public)
@@ -153,89 +313,13 @@ namespace Herds
             return type?.GetProperty("Current", BindingFlags.Static | BindingFlags.Public)?.GetValue(null, null);
         }
 
-        private static bool WriteScribeFixtureState(Map map, string path, out string detail)
-        {
-            detail = "";
-            Type knowledgeType = KnowledgeComponentType();
-            object knowledge = CurrentKnowledgeComponent(knowledgeType);
-            WildlifeSignalCultureMapComponent signals = map?.GetComponent<WildlifeSignalCultureMapComponent>();
-            if (knowledge == null || signals == null || map == null) { detail = "Scribe owners unavailable"; return false; }
-            bool started = false;
-            try
-            {
-                Scribe.saver.InitSaving(path, "wildlifePredatorFixture");
-                started = true;
-                ScribeLook(typeof(WildlifeSignalCultureMapComponent), signals, "signalCulture", map);
-                ScribeLook(knowledgeType, knowledge, "knowledgeFramework", Current.Game);
-                Scribe.saver.FinalizeSaving();
-                return true;
-            }
-            catch (Exception exception)
-            {
-                detail = exception.GetBaseException().Message;
-                if (started) try { Scribe.saver.FinalizeSaving(); } catch { }
-                return false;
-            }
-        }
-
-        private static bool ReadScribeFixtureState(Map map, string path, out WildlifeSignalCultureMapComponent signals,
-            out object knowledge, out Type knowledgeType, out string detail)
-        {
-            signals = null;
-            knowledge = null;
-            knowledgeType = KnowledgeComponentType();
-            detail = "";
-            try
-            {
-                Scribe.loader.InitLoading(path);
-                signals = ScribeLook(typeof(WildlifeSignalCultureMapComponent), null, "signalCulture", map)
-                    as WildlifeSignalCultureMapComponent;
-                knowledge = ScribeLook(knowledgeType, null, "knowledgeFramework", Current.Game);
-                Scribe.loader.FinalizeLoading();
-                return signals != null && knowledge != null;
-            }
-            catch (Exception exception)
-            {
-                detail = exception.GetBaseException().Message;
-                try { Scribe.loader.FinalizeLoading(); } catch { }
-                return false;
-            }
-        }
-
-        private static void RestoreScribeField(object target, object source, string fieldName)
-        {
-            if (target == null || source == null) return;
-            FieldInfo targetField = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            FieldInfo sourceField = source.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (targetField != null && sourceField != null) targetField.SetValue(target, sourceField.GetValue(source));
-        }
-
-        private static bool RestoreScribeFixtureState(Map map, string path, out string detail)
-        {
-            detail = "";
-            if (!ReadScribeFixtureState(map, path, out WildlifeSignalCultureMapComponent savedSignals,
-                out object savedKnowledge, out Type knowledgeType, out detail)) return false;
-            WildlifeSignalCultureMapComponent liveSignals = map?.GetComponent<WildlifeSignalCultureMapComponent>();
-            object liveKnowledge = CurrentKnowledgeComponent(knowledgeType);
-            foreach (string fieldName in new[] { "dialects", "colonistKnowledge", "predatorKnowledge", "activeSignals",
-                "signalHistory", "warningKnowledgeSources", "nextResourceSignalTick", "nextTraceId" })
-                RestoreScribeField(liveSignals, savedSignals, fieldName);
-            foreach (string fieldName in new[] { "colonyKnowledge", "pawnKnowledge", "pawnExpertise", "claimsV3",
-                "contextFacetsV3", "milestonesV3", "relationsV3", "accrualV3", "subjectOverridesV3",
-                "sharedExpertiseV3", "consumerMigrationsV3" })
-                RestoreScribeField(liveKnowledge, savedKnowledge, fieldName);
-            Type liveType = liveKnowledge?.GetType();
-            foreach (string methodName in new[] { "RebuildIndexes", "RebuildV2Indexes", "RebuildV3Indexes" })
-                liveType?.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)?.Invoke(liveKnowledge, null);
-            return true;
-        }
-
         private static bool ScribeRoundTripCheck(Map map, WildlifeSignalTrace expected, string eventSourceId,
             out string detail)
         {
             detail = "";
             string path = Path.Combine(GenFilePaths.SaveDataFolderPath,
                 "Wildlife-Predator-Encounter-RoundTrip-" + Guid.NewGuid().ToString("N") + ".xml");
+            string missingFieldPath = path + ".missing";
             try
             {
                 if (map == null || expected == null || eventSourceId.NullOrEmpty())
@@ -265,35 +349,83 @@ namespace Herds
                     detail = "round-trip claim or observer unavailable";
                     return false;
                 }
+
+                WildlifeSignalCultureMapComponent liveSignals = map.GetComponent<WildlifeSignalCultureMapComponent>();
+                if (liveSignals == null || knowledge == null)
+                {
+                    detail = "authoritative Scribe owners unavailable";
+                    return false;
+                }
+                List<Pawn> observers = expected.presentations.Where(value => value?.observer != null)
+                    .Select(value => value.observer).Distinct().ToList();
                 Scribe.saver.InitSaving(path, "wildlifePredatorEncounterRoundTrip");
-                Pawn savedObserver = expectedObserver;
-                Scribe_References.Look(ref savedObserver, "observer");
-                ScribeLook(typeof(WildlifeSignalTrace), expected, "signalTrace");
-                ScribeLook(expectedClaim.GetType(), expectedClaim, "knowledgeClaim");
+                for (int i = 0; i < observers.Count; i++)
+                {
+                    Pawn savedObserver = observers[i];
+                    Scribe_References.Look(ref savedObserver, "observer" + i);
+                }
+                ScribeLook(typeof(WildlifeSignalCultureMapComponent), liveSignals, "signalCulture", map);
+                ScribeLook(knowledgeType, knowledge, "knowledgeFramework", Current.Game);
                 Scribe.saver.FinalizeSaving();
 
                 Scribe.loader.InitLoading(path);
-                Pawn loadedObserver = null;
-                Scribe_References.Look(ref loadedObserver, "observer");
-                WildlifeSignalTrace loadedTrace = ScribeLook(typeof(WildlifeSignalTrace), null, "signalTrace") as WildlifeSignalTrace;
-                object loadedClaim = ScribeLook(expectedClaim.GetType(), null, "knowledgeClaim");
+                for (int i = 0; i < observers.Count; i++)
+                {
+                    Pawn loadedObserver = null;
+                    Scribe_References.Look(ref loadedObserver, "observer" + i);
+                }
+                WildlifeSignalCultureMapComponent loadedSignals = ScribeLook(
+                    typeof(WildlifeSignalCultureMapComponent), null, "signalCulture", map)
+                    as WildlifeSignalCultureMapComponent;
+                object loadedKnowledge = ScribeLook(knowledgeType, null, "knowledgeFramework", Current.Game);
                 Scribe.loader.FinalizeLoading();
 
+                WildlifeSignalTrace loadedTrace = loadedSignals?.RecentSignals?.FirstOrDefault(value =>
+                    value?.traceId == expected.traceId);
                 bool claimSourceLoaded = false;
-                FieldInfo loadedMeasurementsField = loadedClaim?.GetType().GetField("measurements");
-                if (loadedMeasurementsField?.GetValue(loadedClaim) is System.Collections.IEnumerable loadedMeasurements)
-                    claimSourceLoaded = loadedMeasurements.Cast<object>().Any(measurement =>
-                        measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string == eventSourceId);
+                FieldInfo loadedClaimsField = loadedKnowledge?.GetType().GetField("claimsV3",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                if (loadedClaimsField?.GetValue(loadedKnowledge) is System.Collections.IEnumerable loadedClaims)
+                    foreach (object claim in loadedClaims)
+                    {
+                        if (!(claim?.GetType().GetField("measurements")?.GetValue(claim)
+                            is System.Collections.IEnumerable measurements)) continue;
+                        if (measurements.Cast<object>().Any(measurement =>
+                            measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string == eventSourceId))
+                        {
+                            claimSourceLoaded = true;
+                            break;
+                        }
+                    }
                 bool traceLoaded = loadedTrace != null && loadedTrace.subjectWasPredator == expected.subjectWasPredator &&
-                    loadedTrace.presentations.Any(value => value?.observer == loadedObserver &&
-                        value.predatorPressureSubmitted == true &&
-                        value.predatorPressureSourceInstanceId == eventSourceId) &&
+                    loadedTrace.developerScenario == expected.developerScenario &&
                     loadedTrace.presentations.Any(value => value?.predatorPressureSubmitted == true &&
-                        value.predatorPressureSourceInstanceId == eventSourceId);
+                        value.predatorPressureSourceInstanceId == eventSourceId) &&
+                    loadedTrace.presentations.Count(value => value?.predatorPressureSourceInstanceId == eventSourceId) ==
+                    expected.presentations.Count(value => value?.predatorPressureSourceInstanceId == eventSourceId);
                 bool alreadyApplied = WildlifeKnowledgeAdapter.PredatorPressureObservationAlreadyApplied(null,
                     expected.species, map, expected.cell, eventSourceId);
-                detail = "trace=" + traceLoaded + " claim=" + claimSourceLoaded + " alreadyApplied=" + alreadyApplied;
-                return traceLoaded && claimSourceLoaded && alreadyApplied;
+
+                string serialized = File.ReadAllText(path);
+                File.WriteAllText(missingFieldPath, serialized.Replace("<subjectWasPredator>True</subjectWasPredator>", "")
+                    .Replace("<subjectWasPredator>False</subjectWasPredator>", ""));
+                Scribe.loader.InitLoading(missingFieldPath);
+                for (int i = 0; i < observers.Count; i++)
+                {
+                    Pawn missingObserver = null;
+                    Scribe_References.Look(ref missingObserver, "observer" + i);
+                }
+                WildlifeSignalCultureMapComponent missingSignals = ScribeLook(
+                    typeof(WildlifeSignalCultureMapComponent), null, "signalCulture", map)
+                    as WildlifeSignalCultureMapComponent;
+                ScribeLook(knowledgeType, null, "knowledgeFramework", Current.Game);
+                Scribe.loader.FinalizeLoading();
+                WildlifeSignalTrace missingTrace = missingSignals?.RecentSignals?.FirstOrDefault(value =>
+                    value?.traceId == expected.traceId);
+                bool missingDefaultsFalse = missingTrace != null && !missingTrace.subjectWasPredator;
+                detail = "trace=" + traceLoaded + " claim=" + claimSourceLoaded +
+                    " alreadyApplied=" + alreadyApplied + " missingDefaultsFalse=" + missingDefaultsFalse;
+                return traceLoaded && claimSourceLoaded && alreadyApplied && missingDefaultsFalse;
             }
             catch (Exception exception)
             {
@@ -302,36 +434,53 @@ namespace Herds
             }
             finally
             {
-                try { if (File.Exists(path)) File.Delete(path); } catch { }
+                if (File.Exists(path)) File.Delete(path);
+                if (File.Exists(missingFieldPath)) File.Delete(missingFieldPath);
             }
         }
 
-        private static DeterministicPredatorPressureResult DeterministicPredatorPressureCheck(Map map)
+        private static DeterministicPredatorPressureResult DeterministicPredatorPressureCheck(Map activeMap)
+        {
+            DeterministicPredatorPressureResult result = new DeterministicPredatorPressureResult();
+            string before = GameFingerprint(Current.Game);
+            if (!IsolatedMapFixture.TryCreate(activeMap, out IsolatedMapFixture fixture, out string createDetail))
+            {
+                result.detail = createDetail;
+                return result;
+            }
+            try
+            {
+                result = DeterministicPredatorPressureCheckOnMap(fixture.map);
+            }
+            catch (Exception exception)
+            {
+                result.detail = exception.ToString();
+            }
+            finally
+            {
+                bool cleaned = fixture.Cleanup(out string cleanupDetail);
+                result.isolatedCleanup = cleaned;
+                result.activeStateUntouched = before == GameFingerprint(Current.Game);
+                if (!cleaned || !result.activeStateUntouched)
+                    result.detail = (result.detail.NullOrEmpty() ? "" : result.detail + "; ") +
+                        "isolatedCleanup=" + cleaned + " activeStateUntouched=" + result.activeStateUntouched +
+                        (cleanupDetail.NullOrEmpty() ? "" : " cleanup=" + cleanupDetail);
+            }
+            return result;
+        }
+
+        private static DeterministicPredatorPressureResult DeterministicPredatorPressureCheckOnMap(Map map)
         {
             DeterministicPredatorPressureResult result = new DeterministicPredatorPressureResult();
             List<Pawn> created = new List<Pawn>();
-            List<Tuple<Pawn, IntVec3, Rot4>> parkedColonists = new List<Tuple<Pawn, IntVec3, Rot4>>();
             HashSet<IntVec3> used = new HashSet<IntVec3>();
             HashSet<int> traceIds = new HashSet<int>();
-            bool oldDefense = HerdsMod.Settings?.enableDefensiveBehavior == true;
-            bool oldSignals = HerdsMod.Settings?.enableWildlifeSignalCulture == true;
             ThingDef preySpecies = null;
-            string initialScribePath = null;
             try
             {
                 if (map == null || HerdsMod.Settings == null) throw new InvalidOperationException("test map/settings unavailable");
-                HerdsMod.Settings.enableDefensiveBehavior = true;
-                HerdsMod.Settings.enableWildlifeSignalCulture = true;
-                initialScribePath = Path.Combine(GenFilePaths.SaveDataFolderPath,
-                    "Wildlife-Predator-Encounter-Initial-" + Guid.NewGuid().ToString("N") + ".xml");
-                if (!WriteScribeFixtureState(map, initialScribePath, out string initialScribeDetail))
-                    throw new InvalidOperationException("initial Scribe snapshot failed: " + initialScribeDetail);
-                foreach (Pawn pawn in map.mapPawns.AllPawnsSpawned.ToList())
-                {
-                    if (pawn?.Spawned != true) continue;
-                    parkedColonists.Add(Tuple.Create(pawn, pawn.Position, pawn.Rotation));
-                    pawn.DeSpawn(DestroyMode.Vanish);
-                }
+                if (!HerdsMod.Settings.enableDefensiveBehavior || !HerdsMod.Settings.enableWildlifeSignalCulture)
+                    throw new InvalidOperationException("defensive behavior or signal culture is disabled");
                 WildlifeSignalCultureMapComponent existingSignals = map.GetComponent<WildlifeSignalCultureMapComponent>();
                 PawnKindDef preyKind = TestAnimalKind(false, map, existingSignals);
                 PawnKindDef predatorKind = TestAnimalKind(true, map, existingSignals);
@@ -533,9 +682,13 @@ namespace Herds
                         deterrentDef.designationCategory == null || pendingDeterrentResearch != null);
                 result.deterrentRoute = selectedDeterrent || unavailableDeterrent;
                 if (selectedDeterrent) Find.DesignatorManager.Deselect();
+                RegionalWildlifeMapComponent regional = map.GetComponent<RegionalWildlifeMapComponent>();
+                string deterrentDetail = "regional ecology component unavailable";
+                result.deterrentEffect = regional != null &&
+                    regional.PredatorDeterrentIntegrationSelfTest(out deterrentDetail);
                 result.detail = "first=" + firstClaimCount + " final=" + (finalState?.claimObservationCount ?? 0) +
                     " event=" + firstSourceCount + " traces=" + traceIds.Count + " scribe=" + scribeDetail +
-                    " source=" + firstEventSource;
+                    " deterrent=" + deterrentDetail + " source=" + firstEventSource;
                 return result;
             }
             catch (Exception exception)
@@ -547,26 +700,8 @@ namespace Herds
             {
                 for (int i = created.Count - 1; i >= 0; i--)
                     if (created[i]?.Spawned == true) created[i].Destroy(DestroyMode.Vanish);
-                if (initialScribePath != null)
-                {
-                    try { RestoreScribeFixtureState(map, initialScribePath, out _); }
-                    catch { }
-                    try { if (File.Exists(initialScribePath)) File.Delete(initialScribePath); } catch { }
-                }
-                    if (HerdsMod.Settings != null)
-                    {
-                        HerdsMod.Settings.enableDefensiveBehavior = oldDefense;
-                        HerdsMod.Settings.enableWildlifeSignalCulture = oldSignals;
-                    }
-                    for (int i = 0; i < parkedColonists.Count; i++)
-                    {
-                        Pawn pawn = parkedColonists[i].Item1;
-                        if (pawn == null || pawn.Destroyed || pawn.Spawned) continue;
-                        try { GenSpawn.Spawn(pawn, parkedColonists[i].Item2, map, parkedColonists[i].Item3); }
-                        catch { }
-                    }
-                }
             }
+        }
 
         private static void MoveTestPawn(Map map, Pawn pawn, IntVec3 origin, float distance, HashSet<IntVec3> used)
         {
@@ -1049,12 +1184,10 @@ namespace Herds
                         "Signal traces and Knowledge Framework claims round-trip through Scribe without replay: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.deterrentRoute,
                         "Supported local encounters expose Predator Deterrent construction or a qualitative unavailable reason: " + predatorFixture.detail);
-                    string deterrentDetail = "regional ecology component unavailable";
-                    RegionalWildlifeMapComponent regionalForTest = map.GetComponent<RegionalWildlifeMapComponent>();
-                    bool deterrentResult = regionalForTest != null &&
-                        regionalForTest.PredatorDeterrentIntegrationSelfTest(out deterrentDetail);
-                    Check("Signals", deterrentResult,
-                        "Predator Deterrent changes real cached regional calculations and restores state: " + deterrentDetail);
+                    Check("Signals", predatorFixture.deterrentEffect,
+                        "Predator Deterrent changes real cached regional calculations without touching the active map: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.isolatedCleanup && predatorFixture.activeStateUntouched,
+                        "Disposable fixture cleanup leaves the active game, maps, pawns, buildings, and claims untouched: " + predatorFixture.detail);
                     Check("Signals", signals != null && signals.WarningKnowledgeSources.Distinct().Count() ==
                         signals.WarningKnowledgeSources.Count,
                         "Warning source identity ledger remains duplicate-free after load normalization");

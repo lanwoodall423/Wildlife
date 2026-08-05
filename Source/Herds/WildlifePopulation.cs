@@ -489,16 +489,15 @@ namespace Herds
 
             List<Thing> existing = map.listerThings?.ThingsOfDef(deterrentDef)
                 ?.Where(thing => thing?.Spawned == true).ToList() ?? new List<Thing>();
-            List<Tuple<Thing, IntVec3, Rot4>> parked = new List<Tuple<Thing, IntVec3, Rot4>>();
+            if (existing.Count > 0)
+            {
+                detail = "fixture map is not isolated; existing Predator Deterrents=" + existing.Count;
+                return false;
+            }
+
             Thing temporary = null;
             try
             {
-                for (int i = 0; i < existing.Count; i++)
-                {
-                    Thing thing = existing[i];
-                    parked.Add(Tuple.Create(thing, thing.Position, thing.Rotation));
-                    thing.DeSpawn(DestroyMode.Vanish);
-                }
                 RefreshToolCounts();
                 int withoutCount = cachedDeterrents;
                 RegionalSpeciesRecord record = new RegionalSpeciesRecord
@@ -538,13 +537,6 @@ namespace Herds
             finally
             {
                 if (temporary?.Spawned == true) temporary.Destroy(DestroyMode.Vanish);
-                for (int i = 0; i < parked.Count; i++)
-                {
-                    Thing thing = parked[i].Item1;
-                    if (thing == null || thing.Destroyed || thing.Spawned) continue;
-                    try { GenSpawn.Spawn(thing, parked[i].Item2, map, parked[i].Item3); }
-                    catch { }
-                }
                 RefreshToolCounts();
             }
         }
