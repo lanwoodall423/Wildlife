@@ -20,6 +20,7 @@
     <Compile Include="DeferredRealityWildlifeAdapter.cs" />
     <Compile Include="DeferredRealityWildlifeAdjacent.cs" />
     <ProjectReference Include="Wildlife.csproj" />
+    <ProjectReference Include="..\Herds\Herds.csproj" />
     <Reference Include="DeferredRealityFramework">
       <HintPath>C:\Games\Steam\steamapps\common\RimWorld\Mods\DeferredRealityFramework\1.6\Assemblies\DeferredRealityFramework.dll</HintPath>
       <Private>false</Private>
