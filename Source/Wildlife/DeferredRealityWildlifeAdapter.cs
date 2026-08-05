@@ -35,9 +35,9 @@ namespace DeferredReality.Wildlife
                 RealityProviderCapability.Anchors | RealityProviderCapability.Constraints |
                 RealityProviderCapability.Materialization | RealityProviderCapability.Compression |
                 RealityProviderCapability.Diagnostics,
-            // These event IDs include stable source identity and cannot legitimately replay after this window.
-            operationRetentionTicks = 3600000L,
-            compactableOperationKinds = new List<string> { "consume", "release", "active-map-reconcile", "demography", "transfer" }
+            // Wildlife currently has no persisted source sequence cursor for these events.
+            // Leave operation markers durable until a consuming save contract can prove replay safety.
+            operationRetentionTicks = -1
         };
 
         public void OnRegistered(RealityProviderContext context)
@@ -336,7 +336,18 @@ namespace DeferredReality.Wildlife
 
         static WildlifeRealityIntegration()
         {
-            RealityProviderRegistry.Register(Provider);
+            if (RealityProviderRegistry.TryGet(WildlifeRealityProvider.ProviderId, out IRealityProvider existing) &&
+                existing != null && existing.GetType() != Provider.GetType())
+            {
+                Log.Error("[DeferredReality] A different provider already owns " +
+                    WildlifeRealityProvider.ProviderId + "; the Wildlife adapter will not register. Remove the duplicate adapter.");
+                return;
+            }
+            if (!RealityProviderRegistry.Register(Provider))
+            {
+                Log.Error("[DeferredReality] Wildlife provider registration was rejected; adjacent integration is disabled.");
+                return;
+            }
             RealityMapFactoryRegistry.Register(WildlifeRealityProvider.ProviderId, new WildlifeMapFactory());
             RealityAdjacentSurfaceService.RegisterTransferHost(WildlifeRealityProvider.ProviderId, Provider);
             WildlifeDeferredRealityBridge.MaterializeBeyondMap = Provider.TryMaterializeTrail;

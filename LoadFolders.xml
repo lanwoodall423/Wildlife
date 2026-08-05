@@ -1,2 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<loadFolders><v1.6><li>1.6</li></v1.6></loadFolders>
+<loadFolders><v1.6><li>1.6</li><li IfModActive="lan.deferredreality.framework">1.6/OptionalDeferredReality</li></v1.6></loadFolders>

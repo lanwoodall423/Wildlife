@@ -91,8 +91,7 @@ namespace DeferredReality.Wildlife
                 return true;
             }
             bool onDestination = pawn?.Spawned == true && pawn.Map != null && pawn.Map.uniqueID == ticket.destinationMapUniqueId;
-            string fingerprint = (pawn?.Map?.uniqueID.ToString() ?? "missing") + "|" +
-                (pawn?.Position.ToString() ?? "none") + "|" + (pawn?.CurJobDef?.defName ?? "none") + "|" + lead.state;
+            string fingerprint = TaskProgressFingerprint(lead);
             bool changed = !excursionTaskEvidence.TryGetValue(ticket.excursionId, out string previous) || previous != fingerprint;
             if (changed) excursionTaskEvidence[ticket.excursionId] = fingerprint;
             observation = new RealityExcursionTaskObservation
@@ -104,6 +103,17 @@ namespace DeferredReality.Wildlife
                     "Wildlife trail state is retained while the exact Pawn is not on the destination map."
             };
             return true;
+        }
+
+        internal static string TaskProgressFingerprint(WildlifeTrailLead lead)
+        {
+            if (lead == null) return "missing";
+            int newestEvidenceTick = lead.evidenceTicks == null || lead.evidenceTicks.Count == 0
+                ? -1 : lead.evidenceTicks.Max();
+            return string.Join("|", lead.state, lead.evidenceTicks?.Count ?? 0, newestEvidenceTick,
+                lead.failedSearches, lead.dominantKind, lead.groupSize,
+                lead.confidence.ToString("R", CultureInfo.InvariantCulture), lead.viableLead,
+                lead.lastOutcome ?? string.Empty);
         }
 
         /// <summary>Explicit integration hook for reliable provider task progress when the Herds bridge has it.</summary>
@@ -967,21 +977,63 @@ namespace DeferredReality.Wildlife
 
         public void CanCompress(RealityCompressionRequest request, IList<RealityVeto> vetoes)
         {
-            if (request == null || request.Map == null || request.regionId.ProviderNamespace != ProviderId ||
-                !(request.Map.Parent is WildlifeDeferredMapParent parent) ||
-                !string.Equals(parent.regionId, request.regionId.ToString(), StringComparison.Ordinal))
-            {
-                vetoes.Add(new RealityVeto("wildlife.compression-owner", "The map is not an owned Wildlife adjacent region.",
-                    ProviderId, 3));
-            }
+            string diagnostic = ValidateCompressionOwnership(request);
+            if (!string.IsNullOrEmpty(diagnostic))
+                vetoes.Add(new RealityVeto("wildlife.compression-owner", diagnostic, ProviderId, 3));
         }
 
         // Wildlife state is already represented by the framework's persisted regional records. These
         // no-op stages are an explicit safe-compression policy before the factory removes the map.
         public void Prepare(RealityCompressionRequest request) { }
-        public void Validate(RealityCompressionRequest request, IList<RealityVeto> vetoes) { }
+        public void Validate(RealityCompressionRequest request, IList<RealityVeto> vetoes)
+        {
+            string diagnostic = ValidateCompressionOwnership(request);
+            if (!string.IsNullOrEmpty(diagnostic))
+                vetoes.Add(new RealityVeto("wildlife.compression-owner", diagnostic, ProviderId, 3));
+        }
         public void Commit(RealityCompressionRequest request) { }
         public void Rollback(RealityCompressionRequest request) { }
+
+        private string ValidateCompressionOwnership(RealityCompressionRequest request)
+        {
+            if (request == null || request.Map == null || request.providerId != ProviderId)
+                return "Compression must be requested by the Wildlife provider for a concrete map.";
+            if (attachedWorld == null || !attachedWorld.TryGetAdjacentMapRecord(request.Map.uniqueID,
+                out RealityAdjacentMapRecord marker))
+                return "The map has no active adjacent-site marker.";
+            if (marker.providerId != ProviderId || !RealityRegionId.TryParse(marker.regionId,
+                out RealityRegionId markerRegion) || markerRegion != request.regionId)
+                return "The adjacent marker owner or represented region does not match the compression request.";
+            if (!(request.Map.Parent is WildlifeDeferredMapParent parent) ||
+                !RealityRegionId.TryParse(parent.regionId, out RealityRegionId parentRegion) || parentRegion != markerRegion)
+                return "The map parent is not the expected Wildlife identity for the represented region.";
+            if (!attachedWorld.TryGetRegion(markerRegion, out RealityRegionSnapshot region) || region == null ||
+                region.activeMapUniqueId != request.Map.uniqueID)
+                return "The active map projection does not match the adjacent-site marker.";
+
+            var claims = new List<RealityMapIdentityClaim>();
+            foreach (IRealityMapIdentityProvider identityProvider in RealityProviderRegistry.OfType<IRealityMapIdentityProvider>())
+            {
+                try
+                {
+                    if (identityProvider.TryClaimMap(request.Map, out RealityMapIdentityClaim claim))
+                    {
+                        if (claim == null) return "A map identity provider returned an empty claim.";
+                        claims.Add(claim);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    return "A map identity provider failed: " + exception.Message;
+                }
+            }
+            if (!RealityMapIdentityPolicy.TrySelectClaim(claims, out RealityMapIdentityClaim selected,
+                out string claimDiagnostic))
+                return "Map identity claims are ambiguous: " + claimDiagnostic;
+            if (selected.providerId != ProviderId || selected.regionId != markerRegion)
+                return "The selected map identity claim does not belong to the Wildlife adjacent site.";
+            return null;
+        }
 
         internal static string ProviderPopulationIdForRegion(RealityRegionId regionId, string species) =>
             ProviderPopulationId(regionId, species);

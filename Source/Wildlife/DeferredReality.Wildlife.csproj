@@ -13,14 +13,15 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize>
-    <OutputPath>..\..\1.6\Assemblies\</OutputPath>
+    <OutputPath>..\..\1.6\OptionalDeferredReality\Assemblies\</OutputPath>
     <DebugType>none</DebugType>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="DeferredRealityWildlifeAdapter.cs" />
     <Compile Include="DeferredRealityWildlifeAdjacent.cs" />
-    <ProjectReference Include="Wildlife.csproj" />
-    <ProjectReference Include="..\Herds\Herds.csproj" />
+    <Compile Include="DeferredRealityWildlifeIntegrationChecks.cs" />
+    <ProjectReference Include="Wildlife.csproj" ReferenceOutputAssembly="true" Private="false" />
+    <ProjectReference Include="..\Herds\Herds.csproj" ReferenceOutputAssembly="true" Private="false" />
     <Reference Include="DeferredRealityFramework">
       <HintPath>C:\Games\Steam\steamapps\common\RimWorld\Mods\DeferredRealityFramework\1.6\Assemblies\DeferredRealityFramework.dll</HintPath>
       <Private>false</Private>
@@ -38,4 +39,10 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
+  <Target Name="KeepOptionalIntegrationOutputScoped" AfterTargets="Build">
+    <ItemGroup>
+      <OptionalIntegrationDependencies Include="$(OutputPath)**\*.*" Exclude="$(OutputPath)DeferredReality.Wildlife.dll" />
+    </ItemGroup>
+    <Delete Files="@(OptionalIntegrationDependencies)" />
+  </Target>
 </Project>

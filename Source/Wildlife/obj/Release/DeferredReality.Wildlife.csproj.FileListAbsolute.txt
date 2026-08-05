@@ -2,5 +2,6 @@ C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Relea
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\DeferredReality.Wildlife.GeneratedMSBuildEditorConfig.editorconfig
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\DeferredReality.Wildlife.csproj.CoreCompileInputs.cache
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\1.6\Assemblies\DeferredReality.Wildlife.dll
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Deferred.26A6A7FF.Up2Date
 C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\DeferredReality.Wildlife.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\1.6\OptionalDeferredReality\Assemblies\DeferredReality.Wildlife.dll
+C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Deferred.26A6A7FF.Up2Date
