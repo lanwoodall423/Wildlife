@@ -90,3 +90,25 @@ only when the request owner, marker owner, represented region, active projection
 `WildlifeDeferredMapParent`, and all provider identity claims agree. A different
 provider, parent, projection, or claim fails closed. A second provider assembly
 with the same stable ID is rejected with a duplicate-installation diagnostic.
+
+## In-game departure and reload checks
+
+Run the existing Wildlife in-game test suite with the optional adapter loaded and
+also run the adapter verification action. For a trail Pawn, save at each of
+these boundaries: before outbound `ExitMap`, after the Pawn is resident on the
+adjacent map, after a task heartbeat, and during return. Reloading must rebuild
+the task association from the durable ticket, serialized `WildlifeTrailLead`,
+and exact Pawn load ID without producing a progress heartbeat from the baseline.
+A subsequent trail evidence/state change may renew the same task ID once.
+
+Force a thrown or aborted `ExitMap` and an unexpected world-pawn disposition;
+the source population and anchor membership must remain unchanged and the
+failure must be quarantined. A successful departure transfers exactly one unit,
+updates the traveling anchor after the transfer, and a duplicate completion
+does not transfer again. Complete or abandon the task, save during return, and
+verify the same Pawn reaches the recorded origin exactly once. These are manual
+RimWorld checks; compilation and the package script do not claim them passed.
+
+The combined release-candidate checklist is maintained in the DRF repository's
+`MANUAL_ACCEPTANCE_REPORT.md`. Adjacent regions remain disabled until that
+checklist has live evidence.

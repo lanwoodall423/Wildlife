@@ -20,6 +20,7 @@
     <Compile Include="DeferredRealityWildlifeAdapter.cs" />
     <Compile Include="DeferredRealityWildlifeAdjacent.cs" />
     <Compile Include="DeferredRealityWildlifeIntegrationChecks.cs" />
+    <Compile Include="DeferredRealityWildlifePolicy.cs" />
     <ProjectReference Include="Wildlife.csproj" ReferenceOutputAssembly="true" Private="false" />
     <ProjectReference Include="..\Herds\Herds.csproj" ReferenceOutputAssembly="true" Private="false" />
     <Reference Include="DeferredRealityFramework">

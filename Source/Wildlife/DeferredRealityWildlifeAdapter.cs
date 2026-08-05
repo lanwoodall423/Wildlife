@@ -47,6 +47,7 @@ namespace DeferredReality.Wildlife
             attachedWorld = context.World;
             eventSubscription = RealityEventBus.Subscribe(HandleFrameworkEvent);
             foreach (Map map in Find.Maps ?? Enumerable.Empty<Map>()) MigrateMap(map, context.World);
+            RebuildExcursionTaskAssociations();
         }
 
         public bool IsOwned(Map map)
@@ -406,9 +407,18 @@ namespace DeferredReality.Wildlife
                 __state = WildlifeRealityIntegration.Provider.PrepareAnimalDeparture(map, __instance, __instance.Position);
             }
 
-            private static void Postfix(WildlifeRealityProvider.WildlifeAnimalDeparture __state)
+            private static Exception Finalizer(Exception __exception,
+                WildlifeRealityProvider.WildlifeAnimalDeparture __state)
             {
-                WildlifeRealityIntegration.Provider.CompleteAnimalDeparture(__state);
+                try
+                {
+                    WildlifeRealityIntegration.Provider.CompleteAnimalDeparture(__state, __exception);
+                }
+                catch (Exception integrationException)
+                {
+                    Log.Error("[DeferredReality] Wildlife departure finalizer failed without replacing the original ExitMap exception: " + integrationException);
+                }
+                return __exception;
             }
         }
 

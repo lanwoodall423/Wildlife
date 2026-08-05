@@ -28,6 +28,8 @@ namespace DeferredReality.Wildlife
 
             if (world != null && WildlifeRealityIntegration.Provider != null)
             {
+                if (!DeferredRealityWildlifePolicy.SelfTest(out string policyFailure))
+                    failures.Add("provider policy self-test failed: " + policyFailure);
                 foreach (RealityAdjacentMapRecord marker in world.AdjacentMapSnapshots()
                     .Where(item => item != null && item.providerId == WildlifeRealityProvider.ProviderId)
                     .OrderBy(item => item.mapUniqueId))

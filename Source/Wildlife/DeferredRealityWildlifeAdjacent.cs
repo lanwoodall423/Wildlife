@@ -56,7 +56,10 @@ namespace DeferredReality.Wildlife
             internal RealityRegionId destinationRegion;
             internal Pawn animal;
             internal IntVec3 edge;
+            internal string operationId;
+            internal long departureTick;
             internal bool transferred;
+            internal bool completionAttempted;
         }
 
         private readonly Dictionary<string, List<PreparedTransfer>> preparedTransfers =
@@ -66,6 +69,8 @@ namespace DeferredReality.Wildlife
         private readonly Dictionary<string, WildlifeTrailLead> excursionTasks =
             new Dictionary<string, WildlifeTrailLead>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> excursionTaskEvidence =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> excursionTaskIds =
             new Dictionary<string, string>(StringComparer.Ordinal);
 
         private static readonly HashSet<string> MaterializingRegions =
@@ -78,8 +83,26 @@ namespace DeferredReality.Wildlife
         {
             observation = null;
             if (ticket == null || string.IsNullOrEmpty(ticket.excursionId) || string.IsNullOrEmpty(ticket.taskId) ||
-                !excursionTasks.TryGetValue(ticket.excursionId, out WildlifeTrailLead lead) || lead == null) return false;
-            Pawn pawn = lead.tracker;
+                !string.Equals(ticket.providerId, ProviderId, StringComparison.Ordinal) ||
+                RealityRetentionPolicy.IsTerminalExcursion(ticket))
+            {
+                ForgetExcursionTask(ticket);
+                return false;
+            }
+            if ((!excursionTasks.TryGetValue(ticket.excursionId, out WildlifeTrailLead lead) || lead == null) &&
+                !TryRecoverExcursionTask(ticket)) return false;
+            if (!excursionTaskIds.TryGetValue(ticket.excursionId, out string recoveredTaskId) ||
+                !string.Equals(recoveredTaskId, ticket.taskId, StringComparison.Ordinal))
+            {
+                ForgetExcursionTask(ticket);
+                return false;
+            }
+            Pawn trackedPawn = lead?.tracker;
+            if (trackedPawn == null || !string.Equals(trackedPawn.GetUniqueLoadID(), ticket.pawnLoadId, StringComparison.Ordinal))
+            {
+                ForgetExcursionTask(ticket);
+                return false;
+            }
             if (lead.state != WildlifeTrailState.BeyondMap)
             {
                 observation = new RealityExcursionTaskObservation
@@ -88,11 +111,15 @@ namespace DeferredReality.Wildlife
                     abandoned = true,
                     diagnostic = "The Wildlife trail task is no longer in its adjacent-region state."
                 };
+                ForgetExcursionTask(ticket);
                 return true;
             }
-            bool onDestination = pawn?.Spawned == true && pawn.Map != null && pawn.Map.uniqueID == ticket.destinationMapUniqueId;
+            bool onDestination = trackedPawn.Spawned && trackedPawn.Map != null &&
+                trackedPawn.Map.uniqueID == ticket.destinationMapUniqueId;
             string fingerprint = TaskProgressFingerprint(lead);
-            bool changed = !excursionTaskEvidence.TryGetValue(ticket.excursionId, out string previous) || previous != fingerprint;
+            bool hasPrevious = excursionTaskEvidence.TryGetValue(ticket.excursionId, out string previous);
+            bool changed = onDestination && (!hasPrevious ||
+                DeferredRealityWildlifePolicy.ShouldReportProgress(onDestination, previous, fingerprint));
             if (changed) excursionTaskEvidence[ticket.excursionId] = fingerprint;
             observation = new RealityExcursionTaskObservation
             {
@@ -142,6 +169,56 @@ namespace DeferredReality.Wildlife
             if (ticket == null) return;
             excursionTasks.Remove(ticket.excursionId);
             excursionTaskEvidence.Remove(ticket.excursionId);
+            excursionTaskIds.Remove(ticket.excursionId);
+        }
+
+        private bool TryRecoverExcursionTask(RealityExcursionTicket ticket)
+        {
+            if (ticket == null || attachedWorld == null || Find.Maps == null) return false;
+            RebuildExcursionTaskAssociations();
+            return excursionTasks.ContainsKey(ticket.excursionId) &&
+                excursionTaskIds.TryGetValue(ticket.excursionId, out string taskId) &&
+                string.Equals(taskId, ticket.taskId, StringComparison.Ordinal);
+        }
+
+        private void RebuildExcursionTaskAssociations()
+        {
+            excursionTasks.Clear();
+            excursionTaskEvidence.Clear();
+            excursionTaskIds.Clear();
+            if (attachedWorld == null || Find.Maps == null) return;
+
+            List<WildlifeTrailLead> leads = Find.Maps
+                .Where(map => map != null)
+                .OrderBy(map => map.uniqueID)
+                .SelectMany(map => map.GetComponent<WildlifeTrailMapComponent>()?.TrailLeads ??
+                    new List<WildlifeTrailLead>())
+                .Where(lead => lead?.tracker != null && lead.state == WildlifeTrailState.BeyondMap)
+                .ToList();
+            foreach (RealityExcursionTicket ticket in attachedWorld.ExcursionSnapshots()
+                .Where(value => value != null && string.Equals(value.providerId, ProviderId, StringComparison.Ordinal) &&
+                    !RealityRetentionPolicy.IsTerminalExcursion(value) && !string.IsNullOrEmpty(value.taskId))
+                .OrderBy(value => value.excursionId, StringComparer.Ordinal))
+            {
+                List<WildlifeTrailLead> matches = leads.Where(lead =>
+                    string.Equals(lead.tracker.GetUniqueLoadID(), ticket.pawnLoadId, StringComparison.Ordinal) &&
+                    lead.tracker.Spawned && lead.tracker.Map != null &&
+                    lead.tracker.Map.uniqueID == ticket.destinationMapUniqueId).ToList();
+                if (matches.Count == 1)
+                {
+                    WildlifeTrailLead lead = matches[0];
+                    excursionTasks[ticket.excursionId] = lead;
+                    excursionTaskIds[ticket.excursionId] = ticket.taskId;
+                    // Loading an existing task establishes state, not new progress.
+                    excursionTaskEvidence[ticket.excursionId] = TaskProgressFingerprint(lead);
+                }
+                else if (matches.Count > 1)
+                {
+                    attachedWorld.RecordAdjacentDiagnostic("wildlife.task-ambiguous", ProviderId,
+                        ticket.excursionId, "Multiple serialized Wildlife trails match the exact excursion Pawn.",
+                        attachedWorld.Now);
+                }
+            }
         }
 
         internal string AdjacentRegionSummary(Map map)
@@ -586,6 +663,7 @@ namespace DeferredReality.Wildlife
                 return false;
             }
             excursionTasks[excursionId] = lead;
+            excursionTaskIds[excursionId] = taskId;
             excursionTaskEvidence.Remove(excursionId);
             lead.state = WildlifeTrailState.BeyondMap;
             lead.lastOutcome = "The tracker crossed into the adjacent region to continue the trail.";
@@ -681,17 +759,12 @@ namespace DeferredReality.Wildlife
         internal WildlifeAnimalDeparture PrepareAnimalDeparture(Map map, Pawn animal, IntVec3 edge)
         {
             if (map == null || animal?.def?.race?.Animal != true || animal.Faction != null || attachedWorld == null) return null;
-            RealityRegionId source = attachedWorld.RegisterMap(map);
-            if (!source.IsValid) return null;
-            EnsureAdjacentTopology(attachedWorld, source);
+            if (!attachedWorld.TryRegionForLegacyMap(map.uniqueID, out RealityRegionId source) || !source.IsValid) return null;
             RealityRegionId destination = SelectAdjacentRegion(source, DirectionFor(edge, map));
             if (!destination.IsValid || destination == source) return null;
             string sourceId = ProviderPopulationId(source, animal.def.defName);
             string destinationId = ProviderPopulationId(destination, animal.def.defName);
             if (!attachedWorld.TryGetPopulation(sourceId, out _) || !attachedWorld.TryGetPopulation(destinationId, out _)) return null;
-            RealityPopulationMutationResult result = RealityPopulationService.Transfer(attachedWorld, sourceId, destinationId, 1f,
-                "wildlife:departure:" + animal.thingIDNumber + ":" + attachedWorld.Now + ":" + destination,
-                attachedWorld.Now, ProviderId);
             return new WildlifeAnimalDeparture
             {
                 sourceMap = map,
@@ -699,40 +772,87 @@ namespace DeferredReality.Wildlife
                 destinationRegion = destination,
                 animal = animal,
                 edge = edge,
-                transferred = result.succeeded || result.duplicate
+                departureTick = attachedWorld.Now,
+                operationId = "wildlife:departure:" + animal.thingIDNumber + ":" + attachedWorld.Now + ":" + destination
             };
         }
 
-        internal void CompleteAnimalDeparture(WildlifeAnimalDeparture departure)
+        internal void CompleteAnimalDeparture(WildlifeAnimalDeparture departure, Exception exitMapException = null)
         {
-            if (departure?.transferred != true || departure.animal == null || attachedWorld == null) return;
-            if (!Find.WorldPawns.Contains(departure.animal)) return;
-            string anchorId = "wildlife:animal:" + departure.animal.thingIDNumber;
-            RealityAnchorRecord anchor = attachedWorld.AnchorSnapshots(providerId: ProviderId)
-                .Select(item => item.record).FirstOrDefault(item => item.anchorId == anchorId) ?? new RealityAnchorRecord
-                {
-                    anchorId = anchorId,
-                    providerId = ProviderId,
-                    typeId = "roaming-animal",
-                    optionalRimWorldLoadId = departure.animal.GetUniqueLoadID(),
-                    importance = 1,
-                    observationLevel = RealityObservationPrecision.Edge
-                };
-            anchor.regionId = departure.destinationRegion.ToString();
-            anchor.lastKnownTick = attachedWorld.Now;
-            anchor.lifecycle = RealityAnchorLifecycle.Traveling;
-            anchor.lastKnownLocation = new RealityLocation
+            if (departure == null || departure.completionAttempted) return;
+            departure.completionAttempted = true;
+            if (attachedWorld == null || departure.animal == null) return;
+            if (exitMapException != null)
             {
-                x = departure.edge.x,
-                z = departure.edge.z,
-                edge = DirectionFor(departure.edge, departure.sourceMap),
-                precision = RealityObservationPrecision.Edge
-            };
-            anchor.providerPayload = "species=" + departure.animal.def.defName + ";state=traveling";
-            anchor.causalProvenance = "wildlife-adjacent-departure:" + departure.sourceRegion;
-            attachedWorld.UpsertAnchor(anchor);
-            MoveAnchorPopulation(anchor.anchorId, departure.animal.def.defName,
-                departure.sourceRegion, departure.destinationRegion);
+                RecordAnimalDepartureFailure(departure, "Pawn.ExitMap threw before Wildlife departure commit: " + exitMapException.Message);
+                return;
+            }
+            if (!DeferredRealityWildlifePolicy.CanCommitAnimalDeparture(false, departure.animal.Spawned,
+                departure.animal.Map != null, Find.WorldPawns?.Contains(departure.animal) == true))
+            {
+                RecordAnimalDepartureFailure(departure,
+                    "Pawn.ExitMap completed with an unexpected Wildlife world-pawn disposition; no population state was changed.");
+                return;
+            }
+
+            string anchorId = "wildlife:animal:" + departure.animal.thingIDNumber;
+            string sourceId = ProviderPopulationId(departure.sourceRegion, departure.animal.def.defName);
+            string destinationId = ProviderPopulationId(departure.destinationRegion, departure.animal.def.defName);
+            RealityPopulationMutationResult transfer = RealityPopulationService.Transfer(attachedWorld, sourceId, destinationId, 1f,
+                departure.operationId, departure.departureTick, ProviderId);
+            if (!transfer.succeeded && !transfer.duplicate)
+            {
+                RecordAnimalDepartureFailure(departure, "Wildlife population departure was not committed: " + transfer.error);
+                return;
+            }
+            departure.transferred = true;
+            try
+            {
+                RealityAnchorRecord anchor = attachedWorld.AnchorSnapshots(providerId: ProviderId)
+                    .Select(item => item.record).FirstOrDefault(item => item.anchorId == anchorId) ?? new RealityAnchorRecord
+                    {
+                        anchorId = anchorId,
+                        providerId = ProviderId,
+                        typeId = "roaming-animal",
+                        optionalRimWorldLoadId = departure.animal.GetUniqueLoadID(),
+                        importance = 1,
+                        observationLevel = RealityObservationPrecision.Edge
+                    };
+                anchor.regionId = departure.destinationRegion.ToString();
+                anchor.lastKnownTick = attachedWorld.Now;
+                anchor.lifecycle = RealityAnchorLifecycle.Traveling;
+                anchor.lastKnownLocation = new RealityLocation
+                {
+                    x = departure.edge.x,
+                    z = departure.edge.z,
+                    edge = DirectionFor(departure.edge, departure.sourceMap),
+                    precision = RealityObservationPrecision.Edge
+                };
+                anchor.providerPayload = "species=" + departure.animal.def.defName + ";state=traveling";
+                anchor.causalProvenance = "wildlife-adjacent-departure:" + departure.sourceRegion;
+                attachedWorld.UpsertAnchor(anchor);
+                MoveAnchorPopulation(anchor.anchorId, departure.animal.def.defName,
+                    departure.sourceRegion, departure.destinationRegion);
+            }
+            catch (Exception exception)
+            {
+                RecordAnimalDepartureFailure(departure,
+                    "Wildlife departure committed population state but anchor integration failed: " + exception.Message);
+            }
+        }
+
+        private void RecordAnimalDepartureFailure(WildlifeAnimalDeparture departure, string diagnostic)
+        {
+            string operationId = departure?.operationId ?? "wildlife:departure:unknown";
+            Log.Error("[DeferredReality] " + diagnostic);
+            try
+            {
+                attachedWorld?.Quarantine("wildlife-animal-departure", operationId, ProviderId, diagnostic);
+            }
+            catch (Exception quarantineException)
+            {
+                Log.Error("[DeferredReality] Could not quarantine Wildlife departure failure: " + quarantineException);
+            }
         }
 
         private void AddAnchorToPopulation(RealityAnchorRecord anchor, string species)

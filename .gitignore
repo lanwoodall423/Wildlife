@@ -1,0 +1,23 @@
+# Reproducible build output
+bin/
+obj/
+**/bin/
+**/obj/
+
+# IDE and local tooling state
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+
+# Test and coverage output
+TestResults/
+*.trx
+coverage/
+coverage*.xml
+
+# Optional adapter staging is generated; intentional files under 1.6 remain tracked.
+DevTools/BridgeAdapters/*.dll
+DevTools/BridgeAdapters/*.pdb
+*.Up2Date

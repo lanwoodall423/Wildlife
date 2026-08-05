@@ -1127,11 +1127,48 @@ namespace Herds
                 Section("Deferred Reality", () =>
                 {
                     bool adapterLoaded = AccessTools.TypeByName("DeferredReality.Wildlife.WildlifeRealityProvider") != null;
+                    Assembly FindLoaded(string name) => AppDomain.CurrentDomain.GetAssemblies()
+                        .FirstOrDefault(assembly => assembly?.GetName().Name == name);
+                    bool HasReference(Assembly assembly, string name) => assembly != null &&
+                        assembly.GetReferencedAssemblies().Any(reference => reference.Name == name);
+                    Assembly herdsAssembly = typeof(WildlifeInGameTestSuite).Assembly;
+                    Assembly wildlifeAssembly = FindLoaded("Wildlife");
+                    Check("Deferred Reality", !HasReference(herdsAssembly, "DeferredRealityFramework"),
+                        "Herds remains usable without a Deferred Reality assembly reference");
+                    Check("Deferred Reality", !HasReference(wildlifeAssembly, "DeferredRealityFramework"),
+                        "Normal Wildlife remains usable without a Deferred Reality assembly reference");
                     Check("Deferred Reality", !adapterLoaded || WildlifeDeferredRealityBridge.MaterializeBeyondMap != null,
                         "Adjacent trail bridge is installed when the Deferred Reality Wildlife adapter is loaded");
                     Check("Deferred Reality", !adapterLoaded ||
                         typeof(WildlifeTrailMapComponent).GetMethod("NotifyAnimalDeparture") != null,
                         "Trail records expose the adjacent-departure handoff");
+                    if (adapterLoaded)
+                    {
+                        Assembly adapterAssembly = AccessTools.TypeByName("DeferredReality.Wildlife.WildlifeRealityProvider")?.Assembly;
+                        Check("Deferred Reality", HasReference(adapterAssembly, "DeferredRealityFramework"),
+                            "Only the optional adapter references Deferred Reality");
+                        Type providerType = AccessTools.TypeByName("DeferredReality.Wildlife.WildlifeRealityProvider");
+                        Check("Deferred Reality", providerType.GetMethod("TryObserveExcursionTask") != null &&
+                            providerType.GetMethod("HeartbeatExcursionTask") != null &&
+                            providerType.GetMethod("CompleteExcursionTask") != null &&
+                            providerType.GetMethod("AbandonExcursionTask") != null,
+                            "Wildlife task observation and explicit lease hooks are available");
+                        Type policyType = AccessTools.TypeByName("DeferredReality.Wildlife.DeferredRealityWildlifePolicy");
+                        bool policySelfTest = false;
+                        try
+                        {
+                            MethodInfo selfTest = policyType?.GetMethod("SelfTest",
+                                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                            object[] arguments = { null };
+                            policySelfTest = selfTest != null && (bool)selfTest.Invoke(null, arguments);
+                        }
+                        catch
+                        {
+                            policySelfTest = false;
+                        }
+                        Check("Deferred Reality", policySelfTest,
+                            "Optional adapter departure and post-load evidence policy self-test");
+                    }
                 });
 
                 Section("Landscape", () =>

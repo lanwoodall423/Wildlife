@@ -1,8 +1,0 @@
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.csproj.AssemblyReference.cache
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.GeneratedMSBuildEditorConfig.editorconfig
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.AssemblyInfoInputs.cache
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.AssemblyInfo.cs
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.csproj.CoreCompileInputs.cache
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\1.6\Assemblies\Wildlife.dll
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.csproj.Up2Date
-C:\Games\Steam\steamapps\common\RimWorld\Mods\Wildlife\Source\Wildlife\obj\Release\Wildlife.dll

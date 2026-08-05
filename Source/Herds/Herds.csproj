@@ -13,6 +13,5 @@
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>C:\Games\Steam\steamapps\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="KnowledgeFramework"><HintPath>..\..\..\KnowledgeFramework\1.6\Assemblies\KnowledgeFramework.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="DeferredRealityFramework"><HintPath>..\..\..\DeferredRealityFramework\1.6\Assemblies\DeferredRealityFramework.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

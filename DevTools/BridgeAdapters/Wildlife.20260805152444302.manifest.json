@@ -3,12 +3,12 @@
     "adapterId":  "Wildlife",
     "displayName":  "Wildlife",
     "version":  "1.6.0",
-    "generation":  "20260805124758969",
-    "buildUtc":  "2026-08-05T13:27:47.2407361Z",
+    "generation":  "20260805152444302",
+    "buildUtc":  "2026-08-05T15:26:56.5608058Z",
     "assemblyFile":  null,
     "assemblyIdentity":  "Herds, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
-    "assemblyBytes":  1412096,
-    "contentHash":  "7FF51A48ED09975FD95A13B05AC3E806FA3ADC9CB5044CC4C7A467A1E276BCF9",
+    "assemblyBytes":  1414144,
+    "contentHash":  "89EBB9F225CF74D0E64B0CF5D9B8291C2036FECCD11A814A1F3D7C5DA2B9BE69",
     "providerType":  "Herds.WildlifeDevBridge",
     "protocolMin":  10,
     "protocolMax":  10,
@@ -492,5 +492,5 @@
     "assemblySource":  "loaded",
     "modulePackageId":  "Lan.Wildlife",
     "moduleRelativePath":  "1.6/Assemblies/Herds.dll",
-    "moduleMvid":  "ce530fae-1de4-49d8-97b8-6fdf5b71a9a2"
+    "moduleMvid":  "f9c74abb-1e96-49c2-aef3-ebc22fb6dfc1"
 }
