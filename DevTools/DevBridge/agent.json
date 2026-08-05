@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "packageId": "Lan.Wildlife",
+  "adapterDirectory": "DevTools/BridgeAdapters",
+  "adapterSource": "Source/Herds/WildlifeDevBridge.cs",
+  "buildEntrypoint": "DevTools/Build-WildlifeBridgeAdapter.ps1",
+  "validateEntrypoint": "DevTools/Test-WildlifeBridgeAdapter.ps1",
+  "runtimeGuide": "DevTools/DEVBRIDGE_AGENT.md"
+}
