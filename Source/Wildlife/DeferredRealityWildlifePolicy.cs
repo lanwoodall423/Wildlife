@@ -15,6 +15,18 @@ namespace DeferredReality.Wildlife
             return !exitMapThrew && !pawnSpawned && !pawnHasMap && worldPawnsContains;
         }
 
+        public static bool CanReconstructTask(string ticketProviderId, string providerId, string taskId,
+            string ticketPawnLoadId, string leadPawnLoadId, int ticketDestinationMapId, int leadMapId,
+            bool beyondMap, int matchingLeadCount)
+        {
+            return matchingLeadCount == 1 && beyondMap &&
+                string.Equals(ticketProviderId, providerId, StringComparison.Ordinal) &&
+                !string.IsNullOrEmpty(taskId) &&
+                !string.IsNullOrEmpty(ticketPawnLoadId) &&
+                string.Equals(ticketPawnLoadId, leadPawnLoadId, StringComparison.Ordinal) &&
+                ticketDestinationMapId == leadMapId;
+        }
+
         public static bool SelfTest(out string failure)
         {
             failure = null;
@@ -31,6 +43,11 @@ namespace DeferredReality.Wildlife
                 CanCommitAnimalDeparture(false, false, true, true) ||
                 CanCommitAnimalDeparture(false, false, false, false))
                 failure = "an invalid ExitMap disposition was accepted";
+            else if (!CanReconstructTask("provider", "provider", "task", "pawn", "pawn", 7, 7, true, 1) ||
+                CanReconstructTask("provider", "provider", "task", "pawn", "other", 7, 7, true, 1) ||
+                CanReconstructTask("provider", "provider", "task", "pawn", "pawn", 7, 7, true, 2) ||
+                CanReconstructTask("provider", "provider", "task", "pawn", "pawn", 7, 7, false, 1))
+                failure = "ambiguous, mismatched, or non-adjacent task reconstruction was accepted";
             return failure == null;
         }
     }

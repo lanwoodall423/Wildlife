@@ -5,22 +5,68 @@ param(
     [int]$TimeoutSeconds = 15
 )
 
-$standaloneClient = 'C:\Games\Steam\steamapps\common\RimWorld\Mods\RimWorldDevBridge\DevTools\Send-RimWorldBridge.ps1'
-if (Test-Path -LiteralPath $standaloneClient) {
-    $renamed = @{
-        'RUN_TESTS' = 'RUN_WILDLIFE_TESTS'
-        'SETTINGS' = 'WILDLIFE_SETTINGS'
-        'SET_SETTING' = 'SET_WILDLIFE_SETTING'
-        'DEFS' = 'WILDLIFE_DEFS'
-        'OVERLAY' = 'WILDLIFE_OVERLAY'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$standaloneClient = Get-WildlifeBridgeClientPath
+$bridgeRoot = [Environment]::GetEnvironmentVariable('RIMWORLD_DEVBRIDGE_ROOT')
+$data = Get-WildlifeDataPath
+$renamed = @{
+    'RUN_TESTS' = 'RUN_WILDLIFE_TESTS'
+    'SETTINGS' = 'WILDLIFE_SETTINGS'
+    'SET_SETTING' = 'SET_WILDLIFE_SETTING'
+    'DEFS' = 'WILDLIFE_DEFS'
+    'OVERLAY' = 'WILDLIFE_OVERLAY'
+}
+$effectiveCommand = $Command.ToUpperInvariant()
+if ($renamed.ContainsKey($effectiveCommand)) { $effectiveCommand = $renamed[$effectiveCommand] }
+$clientArguments = @(
+    'call', $effectiveCommand,
+    '--user-root', $data,
+    '--package-id', 'Lan.Wildlife',
+    '--argument', $Argument,
+    '--timeout-ms', ($TimeoutSeconds * 1000)
+)
+if (-not [string]::IsNullOrWhiteSpace($bridgeRoot)) {
+    $clientArguments += @('--bridge-root', $bridgeRoot)
+}
+$legacyFallback = [Environment]::GetEnvironmentVariable('WILDLIFE_ENABLE_LEGACY_BRIDGE') -eq '1'
+if (-not $legacyFallback) {
+    $jsonLines = @(& $standaloneClient @clientArguments 2>&1)
+    $clientExit = $LASTEXITCODE
+    $jsonText = ($jsonLines | ForEach-Object { [string]$_ } | Where-Object {
+        $_.TrimStart().StartsWith('{')
+    } | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($jsonText)) {
+        $jsonLines | ForEach-Object { Write-Output $_ }
+        exit $(if ($clientExit -ne 0) { $clientExit } else { 4 })
     }
-    $effectiveCommand = $Command.ToUpperInvariant()
-    if ($renamed.ContainsKey($effectiveCommand)) { $effectiveCommand = $renamed[$effectiveCommand] }
-    & $standaloneClient -Command $effectiveCommand -Argument $Argument -TimeoutMs ($TimeoutSeconds * 1000)
-    exit $LASTEXITCODE
+    try { $response = $jsonText | ConvertFrom-Json }
+    catch {
+        Write-Output 'status=INVALID_BRIDGE_RESPONSE'
+        exit 4
+    }
+    $statusProperty = $response.PSObject.Properties['status']
+    $reasonProperty = $response.PSObject.Properties['reason']
+    if ($null -eq $statusProperty -or [string]$statusProperty.Value -ne 'OK') {
+        $status = if ($null -ne $statusProperty) { [string]$statusProperty.Value } else { 'BRIDGE_UNAVAILABLE' }
+        Write-Output ('status=' + $status)
+        if ($null -ne $reasonProperty -and $reasonProperty.Value) { Write-Output ('reason=' + ([string]$reasonProperty.Value)) }
+        if ($clientExit -ne 0) { exit $clientExit }
+        exit 1
+    }
+    $linesProperty = $response.PSObject.Properties['lines']
+    $dataProperty = $response.PSObject.Properties['data']
+    if ($null -ne $linesProperty -and $null -ne $linesProperty.Value) {
+        @($linesProperty.Value) | ForEach-Object { Write-Output ([string]$_) }
+    }
+    elseif ($null -ne $dataProperty -and $null -ne $dataProperty.Value) {
+        $dataProperty.Value | ConvertTo-Json -Depth 12 -Compress | Write-Output
+    }
+    exit $clientExit
 }
 
-$data = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios'
+# The legacy transport below is compatibility-only and never selected by default.
+
+$data = Get-WildlifeDataPath
 $inputPath = Join-Path $data 'Wildlife-Bridge-In.txt'
 $outputPath = Join-Path $data 'Wildlife-Bridge-Out.txt'
 $statusPath = Join-Path $data 'Wildlife-Bridge-Status.txt'

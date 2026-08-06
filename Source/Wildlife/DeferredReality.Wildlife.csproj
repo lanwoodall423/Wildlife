@@ -16,6 +16,14 @@
     <OutputPath>..\..\1.6\OptionalDeferredReality\Assemblies\</OutputPath>
     <DebugType>none</DebugType>
   </PropertyGroup>
+  <PropertyGroup>
+    <DeferredRealityRequireKnowledgeFramework>false</DeferredRealityRequireKnowledgeFramework>
+    <DeferredRealityRequireHarmony>true</DeferredRealityRequireHarmony>
+  </PropertyGroup>
+  <Import Project="..\..\DevTools\RimWorldReferences.props" />
+  <Target Name="ValidateDeferredRealityIntegrationReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(DeferredRealityFrameworkAssemblyPath)' == '' or !Exists('$(DeferredRealityFrameworkAssemblyPath)')" Text="The optional Deferred Reality adapter requires DeferredRealityFramework.dll. Set DeferredRealityFrameworkRoot or DEFERRED_REALITY_FRAMEWORK_PATH." />
+  </Target>
   <ItemGroup>
     <Compile Include="DeferredRealityWildlifeAdapter.cs" />
     <Compile Include="DeferredRealityWildlifeAdjacent.cs" />
@@ -24,19 +32,19 @@
     <ProjectReference Include="Wildlife.csproj" ReferenceOutputAssembly="true" Private="false" />
     <ProjectReference Include="..\Herds\Herds.csproj" ReferenceOutputAssembly="true" Private="false" />
     <Reference Include="DeferredRealityFramework">
-      <HintPath>C:\Games\Steam\steamapps\common\RimWorld\Mods\DeferredRealityFramework\1.6\Assemblies\DeferredRealityFramework.dll</HintPath>
+      <HintPath>$(DeferredRealityFrameworkAssemblyPath)</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(DeferredRealityManagedPath)\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(DeferredRealityManagedPath)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>C:\Games\Steam\steamapps\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HintPath>
+      <HintPath>$(DeferredRealityHarmonyPath)</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

@@ -2,12 +2,12 @@ param(
     [int]$TimeoutSeconds = 180
 )
 
-$game = 'C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64.exe'
-$data = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$game = Get-WildlifeGamePath
+$data = Get-WildlifeDataPath
 $status = Join-Path $data 'Wildlife-AutoTest.status'
-$bridgeStatus = Join-Path $data 'Wildlife-Bridge-Status.txt'
 $existing = Get-CimInstance Win32_Process -Filter "Name = 'RimWorldWin64.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like '*wildlifetestserver*' } |
+    Where-Object { $_.CommandLine -like '*-quicktest*' -and $_.CommandLine -like '*-wildlifetestserver*' } |
     Select-Object -First 1
 
 if ($existing -and (Test-Path -LiteralPath $status) -and
@@ -17,8 +17,7 @@ if ($existing -and (Test-Path -LiteralPath $status) -and
 }
 
 Remove-Item -LiteralPath $status -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $bridgeStatus -Force -ErrorAction SilentlyContinue
-$null = Start-Process -FilePath $game -ArgumentList '-quicktest', '-wildlifetestserver', '-wildlifebridge' -PassThru
+$null = Start-Process -FilePath $game -ArgumentList '-quicktest', '-wildlifetestserver' -PassThru
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
     Start-Sleep -Milliseconds 250

@@ -1,4 +1,5 @@
-$data = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$data = Get-WildlifeDataPath
 $stop = Join-Path $data 'Wildlife-AutoTest.stop'
 $status = Join-Path $data 'Wildlife-AutoTest.status'
 Set-Content -LiteralPath $stop -Value 'STOP' -NoNewline

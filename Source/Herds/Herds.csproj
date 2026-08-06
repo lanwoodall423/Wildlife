@@ -6,12 +6,17 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize><OutputPath>..\..\1.6\Assemblies\</OutputPath><DebugType>none</DebugType>
   </PropertyGroup>
+  <PropertyGroup>
+    <WildlifeRequireHarmony>true</WildlifeRequireHarmony>
+    <WildlifeRequireKnowledgeFramework>true</WildlifeRequireKnowledgeFramework>
+  </PropertyGroup>
+  <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
-    <Reference Include="Assembly-CSharp"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.IMGUIModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="0Harmony"><HintPath>C:\Games\Steam\steamapps\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="KnowledgeFramework"><HintPath>..\..\..\KnowledgeFramework\1.6\Assemblies\KnowledgeFramework.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(WildlifeHarmonyPath)</HintPath><Private>false</Private></Reference>
+    <Reference Include="KnowledgeFramework"><HintPath>$(KnowledgeFrameworkAssemblyPath)</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <PropertyGroup>
+    <WildlifeRimWorldRoot Condition="'$(WildlifeRimWorldRoot)' == ''">$(RimWorldRoot)</WildlifeRimWorldRoot>
+    <WildlifeRimWorldRoot Condition="'$(WildlifeRimWorldRoot)' == ''">$(RIMWORLD_ROOT)</WildlifeRimWorldRoot>
+    <WildlifeManagedPath Condition="'$(WildlifeManagedPath)' == ''">$(RimWorldManagedPath)</WildlifeManagedPath>
+    <WildlifeManagedPath Condition="'$(WildlifeManagedPath)' == ''">$(RIMWORLD_MANAGED_PATH)</WildlifeManagedPath>
+    <WildlifeManagedPath Condition="'$(WildlifeManagedPath)' == '' and '$(WildlifeRimWorldRoot)' != ''">$(WildlifeRimWorldRoot)\RimWorldWin64_Data\Managed</WildlifeManagedPath>
+    <WildlifeHarmonyPath Condition="'$(WildlifeHarmonyPath)' == ''">$(HarmonyPath)</WildlifeHarmonyPath>
+    <WildlifeHarmonyPath Condition="'$(WildlifeHarmonyPath)' == ''">$(WILDLIFE_HARMONY_PATH)</WildlifeHarmonyPath>
+    <KnowledgeFrameworkPath Condition="'$(KnowledgeFrameworkPath)' == ''">$(KnowledgeFrameworkRoot)</KnowledgeFrameworkPath>
+    <KnowledgeFrameworkPath Condition="'$(KnowledgeFrameworkPath)' == ''">$(KNOWLEDGE_FRAMEWORK_PATH)</KnowledgeFrameworkPath>
+    <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and $([System.IO.Path]::GetExtension('$(KnowledgeFrameworkPath)')) == '.dll'">$(KnowledgeFrameworkPath)</KnowledgeFrameworkAssemblyPath>
+    <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and '$(KnowledgeFrameworkPath)' != ''">$(KnowledgeFrameworkPath)\1.6\Assemblies\KnowledgeFramework.dll</KnowledgeFrameworkAssemblyPath>
+    <DeferredRealityFrameworkRoot Condition="'$(DeferredRealityFrameworkRoot)' == ''">$(DeferredRealityFrameworkPath)</DeferredRealityFrameworkRoot>
+    <DeferredRealityFrameworkRoot Condition="'$(DeferredRealityFrameworkRoot)' == ''">$(DEFERRED_REALITY_FRAMEWORK_PATH)</DeferredRealityFrameworkRoot>
+    <DeferredRealityFrameworkAssemblyPath Condition="'$(DeferredRealityFrameworkAssemblyPath)' == '' and '$(DeferredRealityFrameworkRoot)' != ''">$(DeferredRealityFrameworkRoot)\1.6\Assemblies\DeferredRealityFramework.dll</DeferredRealityFrameworkAssemblyPath>
+    <DeferredRealityManagedPath Condition="'$(DeferredRealityManagedPath)' == ''">$(WildlifeManagedPath)</DeferredRealityManagedPath>
+    <DeferredRealityHarmonyPath Condition="'$(DeferredRealityHarmonyPath)' == ''">$(WildlifeHarmonyPath)</DeferredRealityHarmonyPath>
+  </PropertyGroup>
+  <Target Name="ValidateWildlifeRimWorldReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(WildlifeManagedPath)' == '' or !Exists('$(WildlifeManagedPath)\Assembly-CSharp.dll')" Text="Wildlife build dependencies are missing: set WildlifeManagedPath/RIMWORLD_MANAGED_PATH or WildlifeRimWorldRoot/RIMWORLD_ROOT." />
+    <Error Condition="'$(WildlifeManagedPath)' == '' or !Exists('$(WildlifeManagedPath)\UnityEngine.CoreModule.dll')" Text="Wildlife build dependencies are missing UnityEngine.CoreModule.dll under WildlifeManagedPath." />
+    <Error Condition="'$(WildlifeRequireHarmony)' == 'true' and ('$(WildlifeHarmonyPath)' == '' or !Exists('$(WildlifeHarmonyPath)'))" Text="Harmony is required: set WildlifeHarmonyPath or WILDLIFE_HARMONY_PATH to 0Harmony.dll." />
+    <Error Condition="'$(WildlifeRequireKnowledgeFramework)' == 'true' and ('$(KnowledgeFrameworkAssemblyPath)' == '' or !Exists('$(KnowledgeFrameworkAssemblyPath)'))" Text="Knowledge Framework is required: set KnowledgeFrameworkPath or KNOWLEDGE_FRAMEWORK_PATH to the Knowledge-Framework checkout." />
+  </Target>
+</Project>

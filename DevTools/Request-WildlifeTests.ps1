@@ -9,7 +9,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$data = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios'
+. (Join-Path $tools 'WildlifeEnvironment.ps1')
+$data = Get-WildlifeDataPath
 $requestPath = Join-Path $data 'Wildlife-AutoTest.request'
 $statusPath = Join-Path $data 'Wildlife-AutoTest.status'
 $reportPath = Join-Path $data 'Wildlife-InGame-Test.txt'

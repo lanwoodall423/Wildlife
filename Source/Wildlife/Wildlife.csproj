@@ -6,15 +6,19 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize><OutputPath>..\..\1.6\Assemblies\</OutputPath><DebugType>none</DebugType>
   </PropertyGroup>
+  <PropertyGroup>
+    <WildlifeRequireHarmony>true</WildlifeRequireHarmony>
+  </PropertyGroup>
+  <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
     <Compile Remove="DeferredRealityWildlifeAdapter.cs" />
     <Compile Remove="DeferredRealityWildlifeAdjacent.cs" />
     <Compile Remove="DeferredRealityWildlifeIntegrationChecks.cs" />
     <Compile Remove="DeferredRealityWildlifePolicy.cs" />
     <ProjectReference Include="..\Herds\Herds.csproj" /><ProjectReference Include="..\Packs\PacksAndPredators.csproj" />
-    <Reference Include="Assembly-CSharp"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.IMGUIModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

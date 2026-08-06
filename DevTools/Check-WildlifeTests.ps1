@@ -1,4 +1,5 @@
-$report = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios\Wildlife-InGame-Test.txt'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$report = Join-Path (Get-WildlifeDataPath) 'Wildlife-InGame-Test.txt'
 if (-not (Test-Path -LiteralPath $report)) {
     Write-Output 'summary=NO_REPORT'
     exit 3

@@ -3,6 +3,6 @@
   <name>Wildlife</name><author>Lan</author><packageId>Lan.Wildlife</packageId>
   <supportedVersions><li>1.6</li></supportedVersions>
   <description>A unified wildlife simulation combining prey social behavior, vigilance, hiding and homes with predator territories, dens, packs, coordinated hunts, player fieldcraft, animal knowledge, tracking, ranch protection, and ecological tools. When Deferred Reality Framework is installed, its opt-in adjacent trail sites remain temporary non-buildable work sites and retain exact Pawn return and recovery guarantees.</description>
-   <modDependencies><li><packageId>brrainz.harmony</packageId><displayName>Harmony</displayName><steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl></li><li><packageId>lan.knowledgeframework</packageId><displayName>Knowledge Framework</displayName></li></modDependencies>
+   <modDependencies><li><packageId>brrainz.harmony</packageId><displayName>Harmony</displayName><steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl></li><li><packageId>lan.knowledgeframework</packageId><displayName>Knowledge Framework</displayName><downloadUrl>https://github.com/lanwoodall423/Knowledge-Framework</downloadUrl></li></modDependencies>
    <loadAfter><li>brrainz.harmony</li><li>lan.knowledgeframework</li><li>lan.deferredreality.framework</li><li>Lan.RimWorldDevBridge</li></loadAfter>
 </ModMetaData>

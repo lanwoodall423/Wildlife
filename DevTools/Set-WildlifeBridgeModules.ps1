@@ -6,7 +6,8 @@ param(
 
 $resolvedSource = (Resolve-Path -LiteralPath $SourcePath).Path
 $null = [xml](Get-Content -LiteralPath $resolvedSource -Raw)
-$data = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$data = Get-WildlifeDataPath
 $destination = Join-Path $data 'Wildlife-Bridge-HotCommands.xml'
 $temporary = $destination + '.writing'
 
@@ -16,4 +17,3 @@ Move-Item -LiteralPath $temporary -Destination $destination -Force
 $sender = Join-Path $PSScriptRoot 'Send-WildlifeBridge.ps1'
 $command = if ($RestartTransport) { 'RESTART_BRIDGE' } else { 'RELOAD_BRIDGE' }
 & $sender -Command $command
-

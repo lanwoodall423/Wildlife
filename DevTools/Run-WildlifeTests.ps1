@@ -2,12 +2,20 @@ param(
     [int]$TimeoutSeconds = 180
 )
 
-$game = 'C:\Games\Steam\steamapps\common\RimWorld\RimWorldWin64.exe'
-$data = Join-Path $env:USERPROFILE 'AppData\LocalLow\Ludeon Studios\RimWorld by Ludeon Studios'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$game = Get-WildlifeGamePath
+$data = Get-WildlifeDataPath
 $report = Join-Path $data 'Wildlife-InGame-Test.txt'
 $request = Join-Path $data 'Wildlife-AutoTest.request'
 $status = Join-Path $data 'Wildlife-AutoTest.status'
-$process = Get-Process -Name RimWorldWin64 -ErrorAction SilentlyContinue | Select-Object -First 1
+$existing = Get-CimInstance Win32_Process -Filter "Name = 'RimWorldWin64.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like '*-quicktest*' -and $_.CommandLine -like '*-wildlifetestserver*' } |
+    Select-Object -First 1
+$process = $null
+if ($existing) {
+    try { $process = Get-Process -Id $existing.ProcessId -ErrorAction Stop }
+    catch { $process = $null }
+}
 if ($null -eq $process) {
     Remove-Item -LiteralPath $request, $status -Force -ErrorAction SilentlyContinue
     $process = Start-Process -FilePath $game -ArgumentList '-quicktest', '-wildlifetestserver' -PassThru

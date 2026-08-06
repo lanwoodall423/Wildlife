@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
+using KnowledgeFramework;
 using LudeonTK;
 using RimWorld;
 using RimWorld.Planet;
@@ -61,6 +62,7 @@ namespace Herds
             public Map map;
             public MapParent parent;
             private Map previousCurrentMap;
+            private Map previousGameCurrentMap;
             private List<object> previousSelectedObjects;
             private Designator previousDesignator;
             private List<Window> previousWindows;
@@ -85,12 +87,12 @@ namespace Herds
                 try
                 {
                     candidate.previousCurrentMap = Find.CurrentMap;
+                    candidate.previousGameCurrentMap = candidate.previousGame.CurrentMap;
                     candidate.previousSelectedObjects = Find.Selector?.SelectedObjectsListForReading?.ToList() ?? new List<object>();
                     candidate.previousDesignator = Find.DesignatorManager?.SelectedDesignator;
                     candidate.previousWindows = Find.WindowStack?.Windows?.ToList() ?? new List<Window>();
                     candidate.uiCaptured = true;
-                    phase = "sharing world";
-                    candidate.game.World = candidate.previousGame.World;
+                    phase = "initializing isolated game";
                     FieldInfo infoField = typeof(Game).GetField("info",
                         BindingFlags.Instance | BindingFlags.NonPublic);
                     infoField?.SetValue(candidate.game, new GameInfo
@@ -107,48 +109,29 @@ namespace Herds
                         startingPawnCount = 0,
                         playerFaction = Faction.OfPlayer
                     };
-                    FieldInfo tickField = typeof(Game).GetField("tickManager",
-                        BindingFlags.Instance | BindingFlags.NonPublic);
-                    tickField?.SetValue(candidate.game, tickField.GetValue(candidate.previousGame));
-                    FieldInfo storytellerField = typeof(Game).GetField("storyteller",
-                        BindingFlags.Instance | BindingFlags.NonPublic);
-                    storytellerField?.SetValue(candidate.game, storytellerField.GetValue(candidate.previousGame));
-                    phase = "constructing map parent";
-                    candidate.parent = WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.PocketMap) as MapParent;
-                    if (candidate.parent == null)
-                        throw new InvalidOperationException("Pocket MapParent unavailable");
-                    PlanetTile generationTile = activeMap.Tile;
-                    if (Find.WorldGrid[generationTile]?.PrimaryBiome == null)
-                        for (int tileId = 0; tileId < Find.WorldGrid.TilesCount; tileId++)
-                            if (Find.WorldGrid[(PlanetTile)tileId]?.PrimaryBiome != null)
-                            {
-                                generationTile = (PlanetTile)tileId;
-                                break;
-                            }
-                    candidate.parent.Tile = generationTile;
-                    candidate.parent.SetFaction(Faction.OfPlayer);
-                    phase = "constructing map";
+                    Scenario isolatedScenario = new Scenario();
+                    typeof(Scenario).GetField("name", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                        ?.SetValue(isolatedScenario, "Wildlife isolated acceptance");
+                    typeof(Scenario).GetField("enabled", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                        ?.SetValue(isolatedScenario, true);
+                    typeof(Scenario).GetField("valid", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                        ?.SetValue(isolatedScenario, true);
+                    ScenPart_PlayerFaction isolatedFactionPart = new ScenPart_PlayerFaction();
+                    typeof(ScenPart_PlayerFaction).GetField("factionDef",
+                            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                        ?.SetValue(isolatedFactionPart, FactionDefOf.PlayerColony);
+                    typeof(Scenario).GetField("parts", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+                        ?.SetValue(isolatedScenario, new List<ScenPart> { isolatedFactionPart });
+                    candidate.game.Scenario = isolatedScenario;
+                    phase = "initializing isolated game lifecycle";
                     Current.Game = candidate.game;
-                    candidate.map = MapGenerator.GenerateMap(new IntVec3(80, 1, 80), candidate.parent,
-                        MapGeneratorDefOf.Encounter, null, generated =>
-                        {
-                            FieldInfo pocketTileField = typeof(Map).GetField("pocketTileInfo",
-                                BindingFlags.Instance | BindingFlags.NonPublic);
-                            Tile isolatedTile = new Tile(generationTile)
-                            ;
-                            typeof(Tile).GetField("biome", BindingFlags.Instance | BindingFlags.NonPublic)
-                                ?.SetValue(isolatedTile, candidate.parent.Biome ?? activeMap.Biome);
-                            pocketTileField?.SetValue(generated, isolatedTile);
-                        }, true, false);
+                    candidate.game.InitNewGame();
+                    candidate.map = candidate.game.CurrentMap;
                     if (candidate.map == null)
-                        throw new InvalidOperationException("MapGenerator returned no map");
+                        throw new InvalidOperationException("Game.InitNewGame returned no map");
                     foreach (IntVec3 cell in candidate.map.AllCells)
                         candidate.map.terrainGrid.SetTerrain(cell, TerrainDefOf.Sand);
-                    Type componentsUtility = AccessTools.TypeByName("Verse.MapComponentsUtility");
-                    AccessTools.Method(componentsUtility, "MapGenerated")?.Invoke(null, new object[] { candidate.map });
-                    phase = "registering generated map";
-                    candidate.game.AddMap(candidate.map);
-                    candidate.game.CurrentMap = candidate.map;
+                    candidate.parent = candidate.map.Parent;
                     phase = "initializing required components";
                     if (candidate.map.GetComponent<HerdMapComponent>() == null ||
                         candidate.map.GetComponent<WildlifeSignalCultureMapComponent>() == null ||
@@ -194,6 +177,11 @@ namespace Herds
                 finally
                 {
                     Current.Game = previousGame;
+                    Map mapToRestore = previousGameCurrentMap ?? previousCurrentMap;
+                    if (previousGame != null && mapToRestore != null && !previousGame.Maps.Contains(mapToRestore))
+                        previousGame.AddMap(mapToRestore);
+                    if (previousGame != null && mapToRestore != null)
+                        previousGame.CurrentMap = mapToRestore;
                     if (uiCaptured)
                     {
                         bool uiRestored = RestoreUiState(out string uiDetail);
@@ -395,20 +383,12 @@ namespace Herds
 
         private static string KnowledgeFingerprint(Game game)
         {
-            Type type = KnowledgeComponentType();
-            object knowledge = type == null ? null : game?.GetComponent(type);
-            if (knowledge == null) return "none";
-            string[] fields = { "claimsV3", "contextFacetsV3", "accrualV3" };
-            return string.Join(";", fields.Select(field =>
-            {
-                object value = knowledge.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(knowledge);
-                if (!(value is System.Collections.IEnumerable records)) return field + "=none";
-                return field + "=" + string.Join(",", records.Cast<object>().Select(record =>
-                    record?.GetType().GetField("measurements")?.GetValue(record) is System.Collections.IEnumerable measurements
-                        ? string.Join("/", measurements.Cast<object>().Select(measurement =>
-                            measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string ?? ""))
-                        : RuntimeHelpers.GetHashCode(record).ToString()));
-            }));
+            if (game == null || KnowledgeComponentType() == null) return "none";
+            KnowledgeDiagnosticsSnapshot diagnostics = KnowledgeDiagnostics.Snapshot();
+            return diagnostics.claimCount + "/" + diagnostics.measurementCount + "/" + diagnostics.contextCount + "/" +
+                diagnostics.milestoneCount + "/" + diagnostics.relationCount + "/" + diagnostics.accrualPolicyKeyCount +
+                "/revision=" + KnowledgeQuery.Revision + "/migration=" +
+                KnowledgeMigrationService.IsCommitted("wildlife.v3.legacy", 1);
         }
 
         private static string SettingsFingerprint()
@@ -451,12 +431,12 @@ namespace Herds
 
         private static Type KnowledgeComponentType()
         {
-            return AccessTools.TypeByName("KnowledgeFramework.GameComponent_KnowledgeFramework");
+            return typeof(GameComponent_KnowledgeFramework);
         }
 
         private static object CurrentKnowledgeComponent(Type type)
         {
-            return type?.GetProperty("Current", BindingFlags.Static | BindingFlags.Public)?.GetValue(null, null);
+            return GameComponent_KnowledgeFramework.Current;
         }
 
         private static bool InstallLoadedMapComponent(Map map, MapComponent loaded, out string detail)
@@ -523,22 +503,15 @@ namespace Herds
                 }
                 Type knowledgeType = KnowledgeComponentType();
                 object knowledge = CurrentKnowledgeComponent(knowledgeType);
-                FieldInfo claimsField = knowledgeType?.GetField("claimsV3", BindingFlags.Instance | BindingFlags.NonPublic);
-                object expectedClaim = null;
-                if (claimsField?.GetValue(knowledge) is System.Collections.IEnumerable claims)
-                    foreach (object claim in claims)
-                    {
-                        FieldInfo measurementsField = claim?.GetType().GetField("measurements");
-                        if (!(measurementsField?.GetValue(claim) is System.Collections.IEnumerable measurements)) continue;
-                        if (measurements.Cast<object>().Any(measurement =>
-                            measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string == eventSourceId))
-                        {
-                            expectedClaim = claim;
-                            break;
-                        }
-                    }
+                string populationSubject = WildlifeKnowledgeAdapter.PopulationSubjectId(map, expected.species);
+                KnowledgeContextKey claimContext = WildlifeKnowledgeAdapter.ContextFor(map, expected.cell);
+                KnowledgeClaimSnapshot expectedClaim = KnowledgeClaimService.Snapshot(
+                    WildlifeKnowledgeAdapter.DomainId, populationSubject, WildlifeKnowledgeAdapter.FacetPopulation,
+                    WildlifeKnowledgeAdapter.ClaimPredatorPressure, null, KnowledgeScope.Colony, claimContext,
+                    KnowledgeContextFallbackMode.ExactOnly);
                 Pawn expectedObserver = expected.presentations.FirstOrDefault(value => value?.observer != null)?.observer;
-                if (expectedClaim == null || expectedObserver == null)
+                if (expectedClaim == null || !expectedClaim.provenance.Any(value => value?.sourceInstanceId == eventSourceId) ||
+                    expectedObserver == null)
                 {
                     detail = "round-trip claim or observer unavailable";
                     return false;
@@ -582,27 +555,15 @@ namespace Herds
                     detail = "loaded owner installation failed: " + installDetail;
                     return false;
                 }
-                AccessTools.Method(loadedKnowledge?.GetType(), "RebuildV3Indexes")?.Invoke(loadedKnowledge, null);
                 WildlifeSignalCultureMapComponent installedSignals = map.GetComponent<WildlifeSignalCultureMapComponent>();
-                object installedKnowledge = CurrentKnowledgeComponent(knowledgeType);
 
                 WildlifeSignalTrace loadedTrace = installedSignals?.RecentSignals?.FirstOrDefault(value =>
                     value?.traceId == expected.traceId);
-                bool claimSourceLoaded = false;
-                FieldInfo loadedClaimsField = installedKnowledge?.GetType().GetField("claimsV3",
-                    BindingFlags.Instance | BindingFlags.NonPublic);
-                if (loadedClaimsField?.GetValue(installedKnowledge) is System.Collections.IEnumerable loadedClaims)
-                    foreach (object claim in loadedClaims)
-                    {
-                        if (!(claim?.GetType().GetField("measurements")?.GetValue(claim)
-                            is System.Collections.IEnumerable measurements)) continue;
-                        if (measurements.Cast<object>().Any(measurement =>
-                            measurement?.GetType().GetField("sourceInstanceId")?.GetValue(measurement) as string == eventSourceId))
-                        {
-                            claimSourceLoaded = true;
-                            break;
-                        }
-                    }
+                KnowledgeClaimSnapshot loadedClaim = KnowledgeClaimService.Snapshot(
+                    WildlifeKnowledgeAdapter.DomainId, populationSubject, WildlifeKnowledgeAdapter.FacetPopulation,
+                    WildlifeKnowledgeAdapter.ClaimPredatorPressure, null, KnowledgeScope.Colony, claimContext,
+                    KnowledgeContextFallbackMode.ExactOnly);
+                bool claimSourceLoaded = loadedClaim?.provenance.Any(value => value?.sourceInstanceId == eventSourceId) == true;
                 bool traceLoaded = loadedTrace != null && loadedTrace.subjectWasPredator == expected.subjectWasPredator &&
                     loadedTrace.developerScenario == expected.developerScenario &&
                     loadedTrace.presentations.Any(value => loadedObservers.Contains(value?.observer)) &&

@@ -4,6 +4,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$descriptorPath = Join-Path $repositoryRoot 'DevTools\DevBridge\agent.json'
+if (-not (Test-Path -LiteralPath $descriptorPath -PathType Leaf)) { throw "Wildlife owner descriptor is missing: $descriptorPath" }
+$descriptor = Get-Content -LiteralPath $descriptorPath -Raw | ConvertFrom-Json
+if ($descriptor.packageId -ne 'Lan.Wildlife') { throw "Unexpected Wildlife owner package ID: $($descriptor.packageId)" }
+if ($descriptor.adapterDirectory -ne 'DevTools/BridgeAdapters') { throw "Unexpected adapter directory: $($descriptor.adapterDirectory)" }
+if ($descriptor.adapterSource -ne 'Source/Herds/WildlifeDevBridge.cs') { throw "Unexpected adapter source: $($descriptor.adapterSource)" }
 $modulePath = [IO.Path]::GetFullPath($ModulePath)
 $adapterDirectory = [IO.Path]::GetFullPath($AdapterDirectory)
 if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw "Wildlife module is missing: $modulePath" }
@@ -14,11 +22,16 @@ if (-not (Test-Path -LiteralPath $adapterDirectory -PathType Container)) {
 $manifestFiles = @(Get-ChildItem -LiteralPath $adapterDirectory -Filter '*.manifest.json' -File)
 if ($manifestFiles.Count -ne 1) { throw "Expected exactly one Wildlife manifest template." }
 $manifest = Get-Content -LiteralPath $manifestFiles[0].FullName -Raw | ConvertFrom-Json
+if ($manifest.protocolMin -ne 10 -or $manifest.protocolMax -ne 10) {
+    throw 'Wildlife owner manifest must target DevBridge protocol 10.'
+}
 $bytes = [IO.File]::ReadAllBytes($modulePath)
 $hash = (Get-FileHash -LiteralPath $modulePath -Algorithm SHA256).Hash.ToUpperInvariant()
 $assembly = [Reflection.AssemblyName]::GetAssemblyName($modulePath)
-$reflectionAssembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($modulePath)
-$mvid = $reflectionAssembly.ManifestModule.ModuleVersionId.ToString('D')
+$metadata = @(& (Join-Path $PSScriptRoot 'Read-AssemblyMetadata.ps1') -AssemblyPath $modulePath)
+$mvidLine = @($metadata | Where-Object { $_ -like 'mvid=*' }) | Select-Object -First 1
+if (-not $mvidLine) { throw 'The metadata reader did not return an MVID.' }
+$mvid = $mvidLine.Substring(5)
 $sameBinding = [int64]$manifest.assemblyBytes -eq $bytes.Length -and
     [string]::Equals([string]$manifest.contentHash, $hash, [StringComparison]::OrdinalIgnoreCase) -and
     [string]::Equals([string]$manifest.assemblyIdentity, $assembly.FullName, [StringComparison]::Ordinal)
