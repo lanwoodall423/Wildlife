@@ -77,11 +77,12 @@ foreach ($project in $normalProjects) {
     Check "normal-relative:$project" ($text -notmatch '(?i)(?:[A-Z]:[\\/]|\\\\[^\\]+[\\/]|steamapps|Workshop|USERPROFILE)') 'no machine-specific path'
 }
 $adapterText = ReadText 'Source\Wildlife\DeferredReality.Wildlife.csproj'
-$validatorFiles = @(Get-ChildItem -LiteralPath (Join-Path $root 'DevTools') -Recurse -File -Include '*.ps1','*.cs' |
-    Where-Object { $_.Name -ne 'Check-WildlifeRepositoryIntegrity.ps1' })
-$projectFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File -Include '*.csproj','*.props')
-$scriptFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File -Include '*.ps1' |
-    Where-Object { $_.Name -notin @('Check-WildlifeRepositoryIntegrity.ps1', 'Verify-DeferredRealityIntegration.ps1', 'Verify-KnowledgeFramework.ps1') })
+$validatorFiles = @(Get-ChildItem -LiteralPath (Join-Path $root 'DevTools') -Recurse -File |
+    Where-Object { $_.Extension -in @('.ps1', '.cs') -and $_.Name -ne 'Check-WildlifeRepositoryIntegrity.ps1' })
+$projectFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File |
+    Where-Object { $_.Extension -in @('.csproj', '.props') })
+$scriptFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File |
+    Where-Object { $_.Extension -eq '.ps1' -and $_.Name -notin @('Check-WildlifeRepositoryIntegrity.ps1', 'Verify-DeferredRealityIntegration.ps1', 'Verify-KnowledgeFramework.ps1') })
 $projectAndScriptFiles = @($projectFiles + $scriptFiles)
 Check 'adapter-drf-reference' ($adapterText -match '<Reference Include="DeferredRealityFramework"') 'optional adapter references DRF'
 Check 'adapter-optional-output' ($adapterText -match 'OptionalDeferredReality[\\/]Assemblies') 'optional adapter output is scoped'
