@@ -100,6 +100,11 @@ adjacent map, after a task heartbeat, and during return. Reloading must rebuild
 the task association from the durable ticket, serialized `WildlifeTrailLead`,
 and exact Pawn load ID without producing a progress heartbeat from the baseline.
 A subsequent trail evidence/state change may renew the same task ID once.
+The rebuild is deterministic and may run again after provider registration or map
+post-load; it rejects duplicate active tickets, duplicate matching trails, missing
+destination placement, terminal or quarantined tickets, and task-ID mismatches
+rather than selecting an alternative. Runtime dictionaries are never serialized
+and are reconstructed lazily when the first observation arrives.
 
 Force a thrown or aborted `ExitMap` and an unexpected world-pawn disposition;
 the source population and anchor membership must remain unchanged and the
@@ -108,7 +113,24 @@ updates the traveling anchor after the transfer, and a duplicate completion
 does not transfer again. Complete or abandon the task, save during return, and
 verify the same Pawn reaches the recorded origin exactly once. These are manual
 RimWorld checks; compilation and the package script do not claim them passed.
+The `Pawn.ExitMap` prefix only captures immutable intent. Population, anchor, and
+anchored-membership mutations occur in the exception-safe finalizer after the
+original call proves the exact Pawn is an unspawned `WorldPawn`; any post-departure
+membership failure is retained as a framework diagnostic.
 
 The combined release-candidate checklist is maintained in the DRF repository's
 `MANUAL_ACCEPTANCE_REPORT.md`. Adjacent regions remain disabled until that
 checklist has live evidence.
+
+## Build and CI boundary
+
+The normal Herds, Packs, and Wildlife projects use the Wildlife-owned
+`DevTools/RimWorldReferences.props` file and can build without a DRF checkout or
+assembly. Set `RIMWORLD_ROOT` and `DEFERRED_REALITY_HARMONY_PATH` (or the
+equivalent MSBuild properties) for local RimWorld builds. The typed
+`DeferredReality.Wildlife` project is the only project that requires DRF and
+reports a clear missing-framework error when its configured root is absent.
+`DevTools/Check-WildlifeRepositoryIntegrity.ps1` and the GitHub integrity
+workflow validate source separation, conditional loading, package layout,
+PowerShell/XML syntax, and tracked-output hygiene without proprietary runtime
+files. They do not replace the live RimWorld/Scribe acceptance cases above.

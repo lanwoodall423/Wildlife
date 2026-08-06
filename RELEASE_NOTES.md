@@ -17,7 +17,10 @@ The optional `DeferredReality.Wildlife` adapter is loaded only from
 ## Release Checklist
 
 Build `Source/Herds/Herds.csproj`, `Source/Wildlife/Wildlife.csproj`, and the
-optional adapter separately. Run `DevTools/Verify-DeferredRealityIntegration.ps1`
-and the Wildlife bridge checks. Then execute the combined manual acceptance
-report from the DRF repository in RimWorld. Do not enable adjacent regions by
-default or describe them as production-ready before the live checklist passes.
+optional adapter separately with `RIMWORLD_ROOT` and
+`DEFERRED_REALITY_HARMONY_PATH` (or equivalent MSBuild properties). Run
+`DevTools/Verify-DeferredRealityIntegration.ps1`,
+`DevTools/Check-WildlifeRepositoryIntegrity.ps1`, and the Wildlife bridge checks.
+Then execute the combined manual acceptance report from the DRF repository in
+RimWorld. Do not enable adjacent regions by default or describe them as
+production-ready before the live checklist passes.

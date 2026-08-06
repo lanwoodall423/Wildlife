@@ -1,0 +1,15 @@
+name: Wildlife Integrity
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run provider-boundary integrity checks
+        shell: pwsh
+        run: ./DevTools/Check-WildlifeRepositoryIntegrity.ps1
