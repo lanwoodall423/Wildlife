@@ -233,7 +233,10 @@ namespace Herds
         public static KnowledgeContextKey ContextFor(Map map, IntVec3 cell = default(IntVec3))
         {
             if (map == null) return new KnowledgeContextKey(ContextGlobal, "global");
-            IntVec3 actual = cell.IsValid ? cell : map.Center;
+            // Callers omit the cell for map/colony queries.  IntVec3's default
+            // value (0, 0, 0) is technically valid, but it is not an explicit
+            // context and would silently select the map's corner sector.
+            IntVec3 actual = cell == default(IntVec3) || !cell.IsValid ? map.Center : cell;
             string sector = map.uniqueID + ":" + Mathf.Max(0, actual.x / 12) + ":" + Mathf.Max(0, actual.z / 12);
             return new KnowledgeContextKey(ContextSector, sector);
         }
@@ -309,6 +312,11 @@ namespace Herds
         public static float ExpertiseProgressFor(Pawn pawn) =>
             KnowledgeQuery.Expertise(DomainId, pawn, ExpertiseTrack).progress;
 
+        private static void InvalidateKnowledgeConsumers()
+        {
+            KnowledgeProviderRegistry.InvalidateAll();
+        }
+
         public static bool Observe(Pawn observer, ThingDef species, WildlifeKnowledgeObservation observation,
             Map map = null, bool success = true, float quality = 1f, string summary = null,
             string sourceInstanceId = null, bool documented = false, IReadOnlyList<Pawn> witnesses = null,
@@ -342,9 +350,10 @@ namespace Herds
                 directKnowledge = Mathf.Max(0f, directKnowledge),
                 notify = false
             };
-            KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
+                KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
             if (result.success)
             {
+                InvalidateKnowledgeConsumers();
                 WildlifeEventUtility.Publish(EventKindFor(observation), map ?? observer?.MapHeld, observer, null, species,
                     "Knowledge observation", summary ?? recipe, recipe, success, quality, quality >= 1f ? 0.7f : quality * 0.55f,
                     directKnowledge, documented, value.sourceInstanceId, recipe, observer?.Position ?? IntVec3.Invalid, witnesses, metadata);
@@ -412,6 +421,7 @@ namespace Herds
             };
             KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
             if (!result.success) return false;
+            InvalidateKnowledgeConsumers();
             WildlifeEventUtility.Publish(WildlifeEventKind.Signal, map, observer, null, species,
                 "Warning call knowledge", summary ?? "A warning call added evidence to the animal dialect record.",
                 "warning-call", truthful, quality, truthful ? 0.7f : 0.25f, 0f, false,
@@ -433,7 +443,11 @@ namespace Herds
                 subjectId = subjectId,
                 facetId = FacetPopulation,
                 claimId = ClaimPredatorPressure,
-                observer = colonyEvidence ? null : observer,
+                // Keep the witnessing pawn on the runtime transaction even for colony
+                // evidence. The targetColony flag controls ownership; retaining the
+                // witness lets Knowledge Framework validate and preserve the observation
+                // while the resulting claim remains colony-scoped.
+                observer = observer,
                 scope = colonyEvidence ? KnowledgeScope.Colony : KnowledgeScope.Personal,
                 value = KnowledgeClaimValue.Text(KnowledgeClaimValueType.EnumId, PredatorPressureClaimValue),
                 context = ContextFor(map, cell),
@@ -452,11 +466,16 @@ namespace Herds
             };
             KnowledgeObservation value = new KnowledgeObservation
             {
-                observer = colonyEvidence ? null : observer,
+                observer = observer,
                 domainId = DomainId,
                 subjectId = subjectId,
                 facetId = FacetPopulation,
-                observationId = RecipeId(WildlifeKnowledgeObservation.PredatorPressure),
+                // Colony encounter evidence carries a runtime claim measurement. The
+                // Knowledge Framework expands recipe outcomes by replacing that list;
+                // using the recipe here would turn its colony measurement back into an
+                // observer-less personal measurement. Keep the colony transaction as a
+                // direct observation so the measurement and target scope survive intact.
+                observationId = colonyEvidence ? null : RecipeId(WildlifeKnowledgeObservation.PredatorPressure),
                 methodId = "predator-pressure",
                 quality = Mathf.Clamp(quality, 0.05f, 2f),
                 success = truthful,
@@ -479,7 +498,14 @@ namespace Herds
                 notify = false
             };
             KnowledgeTransactionResult result = KnowledgeEngine.Submit(value);
-            if (!result.success) return false;
+            if (!result.success)
+            {
+                Log.Error("[WildlifeTest][PredatorPressure] knowledge submission rejected: " +
+                    (result.error ?? "unknown error") + " source=" + sourceInstanceId +
+                    " subject=" + subjectId + " context=" + value.context);
+                return false;
+            }
+            InvalidateKnowledgeConsumers();
             WildlifeEventUtility.Publish(WildlifeEventKind.Signal, map, observer, null, species,
                 "Local predator encounter", summary ?? "A herd defense response added local predator-encounter evidence.",
                 "predator-encounter", truthful, quality, truthful ? 0.7f : 0.25f, 0f, false,
@@ -564,6 +590,22 @@ namespace Herds
             !sourceInstanceId.NullOrEmpty() &&
             sourceInstanceId.StartsWith("wildlife:predator-encounter:", StringComparison.Ordinal);
 
+        private static List<IntVec3> PredatorPressureQueryCells(ThingDef species, Map map,
+            IntVec3 requestedCell, bool colony)
+        {
+            if (!colony || requestedCell != default(IntVec3) && requestedCell.IsValid)
+                return new List<IntVec3> { requestedCell };
+
+            List<IntVec3> cells = map.GetComponent<WildlifeSignalCultureMapComponent>()?.RecentSignals
+                ?.Where(trace => trace != null && trace.species == species &&
+                    IsPredatorPressureTrace(trace) && trace.cell.IsValid)
+                .Select(trace => trace.cell)
+                .Distinct()
+                .ToList() ?? new List<IntVec3>();
+            if (cells.Count == 0) cells.Add(default(IntVec3));
+            return cells;
+        }
+
         public static WildlifePredatorPressureKnowledgeState PredatorPressureStateFor(Pawn observer,
             ThingDef species, Map map, IntVec3 cell = default(IntVec3), bool colony = false)
         {
@@ -573,15 +615,30 @@ namespace Herds
             KnowledgeScope scope = colony ? KnowledgeScope.Colony : KnowledgeScope.Personal;
             Pawn queryPawn = colony ? null : observer;
             string subjectId = PopulationSubjectId(map, species);
-            KnowledgeContextKey context = ContextFor(map, cell);
-            KnowledgeFacetSnapshotV2 facet = KnowledgeQuery.Facet(DomainId, subjectId, FacetPopulation, queryPawn,
-                scope, true, true, context, KnowledgeContextFallbackMode.ParentThenGlobal);
-            KnowledgeClaimSnapshot claim = KnowledgeQuery.Claims(DomainId, subjectId, FacetPopulation, queryPawn,
-                scope, context, KnowledgeContextFallbackMode.ParentThenGlobal).FirstOrDefault(value =>
-                    value?.claimId == ClaimPredatorPressure);
-            List<KnowledgeClaimMeasurementSnapshot> encounterEvidence = claim?.provenance?.Where(value =>
-                IsPredatorEncounterSource(value?.sourceInstanceId)).ToList() ??
-                new List<KnowledgeClaimMeasurementSnapshot>();
+            List<KnowledgeContextKey> contexts = PredatorPressureQueryCells(species, map, cell, colony)
+                .Select(value => ContextFor(map, value))
+                .Distinct()
+                .ToList();
+            List<KnowledgeClaimMeasurementSnapshot> encounterEvidence = new List<KnowledgeClaimMeasurementSnapshot>();
+            HashSet<string> seenEvidence = new HashSet<string>(StringComparer.Ordinal);
+            float facetAmount = 0f;
+            foreach (KnowledgeContextKey context in contexts)
+            {
+                KnowledgeFacetSnapshotV2 facet = KnowledgeQuery.Facet(DomainId, subjectId, FacetPopulation, queryPawn,
+                    scope, true, true, context, KnowledgeContextFallbackMode.ParentThenGlobal);
+                facetAmount = Mathf.Max(facetAmount, facet?.amount ?? 0f);
+                KnowledgeClaimSnapshot claim = KnowledgeQuery.Claims(DomainId, subjectId, FacetPopulation, queryPawn,
+                    scope, context, KnowledgeContextFallbackMode.ParentThenGlobal).FirstOrDefault(value =>
+                        value?.claimId == ClaimPredatorPressure);
+                foreach (KnowledgeClaimMeasurementSnapshot measurement in claim?.provenance?.Where(value =>
+                             IsPredatorEncounterSource(value?.sourceInstanceId)) ??
+                         Enumerable.Empty<KnowledgeClaimMeasurementSnapshot>())
+                {
+                    string identity = SignalObservationEquivalenceKey(measurement?.sourceInstanceId) ??
+                        measurement?.sourceInstanceId;
+                    if (identity.NullOrEmpty() || seenEvidence.Add(identity)) encounterEvidence.Add(measurement);
+                }
+            }
             HashSet<string> encounterIdentities = new HashSet<string>(StringComparer.Ordinal);
             foreach (KnowledgeClaimMeasurementSnapshot measurement in encounterEvidence)
             {
@@ -605,7 +662,7 @@ namespace Herds
             output.stageId = encounterCount >= 4 ? StageUnderstood : encounterCount >= 3 ? StageStudied :
                 encounterCount >= 2 ? StageIdentified : encounterCount >= 1 ? StageSighted : StageUnknown;
             output.evidenceCount = encounterCount;
-            output.amount = facet?.amount ?? 0f;
+            output.amount = facetAmount;
             output.confidence = totalWeight > 0f ? supportingWeight / totalWeight : 0f;
             output.claimObservationCount = encounterCount;
             output.contradictory = contradictory;
@@ -1213,11 +1270,11 @@ namespace Herds
             Claim("population-estimate", "Population estimate", FacetPopulation, KnowledgeClaimValueType.NumericRange, KnowledgeClaimAggregation.ObservedRange, KnowledgeClaimStalenessPolicy.Seasonal),
             Claim("movement-direction", "Movement direction", FacetMovement, KnowledgeClaimValueType.Direction, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.Seasonal),
             Claim("habitat-quality", "Habitat quality", FacetHabitat, KnowledgeClaimValueType.Percentage, KnowledgeClaimAggregation.WeightedMean, KnowledgeClaimStalenessPolicy.Seasonal),
-            Claim("signal-meaning", "Signal meaning", FacetSignals, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.Contextual),
+            Claim("signal-meaning", "Signal meaning", FacetSignals, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("predator-pressure", "Repeated local predator encounters", FacetPopulation, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("danger-level", "Danger level", FacetDanger, KnowledgeClaimValueType.Percentage, KnowledgeClaimAggregation.WeightedMean, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("diet-preference", "Diet preference", FacetDiet, KnowledgeClaimValueType.DefReference, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
-            Claim("den-location", "Den or refuge location", FacetHabitat, KnowledgeClaimValueType.Vector, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.Contextual),
+            Claim("den-location", "Den or refuge location", FacetHabitat, KnowledgeClaimValueType.Vector, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("social-pattern", "Social pattern", FacetSocial, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.MostSupported, KnowledgeClaimStalenessPolicy.SlowlyStale),
             Claim("policy-outcome", "Policy outcome", FacetPopulation, KnowledgeClaimValueType.EnumId, KnowledgeClaimAggregation.Latest, KnowledgeClaimStalenessPolicy.ConsumerManaged)
         };
@@ -1293,11 +1350,8 @@ namespace Herds
         {
             defName = "Wildlife_Archetype_" + id.Replace(".", "_"),
             stableId = id,
-            categoryId = id,
             applicableFacetIds = facets.ToList(),
             applicableClaimIds = claims.ToList(),
-            discoveryStageIds = new[] { StageUnknown, StageSighted, StageIdentified, StageStudied, StageUnderstood, StageDocumented }.ToList(),
-            observationIds = new[] { "sighting", "study", "tracks", "trail-completion", "survey", "expedition", "documentation" }.ToList(),
             comparisonSchemaId = "wildlife.species-comparison"
         };
 
@@ -1338,8 +1392,7 @@ namespace Herds
                 id = "wildlife.species-comparison",
                 label = "Species comparison",
                 claimIds = BuildClaims().Select(value => value.StableId).ToList(),
-                facetIds = SpeciesFacets.ToList(),
-                relationTypeIds = new List<string> { "wildlife.population-of", "wildlife.dialect-of" }
+                facetIds = SpeciesFacets.ToList()
             }, true);
         }
 
@@ -1433,6 +1486,7 @@ namespace Herds
                 unidentifiedDescription = "The evidence is not yet sufficient to identify this subject.",
                 sourceDef = sourceDef,
                 archetypeId = archetype,
+                categoryIds = new[] { archetype },
                 applicableFacetIds = null,
                 applicableClaimIds = null,
                 sortOrder = archetype == SpeciesArchetype ? 0 : archetype == PopulationArchetype ? 10 : 20,

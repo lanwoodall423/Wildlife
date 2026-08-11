@@ -438,13 +438,19 @@ namespace Herds
 
     public static class WildlifeRoleUtility
     {
-        public static bool IsMasterHunter(Pawn pawn) =>
-            HerdsMod.Settings?.enableWildlifeIdeologyRoles == true && ModsConfig.IdeologyActive &&
-            pawn?.Ideo?.GetRole(pawn)?.def == HerdsDefOf.Herds_IdeoRole_MasterHunter;
+        public static bool IsMasterHunter(Pawn pawn)
+        {
+            if (HerdsMod.Settings?.enableWildlifeIdeologyRoles != true || !ModsConfig.IdeologyActive) return false;
+            try { return pawn?.Ideo?.GetRole(pawn)?.def == HerdsDefOf.Herds_IdeoRole_MasterHunter; }
+            catch (System.NullReferenceException) { return false; }
+        }
 
-        public static bool IsMasterConservationist(Pawn pawn) =>
-            HerdsMod.Settings?.enableWildlifeIdeologyRoles == true && ModsConfig.IdeologyActive &&
-            pawn?.Ideo?.GetRole(pawn)?.def == HerdsDefOf.Herds_IdeoRole_MasterConservationist;
+        public static bool IsMasterConservationist(Pawn pawn)
+        {
+            if (HerdsMod.Settings?.enableWildlifeIdeologyRoles != true || !ModsConfig.IdeologyActive) return false;
+            try { return pawn?.Ideo?.GetRole(pawn)?.def == HerdsDefOf.Herds_IdeoRole_MasterConservationist; }
+            catch (System.NullReferenceException) { return false; }
+        }
 
         public static float AnimalKnowledgeFactor(Pawn pawn) =>
             IsMasterHunter(pawn) ? 1.5f : IsMasterConservationist(pawn) ? 1.65f : 1f;

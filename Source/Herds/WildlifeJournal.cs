@@ -42,6 +42,8 @@ namespace Herds
         private Vector2? initialSignalDetailScroll;
         private readonly int focusedFieldLogTick;
         private WildlifeSignalJournalPanel signalPanel;
+        private const float HubActionHeight = 88f;
+        private const float HubActionRowStep = 98f;
         private readonly Dictionary<string, IReadOnlyList<KnowledgeFacetSnapshotV2>> facetCache =
             new Dictionary<string, IReadOnlyList<KnowledgeFacetSnapshotV2>>(StringComparer.Ordinal);
 
@@ -346,7 +348,7 @@ namespace Herds
         private void DrawFieldLog(Rect rect, Map activeMap)
         {
             const float headerHeight = 78f;
-            const float rowHeight = 88f;
+            const float rowHeight = 100f;
             List<FieldLogItem> attention = cachedFieldLog.Where(item => item.urgent).Take(6).ToList();
             List<FieldLogItem> recent = cachedFieldLog.Where(item => !item.urgent).Take(20).ToList();
             if (attention.Count == 0 && recent.Count == 0)
@@ -426,7 +428,7 @@ namespace Herds
             GUI.color = new Color(0.62f, 0.73f, 0.66f);
             string time = item.tick <= 0 ? "Recently" :
                 Mathf.Max(0, (Find.TickManager?.TicksGame ?? item.tick) - item.tick).ToStringTicksToPeriod() + " ago";
-            Widgets.Label(new Rect(rect.x + 14f, rect.y + 70f, textWidth - 4f, 16f),
+            Widgets.Label(new Rect(rect.x + 14f, rect.y + 76f, textWidth - 4f, 16f),
                 (item.location ?? "Field record") + "  |  " + item.certainty + "  |  " +
                 FreshnessLabel(item.tick) + "  |  " + time);
             GUI.color = Color.white;
@@ -445,7 +447,7 @@ namespace Herds
                 .OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId))
                 .ThenBy(value => value.species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase)
                 .Take(8).ToList() ?? new List<WildlifeSpeciesSnapshot>();
-            float contentHeight = 74f + 84f + 82f + 42f + Mathf.Max(104f, records.Count * 74f);
+            float contentHeight = 74f + 84f + 82f + 58f + Mathf.Max(104f, records.Count * 74f);
             Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
             Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
                 Mathf.Max(outer.height, contentHeight));
@@ -481,14 +483,14 @@ namespace Herds
 
             float actionY = 164f;
             float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
-            DrawHubAction(new Rect(0f, actionY, actionWidth, 72f), "Field Guide",
+            DrawHubAction(new Rect(0f, actionY, actionWidth, HubActionHeight), "Field Guide",
                 "Read species records, provenance, and the next useful observation.", "Open Field Guide", true,
                 () =>
                 {
                     page = WildlifeJournalPage.FieldGuide;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect(actionWidth + 8f, actionY, actionWidth, 72f), "Signals",
+            DrawHubAction(new Rect(actionWidth + 8f, actionY, actionWidth, HubActionHeight), "Signals",
                 hasSignals ? "Review interpreted calls and compare observers." : "Enable signal culture to study animal calls.",
                 hasSignals ? "Review Signals" : "Unavailable", hasSignals,
                 () =>
@@ -496,7 +498,7 @@ namespace Herds
                     page = WildlifeJournalPage.Signals;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, actionY, actionWidth, 72f), "Colony knowledge",
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, actionY, actionWidth, HubActionHeight), "Colony knowledge",
                 "Open the existing colony-wide knowledge detail window.", "Open details", true,
                 () =>
                 {
@@ -504,7 +506,7 @@ namespace Herds
                     Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge());
                 });
 
-            float y = actionY + 90f;
+            float y = actionY + HubActionRowStep + 8f;
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, y, view.width, 28f), "Working records");
             Text.Font = GameFont.Small;
@@ -686,14 +688,14 @@ namespace Herds
 
             float y = 164f;
             float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
-            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Living Atlas",
+            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Living Atlas",
                 "Review activity sectors, habitat, and population patterns.", "Open Atlas", true,
                 () =>
                 {
                     page = WildlifeJournalPage.LivingAtlas;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Local wildlife",
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Local wildlife",
                 regional == null ? "Local population information is unavailable." :
                     "Open detailed local populations, groups, and management actions.",
                 regional == null ? "Unavailable" : "Open local wildlife", regional != null,
@@ -702,7 +704,7 @@ namespace Herds
                     WildlifeUI.CloseMenus();
                     Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
                 });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Landscape",
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight), "Landscape",
                 landscape == null ? "Landscape information is unavailable." :
                     "Review persistent habitat features and developing places.",
                 landscape == null ? "Unavailable" : "Open landscape", landscape != null,
@@ -711,8 +713,8 @@ namespace Herds
                     WildlifeUI.CloseMenus();
                     Find.WindowStack.Add(new Window_WildlifeLandscape(activeMap));
                 });
-            y += 82f;
-            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Trail leads",
+            y += HubActionRowStep;
+            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Trail leads",
                 trails == null ? "Tracking information is unavailable." :
                     "Inspect physical signs and decide whether to follow them.",
                 trails == null ? "Unavailable" : "Open trail leads", trails != null,
@@ -721,7 +723,7 @@ namespace Herds
                     WildlifeUI.CloseMenus();
                     Find.WindowStack.Add(new Window_WildlifeTrailBoard(activeMap));
                 });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Expeditions",
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Expeditions",
                 !ExpeditionsVisible() ? "Expeditions are unavailable until their research and settings are ready." :
                     activeExpedition ? "An expedition is in the field. Review its course or plan another investigation." :
                     "Review active parties or plan an investigation beyond the local map.",
@@ -731,7 +733,7 @@ namespace Herds
                     page = WildlifeJournalPage.Expeditions;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f),
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight),
                 predatorPressure?.claimSupported == true ? "Predator Deterrent" : "Groups and behavior",
                 predatorPressure?.claimSupported == true
                     ? "Repeated local predator encounters support defensive herd behavior. A Predator Deterrent is the existing response for discouraging ordinary predators."
@@ -790,21 +792,21 @@ namespace Herds
 
             float y = 164f;
             float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
-            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Stories",
+            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Stories",
                 "Read narrative interpretations, folklore, and recognized animals.", "Open stories", true,
                 () =>
                 {
                     page = WildlifeJournalPage.Stories;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Theories and resolutions",
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Theories and resolutions",
                 "Review hypotheses, evidence, and resolved investigations.", "Open investigations", true,
                 () =>
                 {
                     page = WildlifeJournalPage.Investigations;
                     bodyScroll = Vector2.zero;
                 });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Notable animals",
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight), "Notable animals",
                 hasNotables ? "Open the existing individual animal story detail." : "No notable animal story is available yet.",
                 hasNotables ? "Open stories" : "Unavailable", hasNotables,
                 () =>
@@ -812,9 +814,9 @@ namespace Herds
                     WildlifeUI.CloseMenus();
                     Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 4));
                 });
-            y += 82f;
+            y += HubActionRowStep;
             bool memoryAnimal = TryFindMemoryAnimal(activeMap, memory, out Pawn animal);
-            DrawHubAction(new Rect(0f, y, actionWidth, 72f), "Folklore and traditions",
+            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Folklore and traditions",
                 hasFolklore ? "Review retellings and hold ceremonies through the retained detail window." :
                     "No folklore is available yet, but future encounters will appear here.",
                 hasFolklore ? "Open folklore" : "Unavailable", hasFolklore,
@@ -823,7 +825,7 @@ namespace Herds
                     WildlifeUI.CloseMenus();
                     Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 5));
                 });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, 72f), "Animal memory",
+            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Animal memory",
                 memoryAnimal ? "Open the timeline and social web for a remembered animal." :
                     "No remembered animal is currently available on this map.",
                 memoryAnimal ? "Open memory" : "Unavailable", memoryAnimal,
@@ -832,7 +834,7 @@ namespace Herds
                     WildlifeUI.CloseMenus();
                     Find.WindowStack.Add(new Window_AnimalMemoryTimeline(animal));
                 });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, 72f), "Field Log",
+            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight), "Field Log",
                 "Return to recent observations, evidence, and actionable records.", "Open Field Log", true,
                 () =>
                 {
@@ -905,7 +907,7 @@ namespace Herds
             Widgets.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 26f), title);
             Text.Font = GameFont.Small;
             GUI.color = new Color(0.70f, 0.78f, 0.71f);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 36f, rect.width - 20f, 30f), description);
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 36f, rect.width - 20f, 38f), description);
             GUI.color = Color.white;
         }
 
@@ -929,8 +931,8 @@ namespace Herds
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width - 126f, 23f), title);
             Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 31f, rect.width - 126f, 34f), detail);
-            if (Widgets.ButtonText(new Rect(rect.xMax - 116f, rect.y + 20f, 106f, 30f), button, active: enabled) &&
+            Widgets.Label(new Rect(rect.x + 10f, rect.y + 31f, rect.width - 126f, rect.height - 37f), detail);
+            if (Widgets.ButtonText(new Rect(rect.xMax - 116f, rect.y + (rect.height - 30f) * 0.5f, 106f, 30f), "Open", active: enabled) &&
                 enabled) action?.Invoke();
             TooltipHandler.TipRegion(rect, detail);
         }

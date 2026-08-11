@@ -853,6 +853,14 @@ namespace Herds
             nextInfluenceRefreshTick = 0;
         }
 
+        internal void ResetForDeterministicTest()
+        {
+            defenseMemory.Clear();
+            defenseByPawn.Clear();
+            refugeReservations.Clear();
+            nextDefenseTick = 0;
+        }
+
         private void EnsureCurrent()
         {
             if (!initialized || Find.TickManager.TicksGame >= nextRefreshTick) Rebuild();

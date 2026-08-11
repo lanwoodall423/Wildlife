@@ -553,15 +553,28 @@ namespace Herds
         public List<ExpeditionDestination> Destinations()
         {
             List<ExpeditionDestination> result = new List<ExpeditionDestination>();
-            if (Find.WorldGrid == null || !map.Tile.Valid) return result;
-            HashSet<int> candidates = new HashSet<int>(cells.Where(cell => cell.discoveryLevel > 0).Select(cell => cell.tileId));
-            List<PlanetTile> neighbors = new List<PlanetTile>();
-            Find.WorldGrid.GetTileNeighbors(map.Tile, neighbors);
-            for (int i = 0; i < neighbors.Count; i++) candidates.Add((int)neighbors[i]);
-            foreach (int tileId in candidates)
-                if (CanExpeditionTo(tileId))
-                    result.Add(DestinationForTile(tileId));
-            return result.OrderBy(destination => destination.distance).ThenBy(destination => destination.biome.label).ThenBy(destination => destination.tileId).ToList();
+            if (Find.WorldGrid == null || Find.WorldObjects == null || map == null || !map.Tile.Valid || cells == null)
+                return result;
+            try
+            {
+                HashSet<int> candidates = new HashSet<int>(cells.Where(cell => cell != null && cell.discoveryLevel > 0)
+                    .Select(cell => cell.tileId));
+                List<PlanetTile> neighbors = new List<PlanetTile>();
+                Find.WorldGrid.GetTileNeighbors(map.Tile, neighbors);
+                for (int i = 0; i < neighbors.Count; i++) candidates.Add((int)neighbors[i]);
+                foreach (int tileId in candidates)
+                {
+                    if (!CanExpeditionTo(tileId)) continue;
+                    ExpeditionDestination destination = DestinationForTile(tileId);
+                    if (destination != null && destination.biome != null) result.Add(destination);
+                }
+                return result.OrderBy(destination => destination.distance).ThenBy(destination => destination.biome.label)
+                    .ThenBy(destination => destination.tileId).ToList();
+            }
+            catch
+            {
+                return new List<ExpeditionDestination>();
+            }
         }
 
         public List<ThingDef> KnownSpecies(ExpeditionDestination destination)
@@ -583,15 +596,23 @@ namespace Herds
 
         public bool CanExpeditionTo(int tileId)
         {
-            if (Find.WorldGrid == null || !map.Tile.Valid || tileId < 0 || tileId == (int)map.Tile) return false;
-            PlanetTile planetTile = (PlanetTile)tileId;
-            if (!planetTile.Valid || planetTile.Layer != map.Tile.Layer) return false;
-            Tile tile = Find.WorldGrid[planetTile];
-            if (tile == null || tile.WaterCovered || tile.PrimaryBiome == null || tile.PrimaryBiome.impassable) return false;
-            return !Find.WorldObjects.ObjectsAt(planetTile).Any(worldObject =>
-                worldObject is Settlement ||
-                worldObject?.def?.defName?.IndexOf("Outpost", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                worldObject?.Label?.IndexOf("Outpost", StringComparison.OrdinalIgnoreCase) >= 0);
+            try
+            {
+                if (Find.WorldGrid == null || Find.WorldObjects == null || map == null || !map.Tile.Valid ||
+                    tileId < 0 || tileId == (int)map.Tile) return false;
+                PlanetTile planetTile = (PlanetTile)tileId;
+                if (!planetTile.Valid || planetTile.Layer != map.Tile.Layer) return false;
+                Tile tile = Find.WorldGrid[planetTile];
+                if (tile == null || tile.WaterCovered || tile.PrimaryBiome == null || tile.PrimaryBiome.impassable) return false;
+                return !Find.WorldObjects.ObjectsAt(planetTile).Any(worldObject =>
+                    worldObject is Settlement ||
+                    worldObject?.def?.defName?.IndexOf("Outpost", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    worldObject?.Label?.IndexOf("Outpost", StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public ExpeditionDestination DestinationForTile(int tileId, bool persistKnowledge = true)

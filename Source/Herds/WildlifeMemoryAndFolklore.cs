@@ -223,8 +223,22 @@ namespace Herds
         public int CeremonyCooldownTicks => Mathf.Max(0, lastCeremonyTick + 600000 - Find.TickManager.TicksGame);
         public bool CeremonyGathering => ceremonyGathering;
 
+        private void EnsureCollections()
+        {
+            memories ??= new List<AnimalColonistMemory>();
+            socialMemories ??= new List<AnimalSocialMemory>();
+            folklore ??= new List<WildlifeFolkloreRecord>();
+            cache ??= new Dictionary<int, AnimalColonistMemory>();
+            socialCache ??= new Dictionary<long, AnimalSocialMemory>();
+            socialByAnimal ??= new Dictionary<Pawn, List<AnimalSocialMemory>>();
+            pendingParticipants ??= new List<Pawn>();
+            passionAwarded ??= new List<Pawn>();
+            traitAwarded ??= new List<Pawn>();
+        }
+
         public override void ExposeData()
         {
+            EnsureCollections();
             Scribe_Collections.Look(ref memories, "wildlifeIndividualMemories", LookMode.Deep);
             Scribe_Collections.Look(ref socialMemories, "wildlifeSocialMemories", LookMode.Deep);
             Scribe_Collections.Look(ref folklore, "wildlifeFolklore", LookMode.Deep);
@@ -258,6 +272,7 @@ namespace Herds
 
         public override void MapComponentTick()
         {
+            EnsureCollections();
             int now = Find.TickManager.TicksGame;
             if (HerdsMod.Settings?.enableAnimalMemory == true && now >= nextMemoryTick)
             {
@@ -756,17 +771,33 @@ namespace Herds
                 " second:" + second.thingIDNumber;
         }
 
-        public List<string> DebugOverviewLines() => new List<string>
+        public List<string> DebugOverviewLines()
         {
-            "MEMORY records=" + memories.Count + " animals=" + memories.Select(value => value.animal).Distinct().Count() +
-            " social=" + socialMemories.Count + " socialAnimals=" +
-            socialMemories.Select(value => value.animal).Distinct().Count(),
-            "FOLKLORE stories=" + folklore.Count + " retellings=" + folklore.Sum(value => value.retellings) +
-            " quest=" + (legendQuest?.objective.ToString() ?? "none") + " ceremony=" +
-            (ceremonyGathering ? pendingCeremony.ToString() : "none") + " roles=" +
-            map.mapPawns.FreeColonists.Count(pawn => WildlifeRoleUtility.IsMasterHunter(pawn) ||
-                WildlifeRoleUtility.IsMasterConservationist(pawn))
-        };
+            EnsureCollections();
+            return new List<string>
+            {
+                "MEMORY records=" + memories.Count + " animals=" + memories.Select(value => value?.animal).Distinct().Count() +
+                " social=" + socialMemories.Count + " socialAnimals=" +
+                socialMemories.Select(value => value?.animal).Distinct().Count(),
+                "FOLKLORE stories=" + folklore.Count + " retellings=" + folklore.Where(value => value != null).Sum(value => value.retellings) +
+                " quest=" + (legendQuest?.objective.ToString() ?? "none") + " ceremony=" +
+                (ceremonyGathering ? pendingCeremony.ToString() : "none") + " roles=" +
+                RoleCount()
+            };
+        }
+
+        private int RoleCount()
+        {
+            try
+            {
+                return map?.mapPawns?.FreeColonists?.Count(pawn => WildlifeRoleUtility.IsMasterHunter(pawn) ||
+                    WildlifeRoleUtility.IsMasterConservationist(pawn)) ?? 0;
+            }
+            catch (NullReferenceException)
+            {
+                return 0;
+            }
+        }
 
         private void RetellStory()
         {

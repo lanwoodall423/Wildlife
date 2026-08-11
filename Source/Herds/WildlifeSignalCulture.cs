@@ -196,7 +196,6 @@ namespace Herds
             Scribe_Values.Look(ref soundPlayed, "soundPlayed", false);
             Scribe_Values.Look(ref soundStatus, "soundStatus");
             Scribe_Collections.Look(ref presentations, "presentations", LookMode.Deep);
-            if (Scribe.mode == LoadSaveMode.PostLoadInit) NormalizePostLoadState();
         }
 
         internal void NormalizePostLoadState()
@@ -257,6 +256,7 @@ namespace Herds
             new Dictionary<int, int>();
         private int nextResourceSignalTick;
         private int nextTraceId = 1;
+        private bool postLoadNormalizationPending;
 
         private static readonly string[] DialectDescriptors =
         {
@@ -271,6 +271,19 @@ namespace Herds
         public IReadOnlyList<WildlifeActiveSignal> ActiveSignals => activeSignals;
         public IReadOnlyList<WildlifeSignalTrace> RecentSignals => signalHistory;
         public IReadOnlyList<string> WarningKnowledgeSources => warningKnowledgeSources;
+
+        internal void ResetForDeterministicTest()
+        {
+            dialects.Clear();
+            colonistKnowledge.Clear();
+            predatorKnowledge.Clear();
+            activeSignals.Clear();
+            signalHistory.Clear();
+            warningKnowledgeSources.Clear();
+            lastPawnLogTicks.Clear();
+            nextTraceId = 1;
+            postLoadNormalizationPending = false;
+        }
 
         public static bool IsWarningCall(WildlifeSignalKind kind) => WildlifeKnowledgeAdapter.IsWarningCall(kind);
 
@@ -338,6 +351,10 @@ namespace Herds
                     .Skip(Math.Max(0, warningKnowledgeSources.Count - 512)).ToList() ?? new List<string>();
                 nextTraceId = Mathf.Max(nextTraceId,
                     signalHistory.Count == 0 ? 1 : signalHistory.Max(signal => signal.traceId) + 1);
+                // Presentation observers are cross-references. ExposeData can run
+                // before those references resolve; defer normalization until the
+                // component's first live tick instead of discarding valid entries.
+                postLoadNormalizationPending = true;
             }
         }
 
@@ -354,6 +371,12 @@ namespace Herds
 
         public override void MapComponentTick()
         {
+            if (postLoadNormalizationPending)
+            {
+                for (int i = 0; i < signalHistory.Count; i++)
+                    signalHistory[i]?.NormalizePostLoadState();
+                postLoadNormalizationPending = false;
+            }
             if (HerdsMod.Settings?.enableWildlifeSignalCulture != true) return;
             int now = Find.TickManager.TicksGame;
             if (activeSignals.Count > 0 && now % 30 == 0) VerifyActiveSignals(now);
