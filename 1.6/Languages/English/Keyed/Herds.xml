@@ -6,4 +6,208 @@
   <Herds_WildlifeKnowledge>Wildlife</Herds_WildlifeKnowledge>
   <Herds_AnimalMemoryTab>Memory</Herds_AnimalMemoryTab>
   <Herds_Nature>Nature</Herds_Nature>
+  <Wildlife.UI.Settings.CategoryName>Wildlife</Wildlife.UI.Settings.CategoryName>
+  <Wildlife.UI.Settings.Breadcrumb>Settings</Wildlife.UI.Settings.Breadcrumb>
+  <Wildlife.UI.Settings.Title>Wildlife Settings</Wildlife.UI.Settings.Title>
+  <Wildlife.UI.Settings.Subtitle>Configure wildlife simulation, player interaction, and presentation.</Wildlife.UI.Settings.Subtitle>
+  <Wildlife.UI.Settings.SearchPlaceholder>Search settings</Wildlife.UI.Settings.SearchPlaceholder>
+  <Wildlife.UI.Settings.NoResults>No matching settings</Wildlife.UI.Settings.NoResults>
+  <Wildlife.UI.Settings.NoResults.Help>Try another search term or clear the search to browse every category.</Wildlife.UI.Settings.NoResults.Help>
+  <Wildlife.UI.Settings.NoMatches>No matching settings in this category.</Wildlife.UI.Settings.NoMatches>
+  <Wildlife.UI.Settings.Compatibility.Title>Applies to current games</Wildlife.UI.Settings.Compatibility.Title>
+  <Wildlife.UI.Settings.Numeric.Help>Changes apply immediately. Shorter intervals can increase simulation work.</Wildlife.UI.Settings.Numeric.Help>
+  <Wildlife.UI.Settings.Disabled>{0} must be enabled.</Wildlife.UI.Settings.Disabled>
+  <Wildlife.UI.Settings.OpenProfiles>Open Species Behavior Profiles</Wildlife.UI.Settings.OpenProfiles>
+  <Wildlife.UI.Settings.OpenProfiles.Help>Adjust social structure, defense, refuge, and concealment defaults for individual species.</Wildlife.UI.Settings.OpenProfiles.Help>
+  <Wildlife.UI.Settings.Category.Overview>Overview</Wildlife.UI.Settings.Category.Overview>
+  <Wildlife.UI.Settings.Category.Overview.Description>Core wildlife systems, progression gates, and onboarding.</Wildlife.UI.Settings.Category.Overview.Description>
+  <Wildlife.UI.Settings.Category.HerdsPrey>Herds &amp; Prey</Wildlife.UI.Settings.Category.HerdsPrey>
+  <Wildlife.UI.Settings.Category.HerdsPrey.Description>Herd coordination, prey movement, hiding, and refresh intervals.</Wildlife.UI.Settings.Category.HerdsPrey.Description>
+  <Wildlife.UI.Settings.Category.Predators>Predators</Wildlife.UI.Settings.Category.Predators>
+  <Wildlife.UI.Settings.Category.Predators.Description>Predator escape, deterrence, guardians, and scavenging.</Wildlife.UI.Settings.Category.Predators.Description>
+  <Wildlife.UI.Settings.Category.Fieldcraft>Fieldcraft</Wildlife.UI.Settings.Category.Fieldcraft>
+  <Wildlife.UI.Settings.Category.Fieldcraft.Description>Observation, tracking, hunting tools, and field practices.</Wildlife.UI.Settings.Category.Fieldcraft.Description>
+  <Wildlife.UI.Settings.Category.Knowledge>Knowledge</Wildlife.UI.Settings.Category.Knowledge>
+  <Wildlife.UI.Settings.Category.Knowledge.Description>Observation, species knowledge, signals, and learning.</Wildlife.UI.Settings.Category.Knowledge.Description>
+  <Wildlife.UI.Settings.Category.Ecology>Ecology</Wildlife.UI.Settings.Category.Ecology>
+  <Wildlife.UI.Settings.Category.Ecology.Description>Landscape, populations, migration, and ecological consequences.</Wildlife.UI.Settings.Category.Ecology.Description>
+  <Wildlife.UI.Settings.Category.AnimalLives>Animal Lives</Wildlife.UI.Settings.Category.AnimalLives>
+  <Wildlife.UI.Settings.Category.AnimalLives.Description>Memory, relationships, personalities, families, and life events.</Wildlife.UI.Settings.Category.AnimalLives.Description>
+  <Wildlife.UI.Settings.Category.CultureFolklore>Culture &amp; Folklore</Wildlife.UI.Settings.Category.CultureFolklore>
+  <Wildlife.UI.Settings.Category.CultureFolklore.Description>Animal traditions, stories, ideology, and cultural presentation.</Wildlife.UI.Settings.Category.CultureFolklore.Description>
+  <Wildlife.UI.Settings.Category.Expeditions>Expeditions</Wildlife.UI.Settings.Category.Expeditions>
+  <Wildlife.UI.Settings.Category.Expeditions.Description>Expedition systems and encounter options reserved for the expedition suite.</Wildlife.UI.Settings.Category.Expeditions.Description>
+  <Wildlife.UI.Settings.Category.Advanced>Advanced</Wildlife.UI.Settings.Category.Advanced>
+  <Wildlife.UI.Settings.Category.Advanced.Description>Additional controls for experienced players and compatibility tuning.</Wildlife.UI.Settings.Category.Advanced.Description>
+  <Wildlife.UI.Profiles.Title>Species Behavior Profiles</Wildlife.UI.Profiles.Title>
+  <Wildlife.UI.Profiles.Breadcrumb>Settings / Species Behavior Profiles</Wildlife.UI.Profiles.Breadcrumb>
+  <Wildlife.UI.Profiles.Subtitle>Review defaults and override behavior for eligible wildlife species.</Wildlife.UI.Profiles.Subtitle>
+  <Wildlife.UI.Profiles.SearchPlaceholder>Search species</Wildlife.UI.Profiles.SearchPlaceholder>
+  <Wildlife.UI.Profiles.NoResults>No eligible species match this search.</Wildlife.UI.Profiles.NoResults>
+  <Wildlife.UI.Profiles.NoResults.Help>Clear the search to browse eligible species.</Wildlife.UI.Profiles.NoResults.Help>
+  <Wildlife.UI.Profiles.SpeciesList>Species</Wildlife.UI.Profiles.SpeciesList>
+  <Wildlife.UI.Profiles.Detail>Profile details</Wildlife.UI.Profiles.Detail>
+  <Wildlife.UI.Profiles.Species.Help>Select a species to inspect or edit its behavior override.</Wildlife.UI.Profiles.Species.Help>
+  <Wildlife.UI.Profiles.DefaultSummary>Default behavior</Wildlife.UI.Profiles.DefaultSummary>
+  <Wildlife.UI.Profiles.HelpTitle>About overrides</Wildlife.UI.Profiles.HelpTitle>
+  <Wildlife.UI.Profiles.HelpBody>Overrides are saved with Wildlife settings and affect new behavior resolution immediately.</Wildlife.UI.Profiles.HelpBody>
+  <Wildlife.UI.Profiles.EnableOverride>Use species-specific behavior</Wildlife.UI.Profiles.EnableOverride>
+  <Wildlife.UI.Profiles.PredatorOverride>Override predator classification</Wildlife.UI.Profiles.PredatorOverride>
+  <Wildlife.UI.Profiles.PreyOverride>Override prey classification</Wildlife.UI.Profiles.PreyOverride>
+  <Wildlife.UI.Profiles.Social>Social structure</Wildlife.UI.Profiles.Social>
+  <Wildlife.UI.Profiles.Defense>Defense strategy</Wildlife.UI.Profiles.Defense>
+  <Wildlife.UI.Profiles.Refuge>Refuge preference</Wildlife.UI.Profiles.Refuge>
+  <Wildlife.UI.Profiles.GroupSize>Preferred group size</Wildlife.UI.Profiles.GroupSize>
+  <Wildlife.UI.Profiles.GroupSize.SolitaryHelp>Group size is not used while social structure is Solitary.</Wildlife.UI.Profiles.GroupSize.SolitaryHelp>
+  <Wildlife.UI.Profiles.Vigilance>Vigilance chance</Wildlife.UI.Profiles.Vigilance>
+  <Wildlife.UI.Profiles.HidingSize>Maximum hiding body size</Wildlife.UI.Profiles.HidingSize>
+  <Wildlife.UI.Profiles.RefugeRadius>Refuge search radius</Wildlife.UI.Profiles.RefugeRadius>
+  <Wildlife.UI.Profiles.Concealment>Concealment success chance</Wildlife.UI.Profiles.Concealment>
+  <Wildlife.UI.Profiles.Reset>Reset species override</Wildlife.UI.Profiles.Reset>
+  <Wildlife.UI.Profiles.DisabledHelp>Enable the species-specific behavior to edit these controls.</Wildlife.UI.Profiles.DisabledHelp>
+  <Wildlife.UI.Profiles.Enum.Herd>Herd</Wildlife.UI.Profiles.Enum.Herd>
+  <Wildlife.UI.Profiles.Enum.Family>Family</Wildlife.UI.Profiles.Enum.Family>
+  <Wildlife.UI.Profiles.Enum.Colony>Colony</Wildlife.UI.Profiles.Enum.Colony>
+  <Wildlife.UI.Profiles.Enum.Solitary>Solitary</Wildlife.UI.Profiles.Enum.Solitary>
+  <Wildlife.UI.Profiles.Enum.Flock>Flock</Wildlife.UI.Profiles.Enum.Flock>
+  <Wildlife.UI.Profiles.Enum.Flight>Flight</Wildlife.UI.Profiles.Enum.Flight>
+  <Wildlife.UI.Profiles.Enum.Scatter>Scatter</Wildlife.UI.Profiles.Enum.Scatter>
+  <Wildlife.UI.Profiles.Enum.ProtectYoung>Protect young</Wildlife.UI.Profiles.Enum.ProtectYoung>
+  <Wildlife.UI.Profiles.Enum.Hide>Hide</Wildlife.UI.Profiles.Enum.Hide>
+  <Wildlife.UI.Profiles.Enum.Freeze>Freeze</Wildlife.UI.Profiles.Enum.Freeze>
+  <Wildlife.UI.Profiles.Enum.StandGround>Stand ground</Wildlife.UI.Profiles.Enum.StandGround>
+  <Wildlife.UI.Profiles.Enum.None>None</Wildlife.UI.Profiles.Enum.None>
+  <Wildlife.UI.Profiles.Enum.Trees>Trees</Wildlife.UI.Profiles.Enum.Trees>
+  <Wildlife.UI.Profiles.Enum.Vegetation>Vegetation</Wildlife.UI.Profiles.Enum.Vegetation>
+  <Wildlife.UI.Profiles.Enum.Dens>Dens</Wildlife.UI.Profiles.Enum.Dens>
+  <Wildlife.UI.Profiles.Enum.TreesAndVegetation>Trees and vegetation</Wildlife.UI.Profiles.Enum.TreesAndVegetation>
+  <Wildlife.UI.Profiles.Enum.Any>Any refuge</Wildlife.UI.Profiles.Enum.Any>
+  <Wildlife.UI.Profiles.Enum.TreesAndDens>Trees and dens</Wildlife.UI.Profiles.Enum.TreesAndDens>
+  <Wildlife.UI.Settings.Field.allowExpeditionDeaths>Allow Expedition Deaths</Wildlife.UI.Settings.Field.allowExpeditionDeaths>
+  <Wildlife.UI.Settings.Field.allowNaturalBurrows>Allow Natural Burrows</Wildlife.UI.Settings.Field.allowNaturalBurrows>
+  <Wildlife.UI.Settings.Field.basePredatorEscapeChance>Base Predator Escape Chance</Wildlife.UI.Settings.Field.basePredatorEscapeChance>
+  <Wildlife.UI.Settings.Field.coordinateWildHerds>coordinate Wild Herds</Wildlife.UI.Settings.Field.coordinateWildHerds>
+  <Wildlife.UI.Settings.Field.defaultHideSuccessChance>Default Hide Success Chance</Wildlife.UI.Settings.Field.defaultHideSuccessChance>
+  <Wildlife.UI.Settings.Field.defenseScanIntervalTicks>defense Scan Interval Ticks</Wildlife.UI.Settings.Field.defenseScanIntervalTicks>
+  <Wildlife.UI.Settings.Field.enableAdaptivePreyResponses>Enable Adaptive Prey Responses</Wildlife.UI.Settings.Field.enableAdaptivePreyResponses>
+  <Wildlife.UI.Settings.Field.enableAdvancedScavenging>Enable Advanced Scavenging</Wildlife.UI.Settings.Field.enableAdvancedScavenging>
+  <Wildlife.UI.Settings.Field.enableAnimalCalls>Enable Animal Calls</Wildlife.UI.Settings.Field.enableAnimalCalls>
+  <Wildlife.UI.Settings.Field.enableAnimalMemory>Enable Animal Memory</Wildlife.UI.Settings.Field.enableAnimalMemory>
+  <Wildlife.UI.Settings.Field.enableAnimalPersonalities>Enable Animal Personalities</Wildlife.UI.Settings.Field.enableAnimalPersonalities>
+  <Wildlife.UI.Settings.Field.enableAnimalRelationships>Enable Animal Relationships</Wildlife.UI.Settings.Field.enableAnimalRelationships>
+  <Wildlife.UI.Settings.Field.enableAnimalSocialMemory>Enable Animal Social Memory</Wildlife.UI.Settings.Field.enableAnimalSocialMemory>
+  <Wildlife.UI.Settings.Field.enableAnimalTraditions>Enable Animal Traditions</Wildlife.UI.Settings.Field.enableAnimalTraditions>
+  <Wildlife.UI.Settings.Field.enableAppliedEcology>Enable Applied Ecology</Wildlife.UI.Settings.Field.enableAppliedEcology>
+  <Wildlife.UI.Settings.Field.enableCameraTraps>Enable Camera Traps</Wildlife.UI.Settings.Field.enableCameraTraps>
+  <Wildlife.UI.Settings.Field.enableColonyWildlifeLandmark>Enable Colony Wildlife Landmark</Wildlife.UI.Settings.Field.enableColonyWildlifeLandmark>
+  <Wildlife.UI.Settings.Field.enableConservationActions>Enable Conservation Actions</Wildlife.UI.Settings.Field.enableConservationActions>
+  <Wildlife.UI.Settings.Field.enableCulturalAnimals>Enable Cultural Animals</Wildlife.UI.Settings.Field.enableCulturalAnimals>
+  <Wildlife.UI.Settings.Field.enableDefensiveBehavior>Enable Defensive Behavior</Wildlife.UI.Settings.Field.enableDefensiveBehavior>
+  <Wildlife.UI.Settings.Field.enableDiseaseMonitoring>Enable Disease Monitoring</Wildlife.UI.Settings.Field.enableDiseaseMonitoring>
+  <Wildlife.UI.Settings.Field.enableDomesticPredatorRoles>Enable Domestic Predator Roles</Wildlife.UI.Settings.Field.enableDomesticPredatorRoles>
+  <Wildlife.UI.Settings.Field.enableDomesticRoleProgression>Enable Domestic Role Progression</Wildlife.UI.Settings.Field.enableDomesticRoleProgression>
+  <Wildlife.UI.Settings.Field.enableDynamicWildlifeOpportunities>Enable Dynamic Wildlife Opportunities</Wildlife.UI.Settings.Field.enableDynamicWildlifeOpportunities>
+  <Wildlife.UI.Settings.Field.enableEcologicalConsequences>Enable Ecological Consequences</Wildlife.UI.Settings.Field.enableEcologicalConsequences>
+  <Wildlife.UI.Settings.Field.enableExpeditionBiomeEvents>Enable Expedition Biome Events</Wildlife.UI.Settings.Field.enableExpeditionBiomeEvents>
+  <Wildlife.UI.Settings.Field.enableExpeditionIncidents>Enable Expedition Incidents</Wildlife.UI.Settings.Field.enableExpeditionIncidents>
+  <Wildlife.UI.Settings.Field.enableExtendedHuntingExpeditions>Enable Extended Hunting Expeditions</Wildlife.UI.Settings.Field.enableExtendedHuntingExpeditions>
+  <Wildlife.UI.Settings.Field.enableFieldcraftEquipment>Enable Fieldcraft Equipment</Wildlife.UI.Settings.Field.enableFieldcraftEquipment>
+  <Wildlife.UI.Settings.Field.enableFieldJournal>Enable Field Journal</Wildlife.UI.Settings.Field.enableFieldJournal>
+  <Wildlife.UI.Settings.Field.enableFolkloreDisplays>Enable Folklore Displays</Wildlife.UI.Settings.Field.enableFolkloreDisplays>
+  <Wildlife.UI.Settings.Field.enableFolkloreRetelling>Enable Folklore Retelling</Wildlife.UI.Settings.Field.enableFolkloreRetelling>
+  <Wildlife.UI.Settings.Field.enableGuardianPatrolAreas>Enable Guardian Patrol Areas</Wildlife.UI.Settings.Field.enableGuardianPatrolAreas>
+  <Wildlife.UI.Settings.Field.enableHabitatEcology>Enable Habitat Ecology</Wildlife.UI.Settings.Field.enableHabitatEcology>
+  <Wildlife.UI.Settings.Field.enableHiding>Enable Hiding</Wildlife.UI.Settings.Field.enableHiding>
+  <Wildlife.UI.Settings.Field.enableHuntedAdrenaline>Enable Hunted Adrenaline</Wildlife.UI.Settings.Field.enableHuntedAdrenaline>
+  <Wildlife.UI.Settings.Field.enableHuntEndurance>Enable Hunt Endurance</Wildlife.UI.Settings.Field.enableHuntEndurance>
+  <Wildlife.UI.Settings.Field.enableHuntingChanges>Enable Hunting Changes</Wildlife.UI.Settings.Field.enableHuntingChanges>
+  <Wildlife.UI.Settings.Field.enableHuntingExpeditions>Enable Hunting Expeditions</Wildlife.UI.Settings.Field.enableHuntingExpeditions>
+  <Wildlife.UI.Settings.Field.enableHuntingRegulations>Enable Hunting Regulations</Wildlife.UI.Settings.Field.enableHuntingRegulations>
+  <Wildlife.UI.Settings.Field.enableHuntRewards>Enable Hunt Rewards</Wildlife.UI.Settings.Field.enableHuntRewards>
+  <Wildlife.UI.Settings.Field.enableHuntTracking>Enable Hunt Tracking</Wildlife.UI.Settings.Field.enableHuntTracking>
+  <Wildlife.UI.Settings.Field.enableInteractiveExpeditionEncounters>Enable Interactive Expedition Encounters</Wildlife.UI.Settings.Field.enableInteractiveExpeditionEncounters>
+  <Wildlife.UI.Settings.Field.enableJuvenileLearning>Enable Juvenile Learning</Wildlife.UI.Settings.Field.enableJuvenileLearning>
+  <Wildlife.UI.Settings.Field.enableLandscapeCrossroads>Enable Landscape Crossroads</Wildlife.UI.Settings.Field.enableLandscapeCrossroads>
+  <Wildlife.UI.Settings.Field.enableLandscapeEffects>Enable Landscape Effects</Wildlife.UI.Settings.Field.enableLandscapeEffects>
+  <Wildlife.UI.Settings.Field.enableLegendaryPresentation>Enable Legendary Presentation</Wildlife.UI.Settings.Field.enableLegendaryPresentation>
+  <Wildlife.UI.Settings.Field.enableLegendQuests>Enable Legend Quests</Wildlife.UI.Settings.Field.enableLegendQuests>
+  <Wildlife.UI.Settings.Field.enableLegendSpread>Enable Legend Spread</Wildlife.UI.Settings.Field.enableLegendSpread>
+  <Wildlife.UI.Settings.Field.enableMannedBlinds>Enable Manned Blinds</Wildlife.UI.Settings.Field.enableMannedBlinds>
+  <Wildlife.UI.Settings.Field.enableNotableAnimals>Enable Notable Animals</Wildlife.UI.Settings.Field.enableNotableAnimals>
+  <Wildlife.UI.Settings.Field.enableObservationPosts>Enable Observation Posts</Wildlife.UI.Settings.Field.enableObservationPosts>
+  <Wildlife.UI.Settings.Field.enableOffMapHuntingExpeditions>Enable Off Map Hunting Expeditions</Wildlife.UI.Settings.Field.enableOffMapHuntingExpeditions>
+  <Wildlife.UI.Settings.Field.enableOutcomeHistory>Enable Outcome History</Wildlife.UI.Settings.Field.enableOutcomeHistory>
+  <Wildlife.UI.Settings.Field.enablePersistentFamilyLines>Enable Persistent Family Lines</Wildlife.UI.Settings.Field.enablePersistentFamilyLines>
+  <Wildlife.UI.Settings.Field.enablePersistentRoamingAnimals>Enable Persistent Roaming Animals</Wildlife.UI.Settings.Field.enablePersistentRoamingAnimals>
+  <Wildlife.UI.Settings.Field.enablePersonalityInheritance>Enable Personality Inheritance</Wildlife.UI.Settings.Field.enablePersonalityInheritance>
+  <Wildlife.UI.Settings.Field.enablePhysicalWildlifeStories>Enable Physical Wildlife Stories</Wildlife.UI.Settings.Field.enablePhysicalWildlifeStories>
+  <Wildlife.UI.Settings.Field.enablePlayerOnboarding>Enable Player Onboarding</Wildlife.UI.Settings.Field.enablePlayerOnboarding>
+  <Wildlife.UI.Settings.Field.enablePlayerSignalImitation>Enable Player Signal Imitation</Wildlife.UI.Settings.Field.enablePlayerSignalImitation>
+  <Wildlife.UI.Settings.Field.enablePopulationConsequences>Enable Population Consequences</Wildlife.UI.Settings.Field.enablePopulationConsequences>
+  <Wildlife.UI.Settings.Field.enablePredatorDeterrents>Enable Predator Deterrents</Wildlife.UI.Settings.Field.enablePredatorDeterrents>
+  <Wildlife.UI.Settings.Field.enablePredatorEscapeChance>Enable Predator Escape Chance</Wildlife.UI.Settings.Field.enablePredatorEscapeChance>
+  <Wildlife.UI.Settings.Field.enablePredatorSignalLearning>Enable Predator Signal Learning</Wildlife.UI.Settings.Field.enablePredatorSignalLearning>
+  <Wildlife.UI.Settings.Field.enablePreyAndHerds>Enable Prey and Herds</Wildlife.UI.Settings.Field.enablePreyAndHerds>
+  <Wildlife.UI.Settings.Field.enableRanchGuardians>Enable Ranch Guardians</Wildlife.UI.Settings.Field.enableRanchGuardians>
+  <Wildlife.UI.Settings.Field.enableRegionalMap>Enable Regional Map</Wildlife.UI.Settings.Field.enableRegionalMap>
+  <Wildlife.UI.Settings.Field.enableRegionalMigration>Enable Regional Migration</Wildlife.UI.Settings.Field.enableRegionalMigration>
+  <Wildlife.UI.Settings.Field.enableRegionalPopulations>Enable Regional Populations</Wildlife.UI.Settings.Field.enableRegionalPopulations>
+  <Wildlife.UI.Settings.Field.enableResearchProgression>Enable Research Progression</Wildlife.UI.Settings.Field.enableResearchProgression>
+  <Wildlife.UI.Settings.Field.enableReturnSigns>Enable Return Signs</Wildlife.UI.Settings.Field.enableReturnSigns>
+  <Wildlife.UI.Settings.Field.enableRoamingExpeditionEncounters>Enable Roaming Expedition Encounters</Wildlife.UI.Settings.Field.enableRoamingExpeditionEncounters>
+  <Wildlife.UI.Settings.Field.enableScavenging>Enable Scavenging</Wildlife.UI.Settings.Field.enableScavenging>
+  <Wildlife.UI.Settings.Field.enableScentMasking>Enable Scent Masking</Wildlife.UI.Settings.Field.enableScentMasking>
+  <Wildlife.UI.Settings.Field.enableSeasonalEcologyEvents>Enable Seasonal Ecology Events</Wildlife.UI.Settings.Field.enableSeasonalEcologyEvents>
+  <Wildlife.UI.Settings.Field.enableSpeciesKnowledgeProgression>Enable Species Knowledge Progression</Wildlife.UI.Settings.Field.enableSpeciesKnowledgeProgression>
+  <Wildlife.UI.Settings.Field.enableStewardProjects>Enable Steward Projects</Wildlife.UI.Settings.Field.enableStewardProjects>
+  <Wildlife.UI.Settings.Field.enableTelemetry>Enable Telemetry</Wildlife.UI.Settings.Field.enableTelemetry>
+  <Wildlife.UI.Settings.Field.enableTerritorialSigns>Enable Territorial Signs</Wildlife.UI.Settings.Field.enableTerritorialSigns>
+  <Wildlife.UI.Settings.Field.enableTerritoryHistory>Enable Territory History</Wildlife.UI.Settings.Field.enableTerritoryHistory>
+  <Wildlife.UI.Settings.Field.enableTrackingSigns>Enable Tracking Signs</Wildlife.UI.Settings.Field.enableTrackingSigns>
+  <Wildlife.UI.Settings.Field.enableTrailReading>Enable Trail Reading</Wildlife.UI.Settings.Field.enableTrailReading>
+  <Wildlife.UI.Settings.Field.enableUncertainPredatorWarnings>Enable Uncertain Predator Warnings</Wildlife.UI.Settings.Field.enableUncertainPredatorWarnings>
+  <Wildlife.UI.Settings.Field.enableUnlockLetters>Enable Unlock Letters</Wildlife.UI.Settings.Field.enableUnlockLetters>
+  <Wildlife.UI.Settings.Field.enableVisibleMigrationWaves>Enable Visible Migration Waves</Wildlife.UI.Settings.Field.enableVisibleMigrationWaves>
+  <Wildlife.UI.Settings.Field.enableWeaponAwareTactics>Enable Weapon Aware Tactics</Wildlife.UI.Settings.Field.enableWeaponAwareTactics>
+  <Wildlife.UI.Settings.Field.enableWildlifeAlerts>Enable Wildlife Alerts</Wildlife.UI.Settings.Field.enableWildlifeAlerts>
+  <Wildlife.UI.Settings.Field.enableWildlifeBait>Enable Wildlife Bait</Wildlife.UI.Settings.Field.enableWildlifeBait>
+  <Wildlife.UI.Settings.Field.enableWildlifeCeremonies>Enable Wildlife Ceremonies</Wildlife.UI.Settings.Field.enableWildlifeCeremonies>
+  <Wildlife.UI.Settings.Field.enableWildlifeEvents>Enable Wildlife Events</Wildlife.UI.Settings.Field.enableWildlifeEvents>
+  <Wildlife.UI.Settings.Field.enableWildlifeFolklore>Enable Wildlife Folklore</Wildlife.UI.Settings.Field.enableWildlifeFolklore>
+  <Wildlife.UI.Settings.Field.enableWildlifeIdeology>Enable Wildlife Ideology</Wildlife.UI.Settings.Field.enableWildlifeIdeology>
+  <Wildlife.UI.Settings.Field.enableWildlifeIdeologyRoles>Enable Wildlife Ideology Roles</Wildlife.UI.Settings.Field.enableWildlifeIdeologyRoles>
+  <Wildlife.UI.Settings.Field.enableWildlifeKnowledge>Enable Wildlife Knowledge</Wildlife.UI.Settings.Field.enableWildlifeKnowledge>
+  <Wildlife.UI.Settings.Field.enableWildlifeLandscaping>Enable Wildlife Landscaping</Wildlife.UI.Settings.Field.enableWildlifeLandscaping>
+  <Wildlife.UI.Settings.Field.enableWildlifeLearning>Enable Wildlife Learning</Wildlife.UI.Settings.Field.enableWildlifeLearning>
+  <Wildlife.UI.Settings.Field.enableWildlifeLifeIncidents>Enable Wildlife Life Incidents</Wildlife.UI.Settings.Field.enableWildlifeLifeIncidents>
+  <Wildlife.UI.Settings.Field.enableWildlifeManagementGoals>Enable Wildlife Management Goals</Wildlife.UI.Settings.Field.enableWildlifeManagementGoals>
+  <Wildlife.UI.Settings.Field.enableWildlifeMysteries>Enable Wildlife Mysteries</Wildlife.UI.Settings.Field.enableWildlifeMysteries>
+  <Wildlife.UI.Settings.Field.enableWildlifeReserves>Enable Wildlife Reserves</Wildlife.UI.Settings.Field.enableWildlifeReserves>
+  <Wildlife.UI.Settings.Field.enableWildlifeSignalCulture>Enable Wildlife Signal Culture</Wildlife.UI.Settings.Field.enableWildlifeSignalCulture>
+  <Wildlife.UI.Settings.Field.enableWildlifeSteward>Enable Wildlife Steward</Wildlife.UI.Settings.Field.enableWildlifeSteward>
+  <Wildlife.UI.Settings.Field.enableWindHud>Enable Wind HUD</Wildlife.UI.Settings.Field.enableWindHud>
+  <Wildlife.UI.Settings.Field.enableWoundedTrackingAndRetreat>Enable Wounded Tracking and Retreat</Wildlife.UI.Settings.Field.enableWoundedTrackingAndRetreat>
+  <Wildlife.UI.Settings.Field.failedHideRetryTicks>Failed Hide Retry Ticks</Wildlife.UI.Settings.Field.failedHideRetryTicks>
+  <Wildlife.UI.Settings.Field.flightDistance>flight Distance</Wildlife.UI.Settings.Field.flightDistance>
+  <Wildlife.UI.Settings.Field.frightenedMemoryLifetimeTicks>Frightened Memory Lifetime Ticks</Wildlife.UI.Settings.Field.frightenedMemoryLifetimeTicks>
+  <Wildlife.UI.Settings.Field.gateHuntingByResearch>Gate Hunting By Research</Wildlife.UI.Settings.Field.gateHuntingByResearch>
+  <Wildlife.UI.Settings.Field.gateIndustrialEcologyByResearch>Gate Industrial Ecology By Research</Wildlife.UI.Settings.Field.gateIndustrialEcologyByResearch>
+  <Wildlife.UI.Settings.Field.gateKnowledgeByResearch>Gate Knowledge By Research</Wildlife.UI.Settings.Field.gateKnowledgeByResearch>
+  <Wildlife.UI.Settings.Field.gateStewardshipByResearch>Gate Stewardship By Research</Wildlife.UI.Settings.Field.gateStewardshipByResearch>
+  <Wildlife.UI.Settings.Field.guardiansAttackPredators>guardians Attack Predators</Wildlife.UI.Settings.Field.guardiansAttackPredators>
+  <Wildlife.UI.Settings.Field.hiddenPreySafeDistance>Hidden Prey Safe Distance</Wildlife.UI.Settings.Field.hiddenPreySafeDistance>
+  <Wildlife.UI.Settings.Field.hideEntryTicks>hide Entry Ticks</Wildlife.UI.Settings.Field.hideEntryTicks>
+  <Wildlife.UI.Settings.Field.maximumHideTicks>Maximum Hide Ticks</Wildlife.UI.Settings.Field.maximumHideTicks>
+  <Wildlife.UI.Settings.Field.maximumInferredHidingBodySize>Maximum Inferred Hiding Body Size</Wildlife.UI.Settings.Field.maximumInferredHidingBodySize>
+  <Wildlife.UI.Settings.Field.minimumFieldcraftSkill>Minimum Fieldcraft Skill</Wildlife.UI.Settings.Field.minimumFieldcraftSkill>
+  <Wildlife.UI.Settings.Field.minimumHideTicks>Minimum Hide Ticks</Wildlife.UI.Settings.Field.minimumHideTicks>
+  <Wildlife.UI.Settings.Field.packMemberKilledMemoryLifetimeTicks>Pack Member Killed Memory Lifetime Ticks</Wildlife.UI.Settings.Field.packMemberKilledMemoryLifetimeTicks>
+  <Wildlife.UI.Settings.Field.predatorEscapeCheckIntervalTicks>Predator Escape Check Interval Ticks</Wildlife.UI.Settings.Field.predatorEscapeCheckIntervalTicks>
+  <Wildlife.UI.Settings.Field.preyAvoidColonists>prey Avoid Colonists</Wildlife.UI.Settings.Field.preyAvoidColonists>
+  <Wildlife.UI.Settings.Field.protectiveBodySizeThreshold>Protective Body Size Threshold</Wildlife.UI.Settings.Field.protectiveBodySizeThreshold>
+  <Wildlife.UI.Settings.Field.refugeRefreshIntervalTicks>Refuge Refresh Interval Ticks</Wildlife.UI.Settings.Field.refugeRefreshIntervalTicks>
+  <Wildlife.UI.Settings.Field.requireObservationForDetails>Require Observation For Details</Wildlife.UI.Settings.Field.requireObservationForDetails>
+  <Wildlife.UI.Settings.Field.showIdentifiedSignalText>Show Identified Signal Text</Wildlife.UI.Settings.Field.showIdentifiedSignalText>
+  <Wildlife.UI.Settings.Field.unpennedJoinDistance>Unpenned Join Distance</Wildlife.UI.Settings.Field.unpennedJoinDistance>
+  <Wildlife.UI.Settings.Field.updateIntervalTicks>Update Interval Ticks</Wildlife.UI.Settings.Field.updateIntervalTicks>
 </LanguageData>

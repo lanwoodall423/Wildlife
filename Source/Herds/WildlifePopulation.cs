@@ -244,7 +244,7 @@ namespace Herds
         public override void MapComponentDraw()
         {
             base.MapComponentDraw();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled || Find.CurrentMap != map) return;
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled || Find.CurrentMap != map) return;
             if (lastMigrant?.Spawned == true && Find.TickManager.TicksGame < migrationVisualUntil)
             {
                 GenDraw.DrawLineBetween(lastMigrant.Position.ToVector3Shifted(), lastMigrationEdge.ToVector3Shifted(), SimpleColor.Green);
@@ -290,7 +290,7 @@ namespace Herds
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled || Find.CurrentMap != map) return;
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled || Find.CurrentMap != map) return;
             foreach (KeyValuePair<Pawn, float> pair in juvenileLearning)
                 if (pair.Key?.Spawned == true && !pair.Key.ageTracker.Adult)
                     GenMapUI.DrawThingLabel(pair.Key, "learning " + pair.Value.ToStringPercent());

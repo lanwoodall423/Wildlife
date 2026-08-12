@@ -298,7 +298,7 @@ namespace Herds
 
         public override void MapComponentDraw()
         {
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableAnimalMemory != true || Find.CurrentMap != map) return;
             foreach (IGrouping<Pawn, AnimalColonistMemory> group in memories
                 .Where(value => value?.animal?.Spawned == true).GroupBy(value => value.animal))

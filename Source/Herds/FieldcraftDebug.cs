@@ -63,11 +63,11 @@ namespace Herds
         {
             foreach (Gizmo gizmo in values) yield return gizmo;
             if (!Prefs.DevMode || __instance?.Spawned != true || Find.Selector.SingleSelectedThing != __instance || __instance.Faction != Faction.OfPlayer || !__instance.RaceProps.Humanlike) yield break;
-            yield return new Command_Action { defaultLabel = "DEV: Wildlife Overview", defaultDesc = "Open the complete organized wildlife development dashboard.", icon = TexCommand.OpenLinkedQuestTex, action = WildlifeDevMaster.OpenDashboard };
-            yield return WildlifeDevMenus.CompleteOverlayToggle();
-            yield return WildlifeDevMenus.DiagnosticToggle(__instance);
-            yield return new Command_Action { defaultLabel = "DEV: Fieldcraft Tests...", defaultDesc = "Open organized hunt, knowledge, wound, sign, gear, and warning tests.", icon = TexCommand.SquadAttack, action = () => WildlifeDevMenus.ShowColonistTests(__instance) };
-            if (!WildlifeDevMenus.ShowExpandedColonistGizmos) yield break;
+            yield return new Command_Action { defaultLabel = "DEV: Wildlife Overview", defaultDesc = "Open the complete organized wildlife development dashboard.", icon = TexCommand.OpenLinkedQuestTex, action = WildlifeDebugState.OpenDashboard };
+            yield return WildlifeDebugMenus.CompleteOverlayToggle();
+            yield return WildlifeDebugMenus.DiagnosticToggle(__instance);
+            yield return new Command_Action { defaultLabel = "DEV: Fieldcraft Tests...", defaultDesc = "Open organized hunt, knowledge, wound, sign, gear, and warning tests.", icon = TexCommand.SquadAttack, action = () => WildlifeDebugMenus.ShowColonistTests(__instance) };
+            if (!WildlifeDebugMenus.ShowExpandedColonistGizmos) yield break;
             yield return new Command_Toggle
             {
                 defaultLabel = "DEV: Diagnostic Log", defaultDesc = "Toggle the shared [WildlifeTest] diagnostic session.", icon = TexCommand.OpenLinkedQuestTex,

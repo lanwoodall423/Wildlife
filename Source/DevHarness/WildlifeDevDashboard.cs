@@ -10,7 +10,7 @@ using Verse;
 
 namespace Herds
 {
-    public static class WildlifeDevMaster
+    public static class WildlifeHarnessOverlay
     {
         public static bool CompleteOverlayEnabled;
 
@@ -69,7 +69,7 @@ namespace Herds
         public override void MapComponentDraw()
         {
             base.MapComponentDraw();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 Find.CurrentMap != map) return;
             CellRect view = Find.CameraDriver.CurrentViewRect;
             DrawProtectedAnimals(view);
@@ -80,7 +80,7 @@ namespace Herds
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 Find.CurrentMap != map) return;
             DrawLegend();
             CellRect view = Find.CameraDriver.CurrentViewRect;
@@ -232,7 +232,7 @@ namespace Herds
         }
     }
 
-    public static class WildlifeDevMenus
+    public static class WildlifeHarnessMenus
     {
         public static bool ShowExpandedPreyGizmos;
         public static bool ShowExpandedColonistGizmos;
@@ -247,7 +247,7 @@ namespace Herds
         public static Command_Toggle CompleteOverlayToggle() => new Command_Toggle
         {
             defaultLabel = "DEV: Unified Overlay", defaultDesc = "Toggle every prey, predator, hunt, signal, path, range, den, home, refuge, role, trail, moment, protection, warning, guardian, and knowledge visual together.", icon = TexCommand.GatherSpotActive,
-            isActive = () => WildlifeDevMaster.CompleteOverlayEnabled, toggleAction = WildlifeDevMaster.ToggleCompleteOverlay
+            isActive = () => WildlifeDebugState.CompleteOverlayEnabled, toggleAction = WildlifeDebugState.ToggleCompleteOverlay
         };
 
         public static void ShowPreyTests(Pawn prey)
@@ -305,9 +305,9 @@ namespace Herds
             for (int i = 0; i < Tabs.Length; i++) if (Widgets.ButtonText(new Rect(i * (width + 5f), 0f, width, 32f), Tabs[i], active: i == tab)) { tab = i; scroll = Vector2.zero; }
             Rect controls = new Rect(0f, 40f, rect.width, 34f);
             if (Widgets.ButtonText(new Rect(0f, controls.y, 210f, 30f),
-                WildlifeDevMaster.CompleteOverlayEnabled
+                WildlifeDebugState.CompleteOverlayEnabled
                     ? "Disable unified overlay" : "Enable unified overlay"))
-                WildlifeDevMaster.ToggleCompleteOverlay();
+                WildlifeDebugState.ToggleCompleteOverlay();
             if (Widgets.ButtonText(new Rect(218f, controls.y, 180f, 30f), WildlifeTestLog.Enabled ? "Stop diagnostic log" : "Start diagnostic log")) WildlifeTestLog.Toggle();
             if (Widgets.ButtonText(new Rect(406f, controls.y, 140f, 30f), "Refresh now")) map?.GetComponent<HerdMapComponent>()?.DebugRefresh();
             if (tab != 6 && Widgets.ButtonText(new Rect(554f, controls.y, 180f, 30f), "Run full test")) WildlifeInGameTestSuite.Run();
@@ -324,10 +324,10 @@ namespace Herds
         {
             if (map == null) return new List<string> { "No current map." };
             HerdMapComponent herds = map.GetComponent<HerdMapComponent>();
-            if (tab == 0) return herds.DebugSummaryLines().Concat(WildlifeDevMaster.PacksOverview(map).Take(3)).ToList();
+            if (tab == 0) return herds.DebugSummaryLines().Concat(WildlifeDebugState.PacksOverview(map).Take(3)).ToList();
             if (tab == 1) return herds.DebugPreyLines();
-            if (tab == 2) return WildlifeDevMaster.PacksOverview(map);
-            if (tab == 3) return map.GetComponent<WildlifeHuntCoordinator>().DebugOverviewLines().Concat(WildlifeDevMaster.PacksOverview(map).Where(line => line.StartsWith("HUNT"))).ToList();
+            if (tab == 2) return WildlifeDebugState.PacksOverview(map);
+            if (tab == 3) return map.GetComponent<WildlifeHuntCoordinator>().DebugOverviewLines().Concat(WildlifeDebugState.PacksOverview(map).Where(line => line.StartsWith("HUNT"))).ToList();
             if (tab == 4) return herds.DebugHomeAndToolLines().Concat(map.GetComponent<WildlifeFieldcraftMapComponent>().DebugOverviewLines()).ToList();
             if (tab == 5) return map.GetComponent<HuntingKnowledgeMapComponent>().DebugOverviewLines();
             if (tab == 6)
@@ -337,7 +337,7 @@ namespace Herds
             if (tab == 7) return Enum.GetValues(typeof(WildlifeCapability)).Cast<WildlifeCapability>()
                 .Select(capability => WildlifeProgression.Status(capability).ToUpperInvariant() + " | " + WildlifeProgression.Label(capability) +
                     (WildlifeProgression.Unlocked(capability) ? "" : " | " + WildlifeProgression.LockReason(capability))).ToList();
-            return new List<string> { herds.PerformanceSummary(), "", WildlifeDevMaster.PacksPerformance(map) };
+            return new List<string> { herds.PerformanceSummary(), "", WildlifeDebugState.PacksPerformance(map) };
         }
     }
 }

@@ -99,7 +99,7 @@ namespace Herds
 
         public override void MapComponentDraw()
         {
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableAnimalTraditions != true || Find.CurrentMap != map) return;
             foreach (AnimalTraditionRecord tradition in traditions)
                 foreach (Pawn holder in tradition.holders.Where(pawn => pawn?.Spawned == true).Take(8))
@@ -114,7 +114,7 @@ namespace Herds
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableAnimalTraditions != true || Find.CurrentMap != map) return;
             foreach (AnimalTraditionRecord tradition in traditions.Where(value => value.strength >= 0.65f))
                 foreach (Pawn holder in tradition.holders.Where(pawn => pawn?.Spawned == true).Take(8))

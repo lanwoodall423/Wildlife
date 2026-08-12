@@ -1,33 +1,37 @@
-# Portable Wildlife Builds
+# Portable Wildlife validation
 
-The projects do not infer an installed RimWorld or sibling mod location. Set these environment variables, or pass the equivalent MSBuild properties, before building:
+Set the build and coordinator locations explicitly:
 
 ```powershell
 $env:RIMWORLD_MANAGED_PATH = '.../RimWorldWin64_Data/Managed'
 $env:WILDLIFE_HARMONY_PATH = '.../0Harmony.dll'
-$env:KNOWLEDGE_FRAMEWORK_PATH = '.../Knowledge-Framework'
+$env:KNOWLEDGE_FRAMEWORK_PATH = '.../KnowledgeFramework'
+$env:INSIGHT_CANVAS_PATH = '.../InsightCanvas'
 $env:DEFERRED_REALITY_FRAMEWORK_PATH = '.../DeferredRealityFramework'
-$env:RIMWORLD_EXE = '.../RimWorldWin64.exe'
 $env:RIMWORLD_DATA_PATH = '.../RimWorld user data directory'
-$env:RIMWORLD_DEVBRIDGE_ROOT = '.../RimWorldDevBridge'
+$env:WILDLIFE_DEVBRIDGE2_ROOT = '.../DevBridge2'
 ```
 
-`KnowledgeFrameworkPath` and `DeferredRealityFrameworkRoot` are explicit MSBuild overrides. The corresponding environment variables are `KNOWLEDGE_FRAMEWORK_PATH` and `DEFERRED_REALITY_FRAMEWORK_PATH`. `RimWorldManagedPath` and `WildlifeHarmonyPath` are also accepted as MSBuild properties.
-
-Normal assemblies are built into `1.6/Assemblies` and do not reference Deferred Reality Framework or RimWorld DevBridge. The optional `DeferredReality.Wildlife` project is built into `1.6/OptionalDeferredReality/Assemblies` and is loaded only when `lan.deferredreality.framework` is active.
+Normal assemblies are built into `1.6/Assemblies` and do not reference Deferred Reality Framework or DevBridge2. The optional Deferred Reality adapter is built into `1.6/OptionalDeferredReality/Assemblies` and is conditionally loaded. `Wildlife.DevHarness.dll` is a development-only optional assembly; install it when running the automatic in-game suite.
 
 Build and validate with PowerShell 7:
 
 ```powershell
-dotnet build Source/Herds/Herds.csproj -c Release --no-restore
-dotnet build Source/Packs/PacksAndPredators.csproj -c Release --no-restore
-dotnet build Source/Wildlife/Wildlife.csproj -c Release --no-restore
-dotnet build Source/Wildlife/DeferredReality.Wildlife.csproj -c Release --no-restore
+dotnet build Source/Herds/Herds.csproj -c Release
+dotnet build Source/Packs/PacksAndPredators.csproj -c Release
+dotnet build Source/Wildlife/Wildlife.csproj -c Release
+dotnet build Source/Wildlife/DeferredReality.Wildlife.csproj -c Release
+dotnet build Source/DevHarness/Wildlife.DevHarness.csproj -c Release
 pwsh -File DevTools/Check-WildlifeRepositoryIntegrity.ps1 -RequireAssemblies
 pwsh -File DevTools/Verify-KnowledgeFramework.ps1
 pwsh -File DevTools/Verify-DeferredRealityIntegration.ps1
-pwsh -File DevTools/Build-WildlifeBridgeAdapter.ps1
-pwsh -File DevTools/Test-WildlifeBridgeAdapter.ps1
 ```
 
-The assembly metadata validator uses `System.Reflection.Metadata` and `PEReader`; it does not load production assemblies through `ReflectionOnlyLoadFrom`.
+Runtime validation is coordinator-owned:
+
+```powershell
+pwsh -File DevTools/Restart-Wildlife.ps1
+pwsh -File DevTools/Invoke-WildlifeTest.ps1
+```
+
+The scripts use shared test leases and explicit Wildlife request/result files. They do not launch or kill RimWorld.

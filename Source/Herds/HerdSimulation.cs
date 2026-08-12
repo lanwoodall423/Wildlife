@@ -274,7 +274,7 @@ namespace Herds
                 GenDraw.DrawRadiusRing(herd.center, Mathf.Clamp(Mathf.Sqrt(herd.members.Count), 0.6f, 6f), color);
                 GenDraw.DrawLineBetween(herd.center.ToVector3Shifted(), herd.movementTarget.ToVector3Shifted());
                 if (herd.defenseThreat?.Spawned == true) GenDraw.DrawLineBetween(herd.center.ToVector3Shifted(), herd.defenseThreat.Position.ToVector3Shifted(), SimpleColor.Red);
-                if (WildlifeDevMaster.CompleteOverlayEnabled)
+                if (WildlifeDebugState.CompleteOverlayEnabled)
                 {
                     for (int memberIndex = 0; memberIndex < herd.members.Count; memberIndex++)
                     {
@@ -297,14 +297,14 @@ namespace Herds
                     if (view.Contains(hiddenRecords[i].cell))
                     {
                         GenDraw.DrawRadiusRing(hiddenRecords[i].cell, 0.75f, Color.magenta);
-                        if (WildlifeDevMaster.CompleteOverlayEnabled)
+                        if (WildlifeDebugState.CompleteOverlayEnabled)
                         {
                             GenDraw.DrawRadiusRing(hiddenRecords[i].cell, HerdsMod.Settings.hiddenPreySafeDistance, new Color(1f, 0f, 1f, 0.32f));
                             if (hiddenRecords[i].threat?.Spawned == true) GenDraw.DrawLineBetween(hiddenRecords[i].cell.ToVector3Shifted(), hiddenRecords[i].threat.Position.ToVector3Shifted(), SimpleColor.Red);
                         }
                     }
             }
-            if (WildlifeDevMaster.CompleteOverlayEnabled)
+            if (WildlifeDebugState.CompleteOverlayEnabled)
             {
                 Action<List<Building_WildlifeTool>, Color> drawTools = (tools, color) => { for (int i = 0; i < tools.Count; i++) if (tools[i]?.Spawned == true && view.Contains(tools[i].Position)) GenDraw.DrawRadiusRing(tools[i].Position, tools[i].InfluenceRadius, color); };
                 drawTools(observationPosts, Color.cyan); drawTools(baitStations, Color.yellow); drawTools(predatorDeterrents, Color.red); drawTools(wildlifeReserves, Color.green);
@@ -324,7 +324,7 @@ namespace Herds
                 Text.Font = GameFont.Small;
                 Widgets.Label(panel.ContractedBy(8f), PerformanceSummary());
             }
-            if (Prefs.DevMode && WildlifeDevMaster.CompleteOverlayEnabled)
+            if (Prefs.DevMode && WildlifeDebugState.CompleteOverlayEnabled)
             {
                 CellRect currentView = Find.CameraDriver.CurrentViewRect;
                 for (int herdIndex = 0; herdIndex < herds.Count; herdIndex++)
@@ -391,7 +391,7 @@ namespace Herds
                 "HOMES claimed=" + homeRefugeByPawn.Count + " occupiedRefuges=" + hiddenByRefuge.Count + " abandoned=" + abandonedHomeTick.Count,
                 "PLAYER TOOLS observation=" + observationPosts.Count + " bait=" + baitStations.Count + " deterrent=" + predatorDeterrents.Count + " reserves=" + wildlifeReserves.Count,
                 "DEFENSE orders=" + defenseByPawn.Count + " rememberedThreats=" + defenseMemory.Count + " alarms=" + alarmsRaised + " false=" + falseAlarms,
-                "DIAGNOSTICS overlay=" + WildlifeDevMaster.CompleteOverlayEnabled + " logging=" + WildlifeTestLog.Enabled
+                "DIAGNOSTICS overlay=" + WildlifeDebugState.CompleteOverlayEnabled + " logging=" + WildlifeTestLog.Enabled
             };
         }
 

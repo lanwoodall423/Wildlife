@@ -405,7 +405,7 @@ namespace Herds
                 color.a = Mathf.Lerp(0.8f, 0.08f, life);
                 GenDraw.DrawRadiusRing(signal.cell, wave, color);
                 DrawSignalGrammar(signal, life, color);
-                if (Prefs.DevMode && WildlifeDevMaster.CompleteOverlayEnabled)
+                if (Prefs.DevMode && WildlifeDebugState.CompleteOverlayEnabled)
                     GenDraw.DrawRadiusRing(signal.cell, signal.radius, new Color(color.r, color.g, color.b, 0.22f));
             }
         }

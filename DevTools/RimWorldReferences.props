@@ -12,6 +12,10 @@
     <KnowledgeFrameworkPath Condition="'$(KnowledgeFrameworkPath)' == ''">$(KNOWLEDGE_FRAMEWORK_PATH)</KnowledgeFrameworkPath>
     <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and $([System.IO.Path]::GetExtension('$(KnowledgeFrameworkPath)')) == '.dll'">$(KnowledgeFrameworkPath)</KnowledgeFrameworkAssemblyPath>
     <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and '$(KnowledgeFrameworkPath)' != ''">$(KnowledgeFrameworkPath)\1.6\Assemblies\KnowledgeFramework.dll</KnowledgeFrameworkAssemblyPath>
+    <InsightCanvasPath Condition="'$(InsightCanvasPath)' == ''">$(InsightCanvasRoot)</InsightCanvasPath>
+    <InsightCanvasPath Condition="'$(InsightCanvasPath)' == ''">$(INSIGHT_CANVAS_PATH)</InsightCanvasPath>
+    <InsightCanvasAssemblyPath Condition="'$(InsightCanvasAssemblyPath)' == '' and $([System.IO.Path]::GetExtension('$(InsightCanvasPath)')) == '.dll'">$(InsightCanvasPath)</InsightCanvasAssemblyPath>
+    <InsightCanvasAssemblyPath Condition="'$(InsightCanvasAssemblyPath)' == '' and '$(InsightCanvasPath)' != ''">$(InsightCanvasPath)\1.6\Assemblies\InsightCanvas.dll</InsightCanvasAssemblyPath>
     <DeferredRealityFrameworkRoot Condition="'$(DeferredRealityFrameworkRoot)' == ''">$(DeferredRealityFrameworkPath)</DeferredRealityFrameworkRoot>
     <DeferredRealityFrameworkRoot Condition="'$(DeferredRealityFrameworkRoot)' == ''">$(DEFERRED_REALITY_FRAMEWORK_PATH)</DeferredRealityFrameworkRoot>
     <DeferredRealityFrameworkAssemblyPath Condition="'$(DeferredRealityFrameworkAssemblyPath)' == '' and '$(DeferredRealityFrameworkRoot)' != ''">$(DeferredRealityFrameworkRoot)\1.6\Assemblies\DeferredRealityFramework.dll</DeferredRealityFrameworkAssemblyPath>
@@ -23,5 +27,6 @@
     <Error Condition="'$(WildlifeManagedPath)' == '' or !Exists('$(WildlifeManagedPath)\UnityEngine.CoreModule.dll')" Text="Wildlife build dependencies are missing UnityEngine.CoreModule.dll under WildlifeManagedPath." />
     <Error Condition="'$(WildlifeRequireHarmony)' == 'true' and ('$(WildlifeHarmonyPath)' == '' or !Exists('$(WildlifeHarmonyPath)'))" Text="Harmony is required: set WildlifeHarmonyPath or WILDLIFE_HARMONY_PATH to 0Harmony.dll." />
     <Error Condition="'$(WildlifeRequireKnowledgeFramework)' == 'true' and ('$(KnowledgeFrameworkAssemblyPath)' == '' or !Exists('$(KnowledgeFrameworkAssemblyPath)'))" Text="Knowledge Framework is required: set KnowledgeFrameworkPath or KNOWLEDGE_FRAMEWORK_PATH to the Knowledge-Framework checkout." />
+    <Error Condition="'$(WildlifeRequireInsightCanvas)' == 'true' and ('$(InsightCanvasAssemblyPath)' == '' or !Exists('$(InsightCanvasAssemblyPath)'))" Text="Insight Canvas is required: set InsightCanvasPath/InsightCanvasRoot or INSIGHT_CANVAS_PATH to the InsightCanvas checkout." />
   </Target>
 </Project>

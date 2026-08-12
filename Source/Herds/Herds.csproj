@@ -9,6 +9,7 @@
   <PropertyGroup>
     <WildlifeRequireHarmony>true</WildlifeRequireHarmony>
     <WildlifeRequireKnowledgeFramework>true</WildlifeRequireKnowledgeFramework>
+    <WildlifeRequireInsightCanvas>true</WildlifeRequireInsightCanvas>
   </PropertyGroup>
   <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
@@ -18,5 +19,6 @@
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(WildlifeHarmonyPath)</HintPath><Private>false</Private></Reference>
     <Reference Include="KnowledgeFramework"><HintPath>$(KnowledgeFrameworkAssemblyPath)</HintPath><Private>false</Private></Reference>
+    <Reference Include="InsightCanvas"><HintPath>$(InsightCanvasAssemblyPath)</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

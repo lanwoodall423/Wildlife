@@ -1268,7 +1268,7 @@ namespace Herds
         public override void MapComponentDraw()
         {
             base.MapComponentDraw();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableWildlifeLandscaping != true ||
                 Find.CurrentMap != map) return;
             foreach (WildlifeLandscapeFeature feature in Features)
@@ -1299,7 +1299,7 @@ namespace Herds
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableWildlifeLandscaping != true ||
                 Find.CurrentMap != map) return;
             foreach (WildlifeLandscapeFeature feature in Features)

@@ -130,7 +130,7 @@ namespace Herds
         public override void MapComponentDraw()
         {
             WildlifeMysteryRecord active = Active;
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableWildlifeMysteries != true || active == null ||
                 Find.CurrentMap != map) return;
             Pawn focus = active.animal?.Spawned == true ? active.animal :
@@ -146,7 +146,7 @@ namespace Herds
         {
             base.MapComponentOnGUI();
             WildlifeMysteryRecord active = Active;
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableWildlifeMysteries != true || active == null ||
                 Find.CurrentMap != map) return;
             Pawn focus = active.animal?.Spawned == true ? active.animal :

@@ -136,7 +136,7 @@ namespace Herds
 
         public override void MapComponentDraw()
         {
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableNotableAnimals != true || Find.CurrentMap != map) return;
             for (int i = 0; i < records.Count; i++)
             {

@@ -85,7 +85,7 @@ namespace Herds
 
         public override void MapComponentDraw()
         {
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableColonyWildlifeLandmark != true || Find.CurrentMap != map) return;
             foreach (IGrouping<ThingDef, Pawn> group in map.mapPawns.AllPawnsSpawned
                 .Where(pawn => pawn.Faction == null && pawn.RaceProps?.Animal == true).GroupBy(pawn => pawn.def))
@@ -104,7 +104,7 @@ namespace Herds
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableColonyWildlifeLandmark != true || Find.CurrentMap != map) return;
             foreach (IGrouping<ThingDef, Pawn> group in map.mapPawns.AllPawnsSpawned
                 .Where(pawn => pawn.Faction == null && pawn.RaceProps?.Animal == true).GroupBy(pawn => pawn.def))

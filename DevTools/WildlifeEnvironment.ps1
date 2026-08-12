@@ -12,34 +12,41 @@ function Get-WildlifeRequiredPath {
     return [IO.Path]::GetFullPath($value)
 }
 
-function Get-WildlifeGamePath {
-    $path = Get-WildlifeRequiredPath 'RIMWORLD_EXE' 'RimWorldWin64.exe path'
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "RimWorld executable is missing: $path" }
-    return $path
+function Get-WildlifeSaveDataPath {
+    param([string]$Path = '')
+    $value = if ([string]::IsNullOrWhiteSpace($Path)) {
+        [Environment]::GetEnvironmentVariable('RIMWORLD_DATA_PATH')
+    } else { $Path }
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw 'Set RIMWORLD_DATA_PATH to RimWorld''s user data directory.'
+    }
+    $value = [IO.Path]::GetFullPath($value)
+    if (-not (Test-Path -LiteralPath $value -PathType Container)) {
+        throw "RimWorld user data directory is missing: $value"
+    }
+    return $value
 }
 
-function Get-WildlifeDataPath {
-    $path = Get-WildlifeRequiredPath 'RIMWORLD_DATA_PATH' 'RimWorld user data directory'
-    if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "RimWorld data directory is missing: $path" }
-    return $path
+function Get-WildlifeCoordinatorRoot {
+    param([string]$Root = '')
+    $value = if ([string]::IsNullOrWhiteSpace($Root)) {
+        $configured = [Environment]::GetEnvironmentVariable('WILDLIFE_DEVBRIDGE2_ROOT')
+        if ([string]::IsNullOrWhiteSpace($configured)) {
+            [Environment]::GetEnvironmentVariable('DEVBRIDGE2_ROOT')
+        } else { $configured }
+    } else { $Root }
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw 'Set WILDLIFE_DEVBRIDGE2_ROOT or DEVBRIDGE2_ROOT to the DevBridge2 checkout.'
+    }
+    $value = [IO.Path]::GetFullPath($value)
+    $command = Join-Path $value 'DevBridge.cmd'
+    if (-not (Test-Path -LiteralPath $command -PathType Leaf)) {
+        throw "DevBridge2 command is missing: $command"
+    }
+    return $value
 }
 
-function Get-WildlifeBridgeClientPath {
-    $path = [Environment]::GetEnvironmentVariable('RIMWORLD_DEVBRIDGE_CLIENT')
-    if ([string]::IsNullOrWhiteSpace($path)) {
-        $root = [Environment]::GetEnvironmentVariable('RIMWORLD_DEVBRIDGE_ROOT')
-        if (-not [string]::IsNullOrWhiteSpace($root)) {
-            $path = Join-Path $root 'DevTools\devbridge.ps1'
-        }
-    }
-    if ([string]::IsNullOrWhiteSpace($path)) {
-        throw 'Set RIMWORLD_DEVBRIDGE_CLIENT to devbridge.ps1 or RIMWORLD_DEVBRIDGE_ROOT to the RimWorld DevBridge checkout.'
-    }
-    $path = [IO.Path]::GetFullPath($path)
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "DevBridge client is missing: $path" }
-    if ([IO.Path]::GetFileName($path) -ne 'devbridge.ps1' -and
-        [Environment]::GetEnvironmentVariable('WILDLIFE_ENABLE_LEGACY_BRIDGE') -ne '1') {
-        throw "Use the current DevBridge client devbridge.ps1, or explicitly set WILDLIFE_ENABLE_LEGACY_BRIDGE=1 for compatibility testing: $path"
-    }
-    return $path
+function Get-WildlifeCoordinatorCommand {
+    param([string]$Root = '')
+    return Join-Path (Get-WildlifeCoordinatorRoot $Root) 'DevBridge.cmd'
 }

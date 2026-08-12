@@ -75,13 +75,14 @@ if ((Get-AssemblyName $frameworkAssembly) -ne 'DeferredRealityFramework') {
 $wildlifeReferences = Get-Metadata $wildlifeAssembly
 $herdsReferences = Get-Metadata $herdsAssembly
 $adapterReferences = Get-Metadata $adapterAssembly
-foreach ($name in @('DeferredRealityFramework', 'RimWorldDevBridge', 'InsightCanvas')) {
-    if (Has-Reference $wildlifeReferences $name -or Has-Reference $herdsReferences $name) {
-        throw "A normal Wildlife assembly references unsupported integration assembly $name."
-    }
-    if (($name -ne 'DeferredRealityFramework') -and (Has-Reference $adapterReferences $name)) {
-        throw "The optional adapter references unsupported integration assembly $name."
-    }
+if (Has-Reference $wildlifeReferences 'DeferredRealityFramework' -or Has-Reference $herdsReferences 'DeferredRealityFramework') {
+    throw 'A normal Wildlife assembly references Deferred Reality Framework.'
+}
+if (-not (Has-Reference $herdsReferences 'InsightCanvas')) {
+    throw 'The normal Herds UI assembly does not reference the required Insight Canvas framework.'
+}
+if (Has-Reference $adapterReferences 'InsightCanvas') {
+    throw 'The optional Deferred Reality adapter references the UI-only Insight Canvas framework.'
 }
 if (-not (Has-Reference $adapterReferences 'DeferredRealityFramework')) {
     throw 'The optional adapter does not reference DeferredRealityFramework.'

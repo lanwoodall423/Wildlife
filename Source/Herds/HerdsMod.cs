@@ -292,8 +292,7 @@ namespace Herds
         public static HerdsMod Instance;
         public static HerdsSettings Settings;
         public static readonly Harmony Harmony = new Harmony("lan.herds");
-        private static int settingsPage;
-        private static Vector2 playerSettingsScroll;
+        private WildlifeSettingsPresentation settingsPresentation;
 
         public HerdsMod(ModContentPack content) : base(content)
         {
@@ -302,162 +301,16 @@ namespace Herds
             WildlifeProgression.RefreshDefGates();
         }
 
-        public override string SettingsCategory() => null;
+        public override string SettingsCategory() => WildlifeUiText.Get("Wildlife.UI.Settings.CategoryName");
 
         public override void DoSettingsWindowContents(Rect inRect)
         {
-            if (Widgets.ButtonText(new Rect(inRect.x, inRect.y, 150f, 34f), "Simulation")) settingsPage = 0;
-            if (Widgets.ButtonText(new Rect(inRect.x + 158f, inRect.y, 170f, 34f), "Player Interaction")) settingsPage = 1;
-            Rect body = new Rect(inRect.x, inRect.y + 46f, inRect.width, inRect.height - 46f);
-            if (settingsPage == 1)
-            {
-                DrawPlayerSettings(body);
-                return;
-            }
-            Listing_Standard listing = new Listing_Standard();
-            listing.Begin(body);
-            if (listing.ButtonText("Species Behavior Profiles")) Find.WindowStack.Add(new Window_SpeciesBehaviorProfiles());
-            listing.Gap();
-            listing.Label("Simulation");
-            listing.GapLine();
-            listing.Label("Herd refresh interval: " + Settings.updateIntervalTicks + " ticks");
-            Settings.updateIntervalTicks = Mathf.RoundToInt(listing.Slider(Settings.updateIntervalTicks, 120f, 2000f));
-            TooltipHandler.TipRegion(listing.GetRect(0f), "Membership and movement roots are rebuilt in one map-level batch at this interval. Higher values reduce CPU use but make herds respond more slowly.");
-            listing.Label("Unpenned join distance: " + Settings.unpennedJoinDistance.ToString("0") + " cells");
-            Settings.unpennedJoinDistance = listing.Slider(Settings.unpennedJoinDistance, 8f, 60f);
-            listing.CheckboxLabeled("Coordinate Wild Herds", ref Settings.coordinateWildHerds, "Apply cached herd movement to eligible wild animals as well as colony animals.");
-            listing.Gap();
-            listing.Label("Defense");
-            listing.GapLine();
-            listing.CheckboxLabeled("Enable Coordinated Herd Defense", ref Settings.enableDefensiveBehavior, "Herds flee together or protect their young when threatened.");
-            listing.Label("Defense scan interval: " + Settings.defenseScanIntervalTicks + " ticks");
-            Settings.defenseScanIntervalTicks = Mathf.RoundToInt(listing.Slider(Settings.defenseScanIntervalTicks, 30f, 300f));
-            listing.Label("Protective herd body size threshold: " + Settings.protectiveBodySizeThreshold.ToString("0.0"));
-            Settings.protectiveBodySizeThreshold = listing.Slider(Settings.protectiveBodySizeThreshold, 0.3f, 4f);
-            TooltipHandler.TipRegion(listing.GetRect(0f), "Herds with young, at least three adults, and this average adult body size form a protective ring. Smaller herds flee.");
-            listing.Label("Flight distance: " + Settings.flightDistance.ToString("0") + " cells");
-            Settings.flightDistance = listing.Slider(Settings.flightDistance, 8f, 36f);
-            listing.Gap();
-            listing.Label("Hiding");
-            listing.GapLine();
-            listing.CheckboxLabeled("Enable Prey Hiding", ref Settings.enableHiding, "Compatible small prey travel to real trees or animal hide holes when pursued.");
-            listing.CheckboxLabeled("Allow Animals To Dig Burrows", ref Settings.allowNaturalBurrows, "Burrowing prey can establish a small persistent home hole when no reachable refuge exists.");
-            listing.Label("Maximum inferred hiding body size: " + Settings.maximumInferredHidingBodySize.ToString("0.00"));
-            Settings.maximumInferredHidingBodySize = listing.Slider(Settings.maximumInferredHidingBodySize, 0.1f, 1f);
-            listing.Label("Default concealment success: " + Settings.defaultHideSuccessChance.ToStringPercent());
-            Settings.defaultHideSuccessChance = listing.Slider(Settings.defaultHideSuccessChance, 0.05f, 1f);
-            listing.Label("Time to enter refuge: " + Settings.hideEntryTicks.ToStringTicksToPeriod());
-            Settings.hideEntryTicks = Mathf.RoundToInt(listing.Slider(Settings.hideEntryTicks, 30f, 600f));
-            listing.Label("Minimum hiding time: " + Settings.minimumHideTicks.ToStringTicksToPeriod());
-            Settings.minimumHideTicks = Mathf.RoundToInt(listing.Slider(Settings.minimumHideTicks, 120f, 2500f));
-            listing.Label("Maximum hiding time: " + Settings.maximumHideTicks.ToStringTicksToPeriod());
-            Settings.maximumHideTicks = Mathf.RoundToInt(listing.Slider(Settings.maximumHideTicks, 900f, 15000f));
-            listing.Gap();
-            listing.Label("Predator Hunts");
-            listing.GapLine();
-            listing.CheckboxLabeled("Allow Prey To Escape Hunts", ref Settings.enablePredatorEscapeChance, "Adds bounded pursuit escape checks when Packs and Predators is loaded.");
-            listing.Label("Base escape chance per check: " + Settings.basePredatorEscapeChance.ToStringPercent());
-            Settings.basePredatorEscapeChance = listing.Slider(Settings.basePredatorEscapeChance, 0f, 0.5f);
-            listing.Label("Escape check interval: " + Settings.predatorEscapeCheckIntervalTicks.ToStringTicksToPeriod());
-            Settings.predatorEscapeCheckIntervalTicks = Mathf.RoundToInt(listing.Slider(Settings.predatorEscapeCheckIntervalTicks, 120f, 900f));
-            listing.Gap();
-            listing.Label("Prey eligibility and behavior are inferred from vanilla race data and can be overridden by XML prey profiles.");
-            listing.End();
+            if (settingsPresentation == null)
+                settingsPresentation = new WildlifeSettingsPresentation(Settings);
+            settingsPresentation.Draw(inRect);
         }
 
-        private static void DrawPlayerSettings(Rect rect)
-        {
-            Rect view = new Rect(0f, 0f, rect.width - 18f, 1120f);
-            Widgets.BeginScrollView(rect, ref playerSettingsScroll, view);
-            Listing_Standard listing = new Listing_Standard();
-            listing.Begin(view);
-            Text.Font = GameFont.Medium;
-            listing.Label("Player and Wildlife Interaction");
-            Text.Font = GameFont.Small;
-            listing.GapLine();
-            listing.CheckboxLabeled("Wildlife Knowledge Panel", ref Settings.enableWildlifeKnowledge);
-            listing.CheckboxLabeled("Require Observation For Details", ref Settings.requireObservationForDetails);
-            listing.CheckboxLabeled("Observation Posts / Hunting Blinds", ref Settings.enableObservationPosts);
-            listing.CheckboxLabeled("Wildlife Bait", ref Settings.enableWildlifeBait);
-            listing.CheckboxLabeled("Predator Deterrents", ref Settings.enablePredatorDeterrents);
-            listing.CheckboxLabeled("Wildlife Reserves", ref Settings.enableWildlifeReserves);
-            listing.CheckboxLabeled("Ecological Consequences", ref Settings.enableEcologicalConsequences);
-            listing.CheckboxLabeled("Wildlife Shapes The Landscape",
-                ref Settings.enableWildlifeLandscaping,
-                "Repeated compatible activity forms persistent trails, feeding grounds, nesting sites, wallows, shoreline works, and territorial landmarks. Disabled: no scans, formation, decay, drawing, or interaction processing occurs.");
-            if (Settings.enableWildlifeLandscaping)
-            {
-                listing.CheckboxLabeled("Landscape Gameplay Effects",
-                    ref Settings.enableLandscapeEffects,
-                    "Allow established features to influence animal movement, habitat quality, migration, and fieldcraft. Disabling this preserves existing features as visual history only.");
-                listing.CheckboxLabeled("Wildlife Crossroads",
-                    ref Settings.enableLandscapeCrossroads,
-                    "Reveal promising animal-shaped places before they form. Colonists can quietly observe, steward the site, or promise to leave it wild. Disabled: no markers, notices, jobs, or choice processing occurs.");
-            }
-            listing.CheckboxLabeled("Wildlife Alerts", ref Settings.enableWildlifeAlerts);
-            listing.Gap();
-            listing.Label("Fieldcraft");
-            listing.GapLine();
-            listing.CheckboxLabeled("Fading Tracks And Wildlife Signs", ref Settings.enableTrackingSigns);
-            listing.CheckboxLabeled("Interactive Trail Reading", ref Settings.enableTrailReading,
-                "Studied wildlife signs become uncertain, visible trails that colonists can follow. Disabled: no trail records, drawing, or trail jobs are processed.");
-            listing.CheckboxLabeled("Wind And Scent HUD", ref Settings.enableWindHud);
-            listing.CheckboxLabeled("Scent Masking Station", ref Settings.enableScentMasking);
-            listing.CheckboxLabeled("Animal Calls From Observation Posts", ref Settings.enableAnimalCalls);
-            listing.CheckboxLabeled("Local Wildlife Signal Cultures", ref Settings.enableWildlifeSignalCulture,
-                "Animal populations develop persistent local dialects for danger, safety, resources, and coordination. Disabled: no ticking, drawing, or signal processing occurs.");
-            if (Settings.enableWildlifeSignalCulture)
-            {
-                listing.CheckboxLabeled("Show Identified Signal Meanings", ref Settings.showIdentifiedSignalText,
-                    "Briefly shows plain-language text beside an animal when it gives a call whose exact meaning the colony has learned. Disabled: no label is created and there is no ongoing processing.");
-                listing.CheckboxLabeled("Colonists May Imitate Wildlife Signals", ref Settings.enablePlayerSignalImitation,
-                    "Manned observation posts can reproduce learned contact, alarm, and all-clear calls. Misleading calls reduce animal trust.");
-                listing.CheckboxLabeled("Predators Learn Prey Signals", ref Settings.enablePredatorSignalLearning,
-                    "Predators gradually learn local prey alarms and become slightly better at anticipating group reactions.");
-            }
-            listing.CheckboxLabeled("Manned Hunting Blinds", ref Settings.enableMannedBlinds);
-            listing.CheckboxLabeled("Ranch Guardian Assignments", ref Settings.enableRanchGuardians);
-            listing.CheckboxLabeled("Guardians May Confront Predators", ref Settings.guardiansAttackPredators);
-            listing.CheckboxLabeled("Wild Prey Avoid Colonists", ref Settings.preyAvoidColonists, "Wild prey avoid nearby colonists, with a larger detection radius for drafted or openly hunting pawns.");
-            listing.CheckboxLabeled("Coordinated Wildlife Hunts", ref Settings.enableHuntingExpeditions);
-            listing.CheckboxLabeled("Uncertain Predator Warnings", ref Settings.enableUncertainPredatorWarnings);
-            listing.CheckboxLabeled("Wildlife Steward Controls", ref Settings.enableWildlifeSteward);
-            listing.CheckboxLabeled("Guardian Patrol Areas", ref Settings.enableGuardianPatrolAreas);
-            listing.Label("Minimum combined hunting skill: " + Settings.minimumFieldcraftSkill);
-            Settings.minimumFieldcraftSkill = Mathf.RoundToInt(listing.Slider(Settings.minimumFieldcraftSkill, 0f, 12f));
-            listing.CheckboxLabeled("Per-Colonist Species Knowledge", ref Settings.enableSpeciesKnowledgeProgression);
-            listing.Gap();
-            listing.Label("Animal Lives");
-            listing.GapLine();
-            listing.CheckboxLabeled("Animal Memory", ref Settings.enableAnimalMemory,
-                "Animals remember meaningful encounters with colonists and display them in their Memory tab.");
-            if (Settings.enableAnimalMemory)
-                listing.CheckboxLabeled("Animal-To-Animal Social Memory", ref Settings.enableAnimalSocialMemory,
-                    "Animals remember mates, parents, teachers, protectors, companions, reunions, rivals, and fights. Disabled: no social memory records, drawing, or behavioral influence is processed.");
-            if (Settings.enableAnimalMemory)
-            {
-                listing.Label("Frightened memory duration: " + Settings.frightenedMemoryLifetimeTicks.ToStringTicksToPeriod());
-                Settings.frightenedMemoryLifetimeTicks = Mathf.RoundToInt(listing.Slider(Settings.frightenedMemoryLifetimeTicks, 60000f, 3600000f));
-                listing.Label("Pack member death memory duration: " + Settings.packMemberKilledMemoryLifetimeTicks.ToStringTicksToPeriod());
-                Settings.packMemberKilledMemoryLifetimeTicks = Mathf.RoundToInt(listing.Slider(Settings.packMemberKilledMemoryLifetimeTicks, 600000f, 7200000f));
-            }
-            listing.Gap();
-            listing.CheckboxLabeled("Weapon-Aware Tactics", ref Settings.enableWeaponAwareTactics);
-            listing.CheckboxLabeled("Wounded Tracking And Hunter Retreat", ref Settings.enableWoundedTrackingAndRetreat);
-            listing.CheckboxLabeled("Blood-Trail Hunt Tracking", ref Settings.enableHuntTracking, "Active coordinated hunts follow event-driven blood trail points. Rain and time reduce trail retention.");
-            listing.CheckboxLabeled("Hunted Prey Adrenaline", ref Settings.enableHuntedAdrenaline, "Prey wounded during a coordinated hunt temporarily gain movement speed.");
-            listing.CheckboxLabeled("Finite Pursuit Endurance", ref Settings.enableHuntEndurance, "Hunters stop prolonged chases, become briefly fatigued, and return to the Hunting Spot or home.");
-            listing.CheckboxLabeled("Adaptive Prey Responses", ref Settings.enableAdaptivePreyResponses);
-            listing.CheckboxLabeled("Fieldcraft Equipment And Snares", ref Settings.enableFieldcraftEquipment);
-            listing.Label("Hidden prey safe emergence distance: " + Settings.hiddenPreySafeDistance.ToString("0") + " cells");
-            Settings.hiddenPreySafeDistance = listing.Slider(Settings.hiddenPreySafeDistance, 20f, 80f);
-            listing.Gap();
-            listing.Label("Disabled structures remain in existing saves but stop influencing wildlife.");
-            listing.End();
-            Widgets.EndScrollView();
-        }
-
-        public override void WriteSettings()
+        public void RefreshSettingsRuntime()
         {
             WildlifeProgression.RefreshDefGates();
             PreyProfileDatabase.Clear();
@@ -466,6 +319,19 @@ namespace Herds
                 if (def.race?.Animal == true) HerdsStartup.RefreshAnimalTabs(def);
             if (Current.Game?.Maps != null)
                 for (int i = 0; i < Current.Game.Maps.Count; i++) Current.Game.Maps[i].GetComponent<HerdMapComponent>()?.ForceRefresh();
+        }
+
+        public void PersistExternalSettings()
+        {
+            RefreshSettingsRuntime();
+            base.WriteSettings();
+        }
+
+        public override void WriteSettings()
+        {
+            settingsPresentation?.PostClose();
+            settingsPresentation = null;
+            RefreshSettingsRuntime();
             base.WriteSettings();
         }
     }
