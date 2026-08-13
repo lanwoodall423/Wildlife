@@ -201,7 +201,7 @@ namespace Herds
                         : "Review the calls " + listener.LabelShortCap +
                           " can recognize while listening from this observation post.",
                     icon = TexCommand.OpenLinkedQuestTex,
-                     action = () => Window_WildlifeJournal.OpenSignals(Map, ManningColonist())
+                     action = () => WildlifeJournal.OpenSignals(Map, ManningColonist())
                 };
             }
             if (Kind == WildlifeToolKind.ObservationPost && HerdsMod.Settings.enableRegionalPopulations)

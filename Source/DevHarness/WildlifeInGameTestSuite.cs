@@ -1366,14 +1366,21 @@ namespace Herds
 
                 int claimsBeforeUi = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
                 int sourcesBeforeUi = signals.WarningKnowledgeSources.Count;
-                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.FieldLog);
-                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.Knowledge);
-                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.Region);
-                _ = new Window_WildlifeSignals(map, colonistA, preySpecies);
-                _ = new Window_WildlifeFieldJournal(map, 2);
+                WildlifeJournalPresentation fieldLogPresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.FieldLog);
+                WildlifeJournalPresentation knowledgePresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.Knowledge);
+                WildlifeJournalPresentation regionPresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.Region);
+                WildlifeJournalPresentation signalPresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.Signals, preySpecies, colonistA);
+                UiInvoke(UiProperty(fieldLogPresentation, "Host"), "PostClose");
+                UiInvoke(UiProperty(knowledgePresentation, "Host"), "PostClose");
+                UiInvoke(UiProperty(regionPresentation, "Host"), "PostClose");
+                UiInvoke(UiProperty(signalPresentation, "Host"), "PostClose");
                 result.uiNonMutating = claimsBeforeUi == (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) &&
                     sourcesBeforeUi == signals.WarningKnowledgeSources.Count;
-                bool selectedDeterrent = Window_WildlifeJournal.OpenPredatorDeterrent(map);
+                bool selectedDeterrent = WildlifeJournal.OpenPredatorDeterrent(map);
                 ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
                 ResearchProjectDef pendingDeterrentResearch = deterrentDef?.researchPrerequisites?.FirstOrDefault(project =>
                     project != null && !project.IsFinished);
@@ -1472,6 +1479,13 @@ namespace Herds
             property?.SetValue(target, value, null);
         }
 
+        private static void UiSetField(object target, string name, object value)
+        {
+            FieldInfo field = target?.GetType().GetField(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            field?.SetValue(target, value);
+        }
+
         private static object UiInvoke(object target, string name, params object[] arguments)
         {
             MethodInfo method = target?.GetType().GetMethod(name,
@@ -1560,6 +1574,49 @@ namespace Herds
                 Convert.ToBoolean(UiProperty(settingsDocument, "ReducedMotion")),
                 "Settings accessibility and reduced-motion state is document-scoped");
             UiInvoke(settingsPresentation, "PostClose");
+
+            object journalPresentation = UiCreatePresentation("Herds.WildlifeJournalPresentation",
+                Find.CurrentMap, WildlifeJournalPage.FieldLog, null, null, -1);
+            object journalDocument = UiProperty(journalPresentation, "Document");
+            object journalRoot = UiProperty(journalDocument, "Root");
+            check("UI", journalDocument != null && UiProperty(journalDocument, "Id") as string == "wildlife-journal" &&
+                journalRoot != null,
+                "Journal uses a single retained InsightUiDocument shell");
+            object journalNavigation = UiFindElement(journalRoot, "journal.navigation");
+            check("UI", journalNavigation != null && UiProperty(journalNavigation, "Breakpoint") != null &&
+                UiProperty(journalNavigation, "Pages") is IEnumerable,
+                "Journal navigation supports wide side-rail and narrow compact layouts");
+            string[] journalPageIds =
+            {
+                "field-log", "knowledge", "region", "chronicle", "field-guide", "living-atlas",
+                "signals", "investigations", "expeditions", "stories"
+            };
+            check("UI", journalPageIds.All(id => UiFindPageElement(journalNavigation, "journal.page." + id + ".scroll") != null),
+                "Journal retains stable deep-link pages for evidence, knowledge, ecology, and stories");
+            object fieldLogList = UiFindPageElement(journalNavigation, "journal-field-log-items");
+            bool fieldLogEmpty = UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty");
+            check("UI", fieldLogEmpty || fieldLogList?.GetType().Name == "InsightUiVirtualList",
+                "Field Log uses a bounded virtual list or an explicit localized empty state");
+            if (fieldLogList != null)
+                check("UI", Convert.ToInt32(UiProperty(fieldLogList, "CacheLimit")) == 96 &&
+                    Convert.ToInt32(UiProperty(fieldLogList, "ItemCount")) >= 0,
+                    "Field Log virtualization is bounded and exposes a stable item count");
+            int journalRevision = Convert.ToInt32(UiProperty(journalDocument, "Revision"));
+            UiRebuildWithSearch(journalPresentation, "__wildlife_no_matching_journal_record__");
+            check("UI", Convert.ToInt32(UiProperty(journalDocument, "Revision")) > journalRevision &&
+                UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty"),
+                "Journal search rebuilds the snapshot-backed surface with an explicit no-results state");
+            UiSetField(journalPresentation, "page", WildlifeJournalPage.Signals);
+            UiRebuildWithSearch(journalPresentation, string.Empty);
+            check("UI", UiHasElement(journalDocument, "journal.signals.disabled") ||
+                UiHasElement(journalDocument, "journal-signals-items") ||
+                UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-Signals-Empty"),
+                "Signals preserve disabled, empty, and populated presentation paths");
+            object journalDiagnostics = UiProperty(journalDocument, "Diagnostics");
+            check("UI", journalDiagnostics != null && UiProperty(journalDiagnostics, "RenderErrors") != null &&
+                UiProperty(journalDiagnostics, "DuplicateIds") != null,
+                "Journal exposes render-error and duplicate-ID diagnostics");
+            UiInvoke(UiProperty(journalPresentation, "Host"), "PostClose");
 
             object profilesPresentation = UiCreatePresentation("Herds.WildlifeSpeciesBehaviorPresentation");
             object profilesDocument = UiProperty(profilesPresentation, "Document");
@@ -2503,7 +2560,7 @@ namespace Herds
                     Check("Journal", WildlifeFieldJournalMapComponent.MomentAvailabilitySelfTest(),
                         "Unclaimed Wildlife Moments last a deterministic 1-3 in-game hours");
                     ResearchProjectDef expeditionResearch = DefDatabase<ResearchProjectDef>.GetNamedSilentFail("Wildlife_HuntingExpedition");
-                    Check("Journal", Window_WildlifeJournal.ExpeditionsVisible() ==
+                    Check("Journal", WildlifeJournal.ExpeditionsVisible() ==
                         (HerdsMod.Settings.enableOffMapHuntingExpeditions && expeditionResearch?.IsFinished == true),
                         "Field Guide Expeditions tab follows the expedition research gate");
                     Check("Journal", map.GetComponent<WildlifeEcologySnapshotMapComponent>()?.Current?.species
@@ -2523,11 +2580,12 @@ namespace Herds
                     Check("Journal", typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureStateFor") != null &&
                         typeof(WildlifeSignalCultureMapComponent).GetMethod("ColonyPredatorPressure") != null,
                         "Region and Knowledge hubs can query qualitative predator-pressure state without owning it");
-                    Window_WildlifeJournal defaultJournal = new Window_WildlifeJournal(map);
-                    object defaultPage = AccessTools.Field(typeof(Window_WildlifeJournal), "page")?.GetValue(defaultJournal);
+                    WildlifeJournalPresentation defaultJournal = new WildlifeJournalPresentation(map);
+                    object defaultPage = AccessTools.Field(typeof(WildlifeJournalPresentation), "page")?.GetValue(defaultJournal);
                     Check("Journal", defaultPage is WildlifeJournalPage &&
                         (WildlifeJournalPage)defaultPage == WildlifeJournalPage.FieldLog,
                         "Journal opens to the Field Log by default");
+                    UiInvoke(UiProperty(defaultJournal, "Host"), "PostClose");
                     Check("Journal", (int)WildlifeJournalPage.FieldGuide == 0 &&
                         (int)WildlifeJournalPage.LivingAtlas == 1 &&
                         (int)WildlifeJournalPage.Signals == 2 &&
@@ -2535,7 +2593,7 @@ namespace Herds
                         (int)WildlifeJournalPage.Expeditions == 4 &&
                         (int)WildlifeJournalPage.Stories == 5 &&
                         (int)WildlifeJournalPage.FieldLog == 6 &&
-                        Window_WildlifeJournal.TopLevelPagesForTesting().SequenceEqual(new[]
+                        WildlifeJournal.TopLevelPagesForTesting().SequenceEqual(new[]
                         {
                             WildlifeJournalPage.FieldLog,
                             WildlifeJournalPage.Knowledge,
@@ -2551,13 +2609,18 @@ namespace Herds
                         WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
                         WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle
                     };
-                    Check("Journal", journalPages.All(value => new Window_WildlifeJournal(map, value) != null),
+                    Check("Journal", journalPages.All(value =>
+                    {
+                        WildlifeJournalPresentation presentation = new WildlifeJournalPresentation(map, value);
+                        UiInvoke(UiProperty(presentation, "Host"), "PostClose");
+                        return UiProperty(presentation, "Document") != null;
+                    }),
                         "Journal constructors retain direct page deep links");
                     WildlifeMenuEntry signalEntry = WildlifeMenuRegistry.VisibleEntriesForTesting()
                         .FirstOrDefault(entry => entry.id == "wildlife.signals");
                     Check("Journal", signalEntry == null &&
-                        typeof(Window_WildlifeJournal).GetMethod("OpenSignals") != null &&
-                        Window_WildlifeJournal.SignalsVisible() == (HerdsMod.Settings?.enableWildlifeSignalCulture == true),
+                        typeof(WildlifeJournal).GetMethod("OpenSignals") != null &&
+                        WildlifeJournal.SignalsVisible() == (HerdsMod.Settings?.enableWildlifeSignalCulture == true),
                         "Signals is a setting-gated Journal page rather than a standalone menu entry");
                     Check("Journal", journal.Opportunity?.continuedAsTrail != true ||
                         journal.Opportunity.evidence is WildlifeSign,
@@ -2757,8 +2820,7 @@ namespace Herds
                             120f) > 48f,
                         "Recent Outcome rows grow for wrapped text");
                     Check("UI", typeof(ChoiceLetter_WildlifeStory).GetMethod("OpenLetter") != null &&
-                        typeof(Window_WildlifeFieldJournal).GetConstructor(new[]
-                        { typeof(Map), typeof(int), typeof(int) }) != null,
+                        typeof(WildlifeJournal).GetMethod("OpenFieldLog") != null,
                         "Colony Story letters can reopen Folklore at a saved story tick");
                     Check("UI", typeof(Window_WildlifeTrail).GetConstructor(new[]
                             { typeof(Map), typeof(WildlifeTrailLead) }) != null &&
@@ -2767,11 +2829,7 @@ namespace Herds
                         typeof(Window_RegionalWildlife).GetConstructor(new[] { typeof(Map) }) != null &&
                         typeof(Window_WildlifeExpeditions).GetConstructor(new[] { typeof(Map) }) != null,
                         "Journal detail destinations retain trail, region, landscape, and expedition constructors");
-                    Check("UI", typeof(Window_WildlifeSignals).GetConstructor(new[]
-                        {
-                            typeof(Map), typeof(Pawn), typeof(ThingDef),
-                            typeof(UnityEngine.Vector2?), typeof(UnityEngine.Vector2?)
-                        }) != null,
+                    Check("UI", typeof(WildlifeJournal).GetMethod("OpenSignals") != null,
                         "Legacy Signal Guide callers redirect with viewer, species, and scroll state");
                     Check("UI", AccessTools.Method(typeof(WildlifeUI), "Focus",
                             new[] { typeof(Thing) }) != null &&

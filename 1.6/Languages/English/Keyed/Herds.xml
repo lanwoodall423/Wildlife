@@ -210,4 +210,215 @@
   <Wildlife.UI.Settings.Field.showIdentifiedSignalText>Show Identified Signal Text</Wildlife.UI.Settings.Field.showIdentifiedSignalText>
   <Wildlife.UI.Settings.Field.unpennedJoinDistance>Unpenned Join Distance</Wildlife.UI.Settings.Field.unpennedJoinDistance>
   <Wildlife.UI.Settings.Field.updateIntervalTicks>Update Interval Ticks</Wildlife.UI.Settings.Field.updateIntervalTicks>
+  <Wildlife.UI.Journal.Action.ChooseResponse>Choose response</Wildlife.UI.Journal.Action.ChooseResponse>
+  <Wildlife.UI.Journal.Action.FocusMap>Focus on map</Wildlife.UI.Journal.Action.FocusMap>
+  <Wildlife.UI.Journal.Action.Inspect>Inspect</Wildlife.UI.Journal.Action.Inspect>
+  <Wildlife.UI.Journal.Action.LeaveAlone>Leave alone</Wildlife.UI.Journal.Action.LeaveAlone>
+  <Wildlife.UI.Journal.Action.OpenExpedition>Open expedition</Wildlife.UI.Journal.Action.OpenExpedition>
+  <Wildlife.UI.Journal.Action.PlanExpedition>Plan expedition</Wildlife.UI.Journal.Action.PlanExpedition>
+  <Wildlife.UI.Journal.Action.Refresh>Refresh</Wildlife.UI.Journal.Action.Refresh>
+  <Wildlife.UI.Journal.Attention>Needs attention</Wildlife.UI.Journal.Attention>
+  <Wildlife.UI.Journal.Breadcrumb>Journal</Wildlife.UI.Journal.Breadcrumb>
+  <Wildlife.UI.Journal.Certainty.Confirmed>Confirmed</Wildlife.UI.Journal.Certainty.Confirmed>
+  <Wildlife.UI.Journal.Certainty.Contradictory>Contradictory</Wildlife.UI.Journal.Certainty.Contradictory>
+  <Wildlife.UI.Journal.Certainty.Probable>Probable</Wildlife.UI.Journal.Certainty.Probable>
+  <Wildlife.UI.Journal.Certainty.Uncertain>Uncertain</Wildlife.UI.Journal.Certainty.Uncertain>
+  <Wildlife.UI.Journal.Certainty.Urgent>Urgent</Wildlife.UI.Journal.Certainty.Urgent>
+  <Wildlife.UI.Journal.Chronicle.Help>Stories and outcomes retain consequential history without inventing explanations.</Wildlife.UI.Journal.Chronicle.Help>
+  <Wildlife.UI.Journal.Deterrent.Disabled>Predator deterrents are disabled.</Wildlife.UI.Journal.Deterrent.Disabled>
+  <Wildlife.UI.Journal.Deterrent.Research>Complete the predator deterrent research first.</Wildlife.UI.Journal.Deterrent.Research>
+  <Wildlife.UI.Journal.Deterrent.Unavailable>The predator deterrent is unavailable.</Wildlife.UI.Journal.Deterrent.Unavailable>
+  <Wildlife.UI.Journal.EventKind.Documentation>Documentation</Wildlife.UI.Journal.EventKind.Documentation>
+  <Wildlife.UI.Journal.EventKind.Expedition>Expedition</Wildlife.UI.Journal.EventKind.Expedition>
+  <Wildlife.UI.Journal.EventKind.Forecast>Forecast</Wildlife.UI.Journal.EventKind.Forecast>
+  <Wildlife.UI.Journal.EventKind.Hunt>Hunt</Wildlife.UI.Journal.EventKind.Hunt>
+  <Wildlife.UI.Journal.EventKind.Memory>Memory</Wildlife.UI.Journal.EventKind.Memory>
+  <Wildlife.UI.Journal.EventKind.Migration>Migration</Wildlife.UI.Journal.EventKind.Migration>
+  <Wildlife.UI.Journal.EventKind.MysteryEvidence>Mystery Evidence</Wildlife.UI.Journal.EventKind.MysteryEvidence>
+  <Wildlife.UI.Journal.EventKind.NotableAnimal>Notable Animal</Wildlife.UI.Journal.EventKind.NotableAnimal>
+  <Wildlife.UI.Journal.EventKind.Policy>Policy</Wildlife.UI.Journal.EventKind.Policy>
+  <Wildlife.UI.Journal.EventKind.PopulationChange>Population Change</Wildlife.UI.Journal.EventKind.PopulationChange>
+  <Wildlife.UI.Journal.EventKind.Report>Report</Wildlife.UI.Journal.EventKind.Report>
+  <Wildlife.UI.Journal.EventKind.Sighting>Sighting</Wildlife.UI.Journal.EventKind.Sighting>
+  <Wildlife.UI.Journal.EventKind.Signal>Signal</Wildlife.UI.Journal.EventKind.Signal>
+  <Wildlife.UI.Journal.EventKind.Story>Story</Wildlife.UI.Journal.EventKind.Story>
+  <Wildlife.UI.Journal.EventKind.Study>Study</Wildlife.UI.Journal.EventKind.Study>
+  <Wildlife.UI.Journal.EventKind.Survey>Survey</Wildlife.UI.Journal.EventKind.Survey>
+  <Wildlife.UI.Journal.EventKind.Taming>Taming</Wildlife.UI.Journal.EventKind.Taming>
+  <Wildlife.UI.Journal.EventKind.Tending>Tending</Wildlife.UI.Journal.EventKind.Tending>
+  <Wildlife.UI.Journal.EventKind.Tracks>Tracks</Wildlife.UI.Journal.EventKind.Tracks>
+  <Wildlife.UI.Journal.EventKind.TrailCompletion>Trail Completion</Wildlife.UI.Journal.EventKind.TrailCompletion>
+  <Wildlife.UI.Journal.Evidence>Evidence</Wildlife.UI.Journal.Evidence>
+  <Wildlife.UI.Journal.Evidence.Count>{0} observations</Wildlife.UI.Journal.Evidence.Count>
+  <Wildlife.UI.Journal.Expeditions.Active>Active expedition</Wildlife.UI.Journal.Expeditions.Active>
+  <Wildlife.UI.Journal.Expeditions.Disabled>Expeditions are unavailable</Wildlife.UI.Journal.Expeditions.Disabled>
+  <Wildlife.UI.Journal.Expeditions.Disabled.Help>Complete the expedition research and enable off-map expeditions to use this area.</Wildlife.UI.Journal.Expeditions.Disabled.Help>
+  <Wildlife.UI.Journal.Expeditions.Empty>No active expeditions</Wildlife.UI.Journal.Expeditions.Empty>
+  <Wildlife.UI.Journal.Expeditions.Empty.Help>Active expeditions and their outcomes appear here when the expedition system records them.</Wildlife.UI.Journal.Expeditions.Empty.Help>
+  <Wildlife.UI.Journal.Expeditions.Objective>{0} • {1}</Wildlife.UI.Journal.Expeditions.Objective>
+  <Wildlife.UI.Journal.Expeditions.Rescue>Rescue needed</Wildlife.UI.Journal.Expeditions.Rescue>
+  <Wildlife.UI.Journal.Expeditions.Return>Expected return</Wildlife.UI.Journal.Expeditions.Return>
+  <Wildlife.UI.Journal.Expeditions.ReturnSoon>Return due</Wildlife.UI.Journal.Expeditions.ReturnSoon>
+  <Wildlife.UI.Journal.Expeditions.Title>Expedition {0}</Wildlife.UI.Journal.Expeditions.Title>
+  <Wildlife.UI.Journal.Expeditions.Tracked>Being tracked</Wildlife.UI.Journal.Expeditions.Tracked>
+  <Wildlife.UI.Journal.FieldGuide.Empty>No observed species</Wildlife.UI.Journal.FieldGuide.Empty>
+  <Wildlife.UI.Journal.FieldGuide.Empty.Help>The Field Guide shows species with observation-backed evidence, signals, trails, or migrations.</Wildlife.UI.Journal.FieldGuide.Empty.Help>
+  <Wildlife.UI.Journal.FieldGuide.IdentityHelp>Unknown facets stay unknown until the required observation evidence exists.</Wildlife.UI.Journal.FieldGuide.IdentityHelp>
+  <Wildlife.UI.Journal.FieldLog.Empty>No field-log records</Wildlife.UI.Journal.FieldLog.Empty>
+  <Wildlife.UI.Journal.FieldLog.Empty.Help>Wildlife moments, sightings, signals, trails, investigations, expeditions, and outcomes appear here when recorded.</Wildlife.UI.Journal.FieldLog.Empty.Help>
+  <Wildlife.UI.Journal.Investigation.Confirmed>Cause supported</Wildlife.UI.Journal.Investigation.Confirmed>
+  <Wildlife.UI.Journal.Investigation.NoHypothesis>No explanation is established.</Wildlife.UI.Journal.Investigation.NoHypothesis>
+  <Wildlife.UI.Journal.Investigation.Response>Review response</Wildlife.UI.Journal.Investigation.Response>
+  <Wildlife.UI.Journal.Investigation.Review>Review evidence</Wildlife.UI.Journal.Investigation.Review>
+  <Wildlife.UI.Journal.Investigation.Working>Investigation in progress</Wildlife.UI.Journal.Investigation.Working>
+  <Wildlife.UI.Journal.Investigations.Empty>No active investigations</Wildlife.UI.Journal.Investigations.Empty>
+  <Wildlife.UI.Journal.Investigations.Empty.Help>Investigations begin only when real ecology or narrative evidence creates an open question.</Wildlife.UI.Journal.Investigations.Empty.Help>
+  <Wildlife.UI.Journal.Investigations.Next>Next evidence</Wildlife.UI.Journal.Investigations.Next>
+  <Wildlife.UI.Journal.Investigations.Uncertainty>Uncertainty</Wildlife.UI.Journal.Investigations.Uncertainty>
+  <Wildlife.UI.Journal.Knowledge.Claim>Claim</Wildlife.UI.Journal.Knowledge.Claim>
+  <Wildlife.UI.Journal.Knowledge.ClaimDetail>{0} observations • {1} confidence • Source: {2}</Wildlife.UI.Journal.Knowledge.ClaimDetail>
+  <Wildlife.UI.Journal.Knowledge.Claims>Claims</Wildlife.UI.Journal.Knowledge.Claims>
+  <Wildlife.UI.Journal.Knowledge.Claims.Empty>No claims are recorded for this subject.</Wildlife.UI.Journal.Knowledge.Claims.Empty>
+  <Wildlife.UI.Journal.Knowledge.Empty>No documented knowledge</Wildlife.UI.Journal.Knowledge.Empty>
+  <Wildlife.UI.Journal.Knowledge.Empty.Help>Knowledge remains hidden until observation and progression provide evidence.</Wildlife.UI.Journal.Knowledge.Empty.Help>
+  <Wildlife.UI.Journal.Knowledge.Evidence>Evidence</Wildlife.UI.Journal.Knowledge.Evidence>
+  <Wildlife.UI.Journal.Knowledge.Evidence.Empty>No supporting observations are recorded.</Wildlife.UI.Journal.Knowledge.Evidence.Empty>
+  <Wildlife.UI.Journal.Knowledge.Facets>Facets</Wildlife.UI.Journal.Knowledge.Facets>
+  <Wildlife.UI.Journal.Knowledge.IdentityHelp>Knowledge Framework values are shown with their current stage, confidence, evidence, and contradictions.</Wildlife.UI.Journal.Knowledge.IdentityHelp>
+  <Wildlife.UI.Journal.Meta.BeyondMap>Beyond map</Wildlife.UI.Journal.Meta.BeyondMap>
+  <Wildlife.UI.Journal.Meta.Certainty>Certainty</Wildlife.UI.Journal.Meta.Certainty>
+  <Wildlife.UI.Journal.Meta.ColonyRecord>Colony record</Wildlife.UI.Journal.Meta.ColonyRecord>
+  <Wildlife.UI.Journal.Meta.Confidence>Confidence</Wildlife.UI.Journal.Meta.Confidence>
+  <Wildlife.UI.Journal.Meta.Direct>Direct observation</Wildlife.UI.Journal.Meta.Direct>
+  <Wildlife.UI.Journal.Meta.Evidence>Evidence</Wildlife.UI.Journal.Meta.Evidence>
+  <Wildlife.UI.Journal.Meta.Facet>Facet</Wildlife.UI.Journal.Meta.Facet>
+  <Wildlife.UI.Journal.Meta.Facets>Known facets</Wildlife.UI.Journal.Meta.Facets>
+  <Wildlife.UI.Journal.Meta.FieldRecord>Field record</Wildlife.UI.Journal.Meta.FieldRecord>
+  <Wildlife.UI.Journal.Meta.Location>Location</Wildlife.UI.Journal.Meta.Location>
+  <Wildlife.UI.Journal.Meta.Observers>Observers</Wildlife.UI.Journal.Meta.Observers>
+  <Wildlife.UI.Journal.Meta.Recorded>Recorded</Wildlife.UI.Journal.Meta.Recorded>
+  <Wildlife.UI.Journal.Meta.Regional>Regional</Wildlife.UI.Journal.Meta.Regional>
+  <Wildlife.UI.Journal.Meta.Sector>Sector {0}, {1}</Wildlife.UI.Journal.Meta.Sector>
+  <Wildlife.UI.Journal.Meta.Source>Source</Wildlife.UI.Journal.Meta.Source>
+  <Wildlife.UI.Journal.Meta.Species>Species</Wildlife.UI.Journal.Meta.Species>
+  <Wildlife.UI.Journal.Meta.Stage>Stage</Wildlife.UI.Journal.Meta.Stage>
+  <Wildlife.UI.Journal.Meta.State>State</Wildlife.UI.Journal.Meta.State>
+  <Wildlife.UI.Journal.Meta.Time>Time</Wildlife.UI.Journal.Meta.Time>
+  <Wildlife.UI.Journal.Meta.Type>Type</Wildlife.UI.Journal.Meta.Type>
+  <Wildlife.UI.Journal.Moment.Learned>Knowledge gained</Wildlife.UI.Journal.Moment.Learned>
+  <Wildlife.UI.Journal.Moment.Underway>Response underway</Wildlife.UI.Journal.Moment.Underway>
+  <Wildlife.UI.Journal.Moment.Unresolved>Outcome unresolved</Wildlife.UI.Journal.Moment.Unresolved>
+  <Wildlife.UI.Journal.Moment.Waiting>Awaiting a response</Wildlife.UI.Journal.Moment.Waiting>
+  <Wildlife.UI.Journal.Outcome.Recorded>Recorded outcome</Wildlife.UI.Journal.Outcome.Recorded>
+  <Wildlife.UI.Journal.Outcome.Setback>Setback recorded</Wildlife.UI.Journal.Outcome.Setback>
+  <Wildlife.UI.Journal.Outcome.Title>Wildlife outcome</Wildlife.UI.Journal.Outcome.Title>
+  <Wildlife.UI.Journal.Page.Chronicle>Chronicle</Wildlife.UI.Journal.Page.Chronicle>
+  <Wildlife.UI.Journal.Page.Chronicle.Description>Review chronicle evidence and consequences.</Wildlife.UI.Journal.Page.Chronicle.Description>
+  <Wildlife.UI.Journal.Page.Expeditions>Expeditions</Wildlife.UI.Journal.Page.Expeditions>
+  <Wildlife.UI.Journal.Page.Expeditions.Description>Review expeditions evidence and consequences.</Wildlife.UI.Journal.Page.Expeditions.Description>
+  <Wildlife.UI.Journal.Page.FieldGuide>Field Guide</Wildlife.UI.Journal.Page.FieldGuide>
+  <Wildlife.UI.Journal.Page.FieldGuide.Description>Review field guide evidence and consequences.</Wildlife.UI.Journal.Page.FieldGuide.Description>
+  <Wildlife.UI.Journal.Page.FieldLog>Field Log</Wildlife.UI.Journal.Page.FieldLog>
+  <Wildlife.UI.Journal.Page.FieldLog.Description>Review field log evidence and consequences.</Wildlife.UI.Journal.Page.FieldLog.Description>
+  <Wildlife.UI.Journal.Page.Investigations>Investigations</Wildlife.UI.Journal.Page.Investigations>
+  <Wildlife.UI.Journal.Page.Investigations.Description>Review investigations evidence and consequences.</Wildlife.UI.Journal.Page.Investigations.Description>
+  <Wildlife.UI.Journal.Page.Knowledge>Knowledge</Wildlife.UI.Journal.Page.Knowledge>
+  <Wildlife.UI.Journal.Page.Knowledge.Description>Review knowledge evidence and consequences.</Wildlife.UI.Journal.Page.Knowledge.Description>
+  <Wildlife.UI.Journal.Page.LivingAtlas>Living Atlas</Wildlife.UI.Journal.Page.LivingAtlas>
+  <Wildlife.UI.Journal.Page.LivingAtlas.Description>Review living atlas evidence and consequences.</Wildlife.UI.Journal.Page.LivingAtlas.Description>
+  <Wildlife.UI.Journal.Page.Region>Region</Wildlife.UI.Journal.Page.Region>
+  <Wildlife.UI.Journal.Page.Region.Description>Review region evidence and consequences.</Wildlife.UI.Journal.Page.Region.Description>
+  <Wildlife.UI.Journal.Page.Signals>Signals</Wildlife.UI.Journal.Page.Signals>
+  <Wildlife.UI.Journal.Page.Signals.Description>Review signals evidence and consequences.</Wildlife.UI.Journal.Page.Signals.Description>
+  <Wildlife.UI.Journal.Page.Stories>Stories</Wildlife.UI.Journal.Page.Stories>
+  <Wildlife.UI.Journal.Page.Stories.Description>Review stories evidence and consequences.</Wildlife.UI.Journal.Page.Stories.Description>
+  <Wildlife.UI.Journal.Region.Empty>No regional wildlife records</Wildlife.UI.Journal.Region.Empty>
+  <Wildlife.UI.Journal.Region.Empty.Help>The Living Atlas and Region views populate from bounded ecology snapshots, trails, migrations, and populations.</Wildlife.UI.Journal.Region.Empty.Help>
+  <Wildlife.UI.Journal.Region.Habitat>Habitat</Wildlife.UI.Journal.Region.Habitat>
+  <Wildlife.UI.Journal.Region.Local>Local population</Wildlife.UI.Journal.Region.Local>
+  <Wildlife.UI.Journal.Region.MigrationCount>{0} migrations</Wildlife.UI.Journal.Region.MigrationCount>
+  <Wildlife.UI.Journal.Region.Movement>Movement</Wildlife.UI.Journal.Region.Movement>
+  <Wildlife.UI.Journal.Region.Moving>Moving through region</Wildlife.UI.Journal.Region.Moving>
+  <Wildlife.UI.Journal.Region.NoMovement>No active movement</Wildlife.UI.Journal.Region.NoMovement>
+  <Wildlife.UI.Journal.Region.Present>Present locally</Wildlife.UI.Journal.Region.Present>
+  <Wildlife.UI.Journal.Region.Pressure>Pressure</Wildlife.UI.Journal.Region.Pressure>
+  <Wildlife.UI.Journal.Region.Pressure.High>High</Wildlife.UI.Journal.Region.Pressure.High>
+  <Wildlife.UI.Journal.Region.Pressure.Low>Low</Wildlife.UI.Journal.Region.Pressure.Low>
+  <Wildlife.UI.Journal.Region.Pressure.Moderate>Moderate</Wildlife.UI.Journal.Region.Pressure.Moderate>
+  <Wildlife.UI.Journal.Region.Regional>Regional population</Wildlife.UI.Journal.Region.Regional>
+  <Wildlife.UI.Journal.Region.Summary>{0} local • {1} regional</Wildlife.UI.Journal.Region.Summary>
+  <Wildlife.UI.Journal.Region.TrailCount>{0} active trails</Wildlife.UI.Journal.Region.TrailCount>
+  <Wildlife.UI.Journal.Region.Trend>Trend</Wildlife.UI.Journal.Region.Trend>
+  <Wildlife.UI.Journal.Region.Unseen>Not observed locally</Wildlife.UI.Journal.Region.Unseen>
+  <Wildlife.UI.Journal.Response.Hunt>Hunt</Wildlife.UI.Journal.Response.Hunt>
+  <Wildlife.UI.Journal.Response.Ignore>Ignore</Wildlife.UI.Journal.Response.Ignore>
+  <Wildlife.UI.Journal.Response.None>None</Wildlife.UI.Journal.Response.None>
+  <Wildlife.UI.Journal.Response.Observe>Observe</Wildlife.UI.Journal.Response.Observe>
+  <Wildlife.UI.Journal.Response.Protect>Protect</Wildlife.UI.Journal.Response.Protect>
+  <Wildlife.UI.Journal.Response.Track>Track</Wildlife.UI.Journal.Response.Track>
+  <Wildlife.UI.Journal.SearchPlaceholder>Search wildlife records</Wildlife.UI.Journal.SearchPlaceholder>
+  <Wildlife.UI.Journal.Selection.Empty>Nothing selected</Wildlife.UI.Journal.Selection.Empty>
+  <Wildlife.UI.Journal.Selection.Empty.Help>Select a record to inspect evidence and available map actions.</Wildlife.UI.Journal.Selection.Empty.Help>
+  <Wildlife.UI.Journal.SignalKind.Alarm>Alarm</Wildlife.UI.Journal.SignalKind.Alarm>
+  <Wildlife.UI.Journal.SignalKind.AllClear>All Clear</Wildlife.UI.Journal.SignalKind.AllClear>
+  <Wildlife.UI.Journal.SignalKind.Contact>Contact</Wildlife.UI.Journal.SignalKind.Contact>
+  <Wildlife.UI.Journal.SignalKind.Coordination>Coordination</Wildlife.UI.Journal.SignalKind.Coordination>
+  <Wildlife.UI.Journal.SignalKind.Food>Food</Wildlife.UI.Journal.SignalKind.Food>
+  <Wildlife.UI.Journal.SignalKind.HumanDanger>Human Danger</Wildlife.UI.Journal.SignalKind.HumanDanger>
+  <Wildlife.UI.Journal.SignalKind.Water>Water</Wildlife.UI.Journal.SignalKind.Water>
+  <Wildlife.UI.Journal.Signals.Colony>Colony knowledge</Wildlife.UI.Journal.Signals.Colony>
+  <Wildlife.UI.Journal.Signals.Contradictions>Contradictions</Wildlife.UI.Journal.Signals.Contradictions>
+  <Wildlife.UI.Journal.Signals.Disabled>Signals are disabled</Wildlife.UI.Journal.Signals.Disabled>
+  <Wildlife.UI.Journal.Signals.Disabled.Help>Enable Wildlife Signal Culture in settings to review signal families, observers, interpretations, and contradictions.</Wildlife.UI.Journal.Signals.Disabled.Help>
+  <Wildlife.UI.Journal.Signals.Empty>No signals recorded</Wildlife.UI.Journal.Signals.Empty>
+  <Wildlife.UI.Journal.Signals.Empty.Help>Signal records appear after wildlife produces observable calls or warnings.</Wildlife.UI.Journal.Signals.Empty.Help>
+  <Wildlife.UI.Journal.Signals.Family>Signal family</Wildlife.UI.Journal.Signals.Family>
+  <Wildlife.UI.Journal.Signals.Interpretation>Interpretation</Wildlife.UI.Journal.Signals.Interpretation>
+  <Wildlife.UI.Journal.Signals.Observer>Observer</Wildlife.UI.Journal.Signals.Observer>
+  <Wildlife.UI.Journal.Signals.Unresolved>Meaning unresolved</Wildlife.UI.Journal.Signals.Unresolved>
+  <Wildlife.UI.Journal.Snapshot.Live>Live snapshot</Wildlife.UI.Journal.Snapshot.Live>
+  <Wildlife.UI.Journal.Snapshot.Waiting>Snapshot pending</Wildlife.UI.Journal.Snapshot.Waiting>
+  <Wildlife.UI.Journal.State.AwaitingRescue>Awaiting Rescue</Wildlife.UI.Journal.State.AwaitingRescue>
+  <Wildlife.UI.Journal.State.Confirmed>Confirmed</Wildlife.UI.Journal.State.Confirmed>
+  <Wildlife.UI.Journal.State.Disputed>Disputed</Wildlife.UI.Journal.State.Disputed>
+  <Wildlife.UI.Journal.State.Embarking>Embarking</Wildlife.UI.Journal.State.Embarking>
+  <Wildlife.UI.Journal.State.Engagement>Engagement</Wildlife.UI.Journal.State.Engagement>
+  <Wildlife.UI.Journal.State.FieldDressing>Field Dressing</Wildlife.UI.Journal.State.FieldDressing>
+  <Wildlife.UI.Journal.State.Open>Open</Wildlife.UI.Journal.State.Open>
+  <Wildlife.UI.Journal.State.OutboundTravel>Outbound Travel</Wildlife.UI.Journal.State.OutboundTravel>
+  <Wildlife.UI.Journal.State.Resolved>Resolved</Wildlife.UI.Journal.State.Resolved>
+  <Wildlife.UI.Journal.State.Returning>Returning</Wildlife.UI.Journal.State.Returning>
+  <Wildlife.UI.Journal.State.Stalking>Stalking</Wildlife.UI.Journal.State.Stalking>
+  <Wildlife.UI.Journal.State.Supported>Supported</Wildlife.UI.Journal.State.Supported>
+  <Wildlife.UI.Journal.State.Tracking>Tracking</Wildlife.UI.Journal.State.Tracking>
+  <Wildlife.UI.Journal.State.Working>Working</Wildlife.UI.Journal.State.Working>
+  <Wildlife.UI.Journal.Stories.Empty>No wildlife stories</Wildlife.UI.Journal.Stories.Empty>
+  <Wildlife.UI.Journal.Stories.Empty.Help>Consequential wildlife stories appear after the narrative and experience systems record them.</Wildlife.UI.Journal.Stories.Empty.Help>
+  <Wildlife.UI.Journal.Stories.Interpretation>Interpretation</Wildlife.UI.Journal.Stories.Interpretation>
+  <Wildlife.UI.Journal.Subtitle>A bounded record of wildlife evidence, knowledge, and consequences.</Wildlife.UI.Journal.Subtitle>
+  <Wildlife.UI.Journal.Time.Ago>ago</Wildlife.UI.Journal.Time.Ago>
+  <Wildlife.UI.Journal.Time.Recent>Recently</Wildlife.UI.Journal.Time.Recent>
+  <Wildlife.UI.Journal.Title>Wildlife Journal</Wildlife.UI.Journal.Title>
+  <Wildlife.UI.Journal.Trail.Actionable>Actionable trail</Wildlife.UI.Journal.Trail.Actionable>
+  <Wildlife.UI.Journal.Trail.Direction>Leads toward {0}</Wildlife.UI.Journal.Trail.Direction>
+  <Wildlife.UI.Journal.Trail.Uncertain>Uncertain trail</Wildlife.UI.Journal.Trail.Uncertain>
+  <Wildlife.UI.Journal.TrailState.Ambient>.Ambient</Wildlife.UI.Journal.TrailState.Ambient>
+  <Wildlife.UI.Journal.TrailState.BeyondMap>.Beyond Map</Wildlife.UI.Journal.TrailState.BeyondMap>
+  <Wildlife.UI.Journal.TrailState.Cold>.Cold</Wildlife.UI.Journal.TrailState.Cold>
+  <Wildlife.UI.Journal.TrailState.LiveQuarry>.Live Quarry</Wildlife.UI.Journal.TrailState.LiveQuarry>
+  <Wildlife.UI.Journal.TrailState.Pursuit>.Pursuit</Wildlife.UI.Journal.TrailState.Pursuit>
+  <Wildlife.UI.Journal.Type.Expedition>Expedition</Wildlife.UI.Journal.Type.Expedition>
+  <Wildlife.UI.Journal.Type.Investigation>Investigation</Wildlife.UI.Journal.Type.Investigation>
+  <Wildlife.UI.Journal.Type.Moment>Moment</Wildlife.UI.Journal.Type.Moment>
+  <Wildlife.UI.Journal.Type.Outcome>Outcome</Wildlife.UI.Journal.Type.Outcome>
+  <Wildlife.UI.Journal.Type.Signal>Signal</Wildlife.UI.Journal.Type.Signal>
+  <Wildlife.UI.Journal.Type.Trail>Trail</Wildlife.UI.Journal.Type.Trail>
+  <Wildlife.UI.Journal.Uncertainty.Competing>Competing explanations</Wildlife.UI.Journal.Uncertainty.Competing>
+  <Wildlife.UI.Journal.Uncertainty.Narrow>Narrowing uncertainty</Wildlife.UI.Journal.Uncertainty.Narrow>
+  <Wildlife.UI.Journal.Uncertainty.Open>Open uncertainty</Wildlife.UI.Journal.Uncertainty.Open>
+  <Wildlife.UI.Journal.Value.Known>Known</Wildlife.UI.Journal.Value.Known>
+  <Wildlife.UI.Journal.Value.None>None recorded</Wildlife.UI.Journal.Value.None>
+  <Wildlife.UI.Journal.Value.NotSpeciesSpecific>Not species-specific</Wildlife.UI.Journal.Value.NotSpeciesSpecific>
+  <Wildlife.UI.Journal.Value.Present>Present</Wildlife.UI.Journal.Value.Present>
+  <Wildlife.UI.Journal.Value.Unknown>Unknown</Wildlife.UI.Journal.Value.Unknown>
 </LanguageData>

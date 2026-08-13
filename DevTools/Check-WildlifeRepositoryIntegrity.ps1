@@ -61,6 +61,7 @@ $loadText = ReadText 'LoadFolders.xml'
 $propsText = ReadText 'DevTools\RimWorldReferences.props'
 $portableText = ReadText 'DevTools\PORTABLE_VALIDATION.md'
 $uiText = ReadText 'Source\Herds\WildlifeInsightUi.cs'
+$journalText = ReadText 'Source\Herds\WildlifeJournal.cs'
 $herdsProjectText = ReadText 'Source\Herds\Herds.csproj'
 Check 'package:wildlife' ($about.ModMetaData.packageId -eq 'Lan.Wildlife') 'exact Wildlife package ID'
 Check 'package:knowledge-framework' (@($about.ModMetaData.modDependencies.li.packageId) -contains 'lan.knowledgeframework') 'exact Knowledge Framework package ID'
@@ -85,6 +86,23 @@ Check 'insightcanvas-ui-api' ($uiText -match 'InsightUiDocument' -and $uiText -m
 Check 'wildlife-ui-surfaces' ($uiText -match 'settings-categories' -and $uiText -match 'profiles-responsive-master-detail' -and
     $uiText -match 'InsightUi\.VirtualList' -and $uiText -match 'profile-reset')
     'settings and Species Profiles use the responsive migrated surfaces'
+Check 'wildlife-journal-v2-shell' ($journalText -match 'InsightUiDocument\("wildlife-journal"' -and
+    $journalText -match 'InsightUiHost' -and $journalText -match 'InsightUiWindow' -and
+    $journalText -match 'InsightUi\.Navigation' -and $journalText -match 'InsightUi\.Split|WildlifeResponsiveJournalSplit' -and
+    $journalText -match 'InsightUi\.Scroll' -and $journalText -match 'InsightUi\.VirtualList')
+    'Journal uses the shared InsightCanvas v2 document shell and composable responsive surfaces'
+Check 'wildlife-journal-bounded-snapshot' ($journalText -match 'snapshotBucket' -and
+    $journalText -match 'snapshotKnowledgeRevision' -and $journalText -match 'Take\(128\)' -and
+    $journalText -match 'Take\(96\)' -and $journalText -match 'Take\(64\)')
+    'Journal presentation data is cached by tick/Knowledge revision and bounded'
+Check 'wildlife-journal-localized' ($journalText -match 'JournalText\.Get' -and
+    $journalText -notmatch 'Widgets\.' -and $journalText -notmatch 'GUI\.color' -and
+    $journalText -notmatch 'BeginScrollView' -and $journalText -notmatch 'Vector2\s+(leftScroll|bodyScroll|scroll)')
+    'Journal rendering uses localized v2 components without manual scroll/color state'
+Check 'wildlife-journal-no-obsolete-windows' ($journalText -notmatch 'class\s+Window_WildlifeJournal' -and
+    (ReadText 'Source\Herds\WildlifeSignalCulture.cs') -notmatch 'class\s+Window_WildlifeSignals' -and
+    (ReadText 'Source\Herds\WildlifeFieldJournal.cs') -notmatch 'class\s+Window_WildlifeFieldJournal')
+    'obsolete manual Journal, Signals, and Field Journal windows are removed'
 Check 'insightcanvas-no-v1-ui' ($uiText -notmatch '\bInsightModel\b' -and $uiText -notmatch '\bInsightWindow\b' -and
     $uiText -notmatch '\bInsightCanvasHost\b') 'ordinary Wildlife screens do not use the legacy semantic API'
 Check 'insightcanvas-no-bundle' (@(Get-ChildItem -LiteralPath $root -Recurse -Filter 'InsightCanvas.dll' -File -ErrorAction SilentlyContinue).Count -eq 0)
@@ -151,7 +169,8 @@ Check 'suite-cleanup-regression' ($suiteText -match 'OriginalGameRestored' -and 
     $suiteText -match 'NoIsolatedState' -and $suiteText -match 'DeferredCallbacksDrained') 'suite owns cleanup regression checks'
 Check 'suite-insightcanvas-ui-coverage' ($suiteText -match 'CheckInsightCanvasPresentations' -and
     $suiteText -match 'settings-global-no-results' -and $suiteText -match 'profiles-no-results' -and
-    $suiteText -match 'CloseTransientOverlays') 'suite covers migrated Insight Canvas settings/profile lifecycle states'
+    $suiteText -match 'wildlife-journal' -and $suiteText -match 'journal-field-log-items' -and
+    $suiteText -match 'CloseTransientOverlays') 'suite covers migrated Insight Canvas settings/profile/Journal lifecycle states'
 
 $adapterText = ReadText 'Source\Wildlife\DeferredReality.Wildlife.csproj'
 Check 'adapter-drf-reference' ($adapterText -match '<Reference Include="DeferredRealityFramework"') 'optional adapter references DRF'

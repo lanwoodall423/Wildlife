@@ -1591,7 +1591,7 @@ namespace Herds
                     progress = expertise.progress,
                     summary = known + " field records",
                     tooltip = "Wildlife knowledge grows through sightings, evidence, reports, teaching, expeditions, and documentation.",
-                    openDetails = () => Find.WindowStack.Add(new Window_WildlifeJournal(pawn?.MapHeld, WildlifeJournalPage.FieldGuide))
+                    openDetails = () => WildlifeJournal.Open(pawn?.MapHeld, WildlifeJournalPage.FieldGuide)
                 };
             }
 
@@ -1660,7 +1660,7 @@ namespace Herds
                     stageId = stage,
                     status = StageLabel(stage) + " - " + facet.confidence.ToStringPercent() + " confidence",
                     tooltip = def.LabelCap + "\n" + StageLabel(stage) + "\nEvidence: " + facet.evidenceCount + "\nThe Field Guide shows facts, uncertainty, and the next useful observation.",
-                    select = () => Find.WindowStack.Add(new Window_WildlifeJournal(pawn?.MapHeld ?? Find.CurrentMap, WildlifeJournalPage.FieldGuide, def))
+                    select = () => WildlifeJournal.Open(pawn?.MapHeld ?? Find.CurrentMap, WildlifeJournalPage.FieldGuide, def)
                 });
             }
             sections.Add(species);

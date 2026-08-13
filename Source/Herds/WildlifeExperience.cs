@@ -31,7 +31,7 @@ namespace Herds
             WildlifeUI.CloseMenus();
             Map targetMap = map ?? Find.CurrentMap;
             if (targetMap != null)
-                Window_WildlifeJournal.OpenFieldLog(targetMap, storyTick);
+            WildlifeJournal.OpenFieldLog(targetMap, storyTick);
         }
     }
 
@@ -231,7 +231,7 @@ namespace Herds
             {
                 redirectedToJournal = true;
                 Close(false);
-                Window_WildlifeJournal.OpenFieldLog(map);
+                WildlifeJournal.OpenFieldLog(map);
                 return;
             }
             Text.Font = GameFont.Medium;
@@ -382,7 +382,7 @@ namespace Herds
                     title = "Signals", detail = "Learn animal calls and meanings",
                     tooltip = "Review local signal dialects, observed meanings, credibility, and colonist understanding.",
                     accent = new Color(0.43f, 0.38f, 0.62f),
-                    action = () => Window_WildlifeJournal.OpenSignals(map, null)
+                    action = () => WildlifeJournal.OpenSignals(map, null)
                 } : null;
             OverviewNavigation landscape = HerdsMod.Settings.enableWildlifeLandscaping
                 ? new OverviewNavigation
@@ -402,7 +402,7 @@ namespace Herds
                     title = "Field Log", detail = "Moments, mysteries, and stories",
                     tooltip = "Review recent wildlife observations, respond to moments, investigate mysteries, and follow recorded outcomes.",
                     accent = new Color(0.42f, 0.62f, 0.38f),
-                    action = () => Window_WildlifeJournal.OpenFieldLog(map)
+                    action = () => WildlifeJournal.OpenFieldLog(map)
                 } : null;
             OverviewNavigation progression = HerdsMod.Settings.enableResearchProgression
                 ? new OverviewNavigation
@@ -464,7 +464,7 @@ namespace Herds
             if (HerdsMod.Settings.enableDynamicWildlifeOpportunities &&
                 journal?.Opportunity != null)
             {
-                Find.WindowStack.Add(new Window_WildlifeFieldJournal(map, 2));
+                WildlifeJournal.Open(map, WildlifeJournalPage.FieldLog);
                 return;
             }
             if (HerdsMod.Settings.enableTrailReading && cachedUrgentTrailCount > 0)
@@ -475,7 +475,7 @@ namespace Herds
             if (HerdsMod.Settings.enableWildlifeMysteries &&
                 map?.GetComponent<WildlifeMysteryMapComponent>()?.Active != null)
             {
-                Find.WindowStack.Add(new Window_WildlifeFieldJournal(map, 1));
+                WildlifeJournal.Open(map, WildlifeJournalPage.Investigations);
                 return;
             }
             bool anyKnowledge = DefDatabase<ThingDef>.AllDefsListForReading.Any(def =>

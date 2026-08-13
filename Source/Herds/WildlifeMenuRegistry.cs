@@ -92,13 +92,13 @@ namespace Herds
             builtInsRegistered = true;
             Register("wildlife.overview", "Wildlife Journal",
                 "Open the Wildlife Journal Field Log: recent observations, interpretations, and actions.",
-                OverviewOrder, null, () => Window_WildlifeJournal.OpenFieldLog(Find.CurrentMap));
+                OverviewOrder, null, () => WildlifeJournal.OpenFieldLog(Find.CurrentMap));
             Register("wildlife.expeditions", "Expeditions",
                 "Review every active wildlife expedition or send a new party.",
                 ExpeditionsOrder,
                 () => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
                     WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition),
-                () => Find.WindowStack.Add(new Window_WildlifeJournal(Find.CurrentMap, WildlifeJournalPage.Expeditions)));
+                () => WildlifeJournal.Open(Find.CurrentMap, WildlifeJournalPage.Expeditions));
         }
     }
 }
