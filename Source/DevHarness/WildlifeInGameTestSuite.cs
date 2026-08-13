@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -1456,6 +1457,148 @@ namespace Herds
             GenSpawn.Spawn(pawn, cell, map, Rot4.North);
         }
 
+        private static object UiProperty(object target, string name)
+        {
+            if (target == null) return null;
+            PropertyInfo property = target.GetType().GetProperty(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return property?.GetValue(target, null);
+        }
+
+        private static void UiSetProperty(object target, string name, object value)
+        {
+            PropertyInfo property = target?.GetType().GetProperty(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            property?.SetValue(target, value, null);
+        }
+
+        private static object UiInvoke(object target, string name, params object[] arguments)
+        {
+            MethodInfo method = target?.GetType().GetMethod(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return method?.Invoke(target, arguments);
+        }
+
+        private static object UiCreatePresentation(string typeName, params object[] arguments)
+        {
+            Type type = typeof(HerdsMod).Assembly.GetType(typeName, true);
+            return Activator.CreateInstance(type,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, arguments, null);
+        }
+
+        private static object UiFindElement(object element, string id)
+        {
+            if (element == null) return null;
+            if (string.Equals(UiProperty(element, "Id") as string, id, StringComparison.Ordinal)) return element;
+            IEnumerable children = UiProperty(element, "Children") as IEnumerable;
+            if (children == null) return null;
+            foreach (object child in children)
+            {
+                object match = UiFindElement(child, id);
+                if (match != null) return match;
+            }
+            return null;
+        }
+
+        private static bool UiHasElement(object document, string id)
+        {
+            return UiFindElement(UiProperty(document, "Root"), id) != null;
+        }
+
+        private static object UiFindPageElement(object navigation, string id)
+        {
+            IEnumerable pages = UiProperty(navigation, "Pages") as IEnumerable;
+            if (pages == null) return null;
+            foreach (object page in pages)
+            {
+                object match = UiFindElement(UiProperty(page, "Content"), id);
+                if (match != null) return match;
+            }
+            return null;
+        }
+
+        private static void UiRebuildWithSearch(object presentation, string search)
+        {
+            Type type = presentation.GetType();
+            FieldInfo searchField = type.GetField("search", BindingFlags.Instance | BindingFlags.NonPublic);
+            searchField?.SetValue(presentation, search ?? string.Empty);
+            object root = UiInvoke(presentation, "BuildRoot");
+            object document = UiProperty(presentation, "Document");
+            UiSetProperty(document, "Root", root);
+            UiInvoke(document, "Invalidate");
+        }
+
+        private static void CheckInsightCanvasPresentations(Action<string, bool, string> check)
+        {
+            object settingsPresentation = UiCreatePresentation("Herds.WildlifeSettingsPresentation", HerdsMod.Settings);
+            object settingsDocument = UiProperty(settingsPresentation, "Document");
+            object settingsRoot = UiProperty(settingsDocument, "Root");
+            check("UI", settingsDocument != null && UiProperty(settingsDocument, "Id") as string == "wildlife-settings",
+                "Settings uses a Wildlife-scoped InsightUiDocument");
+            check("UI", UiHasElement(settingsDocument, "settings-search") &&
+                UiHasElement(settingsDocument, "settings-categories") &&
+                UiHasElement(settingsDocument, "overview.header") &&
+                UiHasElement(settingsDocument, "herds-prey.header"),
+                "Settings document contains search, responsive navigation, and descriptive categories");
+            object settingsTheme = UiProperty(settingsDocument, "Theme");
+            check("UI", settingsTheme != null && UiProperty(settingsTheme, "Id") as string == "wildlife-scoped" &&
+                Convert.ToBoolean(UiProperty(settingsDocument, "TrackDuplicateIds")),
+                "Settings uses a scoped theme with duplicate-ID diagnostics");
+            int settingsRevision = Convert.ToInt32(UiProperty(settingsDocument, "Revision"));
+            UiInvoke(settingsPresentation, "OnSearchChanged", "__wildlife_no_matching_setting__");
+            check("UI", UiHasElement(settingsDocument, "settings-global-no-results") &&
+                Convert.ToInt32(UiProperty(settingsDocument, "Revision")) > settingsRevision,
+                "Settings search exposes a translated no-results state and invalidates the document");
+            UiInvoke(settingsPresentation, "OnSearchChanged", string.Empty);
+            check("UI", !UiHasElement(settingsDocument, "settings-global-no-results") &&
+                UiHasElement(settingsDocument, "settings-categories"),
+                "Settings search clear restores all categories");
+            UiSetProperty(settingsDocument, "HighContrast", true);
+            UiSetProperty(settingsDocument, "ReducedMotion", true);
+            check("UI", Convert.ToBoolean(UiProperty(settingsDocument, "HighContrast")) &&
+                Convert.ToBoolean(UiProperty(settingsDocument, "ReducedMotion")),
+                "Settings accessibility and reduced-motion state is document-scoped");
+            UiInvoke(settingsPresentation, "PostClose");
+
+            object profilesPresentation = UiCreatePresentation("Herds.WildlifeSpeciesBehaviorPresentation");
+            object profilesDocument = UiProperty(profilesPresentation, "Document");
+            check("UI", profilesDocument != null && UiProperty(profilesDocument, "Id") as string == "wildlife-species-profiles",
+                "Species Profiles uses a Wildlife-scoped InsightUiDocument");
+            check("UI", UiHasElement(profilesDocument, "profiles-search") &&
+                UiHasElement(profilesDocument, "profiles-responsive-master-detail") &&
+                UiHasElement(profilesDocument, "profile-predator-override") &&
+                UiHasElement(profilesDocument, "profile-prey-override"),
+                "Species Profiles contains search, responsive master/detail, and classification controls");
+            object profilesNavigation = UiFindElement(UiProperty(profilesDocument, "Root"),
+                "profiles-responsive-master-detail");
+            object initialSpeciesList = UiFindPageElement(profilesNavigation, "profiles-list-items");
+            string initialSpeciesListType = initialSpeciesList?.GetType().Name ?? "none";
+            int initialSpeciesCount = initialSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(initialSpeciesList, "ItemCount"));
+            int initialSpeciesCacheLimit = initialSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(initialSpeciesList, "CacheLimit"));
+            UiRebuildWithSearch(profilesPresentation, "__wildlife_no_matching_species__");
+            check("UI", UiHasElement(profilesDocument, "profiles-no-results"),
+                "Species Profiles search exposes a translated no-results state");
+            UiRebuildWithSearch(profilesPresentation, string.Empty);
+            object restoredSpeciesList = UiFindPageElement(
+                UiFindElement(UiProperty(profilesDocument, "Root"), "profiles-responsive-master-detail"),
+                "profiles-list-items");
+            string restoredSpeciesListType = restoredSpeciesList?.GetType().Name ?? "none";
+            int restoredSpeciesCount = restoredSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(restoredSpeciesList, "ItemCount"));
+            int restoredSpeciesCacheLimit = restoredSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(restoredSpeciesList, "CacheLimit"));
+            check("UI", initialSpeciesListType == "InsightUiVirtualList" && initialSpeciesCount >= 0 &&
+                initialSpeciesCacheLimit == 96 && restoredSpeciesListType == "InsightUiVirtualList" &&
+                restoredSpeciesCount == initialSpeciesCount && restoredSpeciesCacheLimit == 96,
+                "Species Profiles uses a bounded virtualized species list (initial=" + initialSpeciesListType +
+                "/" + initialSpeciesCount + "/" + initialSpeciesCacheLimit + ", restored=" +
+                restoredSpeciesListType + "/" + restoredSpeciesCount + "/" + restoredSpeciesCacheLimit + ")");
+            UiInvoke(profilesDocument, "CloseTransientOverlays");
+        }
+
         [DebugAction("Wildlife", "Run full in-game test suite", actionType = DebugActionType.Action,
             allowedGameStates = AllowedGameStates.PlayingOnMap)]
         public static void Run()
@@ -2559,6 +2702,7 @@ namespace Herds
 
                 Section("UI", () =>
                 {
+                    CheckInsightCanvasPresentations(Check);
                     Check("UI", SpeciesKnowledgeStatsPatch.AnimalKnowledgeInsertIndex(
                             new[] { "Description", "Market Value" }) == 1 &&
                         SpeciesKnowledgeStatsPatch.AnimalKnowledgeInsertIndex(

@@ -82,6 +82,9 @@ Check 'insightcanvas-project-required' ($herdsProjectText -match '<WildlifeRequi
     'Herds references the installed Insight Canvas assembly without copying it'
 Check 'insightcanvas-ui-api' ($uiText -match 'InsightUiDocument' -and $uiText -match 'InsightUiHost' -and $uiText -match 'InsightUiWindow')
     'Wildlife UI uses the Insight Canvas v2 document/host/window API'
+Check 'wildlife-ui-surfaces' ($uiText -match 'settings-categories' -and $uiText -match 'profiles-responsive-master-detail' -and
+    $uiText -match 'InsightUi\.VirtualList' -and $uiText -match 'profile-reset')
+    'settings and Species Profiles use the responsive migrated surfaces'
 Check 'insightcanvas-no-v1-ui' ($uiText -notmatch '\bInsightModel\b' -and $uiText -notmatch '\bInsightWindow\b' -and
     $uiText -notmatch '\bInsightCanvasHost\b') 'ordinary Wildlife screens do not use the legacy semantic API'
 Check 'insightcanvas-no-bundle' (@(Get-ChildItem -LiteralPath $root -Recurse -Filter 'InsightCanvas.dll' -File -ErrorAction SilentlyContinue).Count -eq 0)
@@ -146,6 +149,9 @@ Check 'runner-explicit-protocol' ($runnerText -match 'requestId' -and $runnerTex
 Check 'suite-cleanup-regression' ($suiteText -match 'OriginalGameRestored' -and $suiteText -match 'OriginalMapStateRestored' -and
     $suiteText -match 'WorldInterfaceSafe' -and $suiteText -match 'TilePickerSafe' -and $suiteText -match 'RootUiUpdateSafe' -and
     $suiteText -match 'NoIsolatedState' -and $suiteText -match 'DeferredCallbacksDrained') 'suite owns cleanup regression checks'
+Check 'suite-insightcanvas-ui-coverage' ($suiteText -match 'CheckInsightCanvasPresentations' -and
+    $suiteText -match 'settings-global-no-results' -and $suiteText -match 'profiles-no-results' -and
+    $suiteText -match 'CloseTransientOverlays') 'suite covers migrated Insight Canvas settings/profile lifecycle states'
 
 $adapterText = ReadText 'Source\Wildlife\DeferredReality.Wildlife.csproj'
 Check 'adapter-drf-reference' ($adapterText -match '<Reference Include="DeferredRealityFramework"') 'optional adapter references DRF'

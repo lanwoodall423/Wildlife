@@ -235,7 +235,7 @@ namespace Herds
         private InsightUiElement BuildField(FieldInfo fieldInfo, string categoryId)
         {
             FieldInfo captured = fieldInfo;
-            string id = "settings." + captured.Name;
+            string id = "settings." + categoryId + "." + captured.Name;
             string label = WildlifeUiText.Field(captured.Name);
             if (captured.FieldType == typeof(bool))
             {
@@ -314,6 +314,13 @@ namespace Herds
                     return "enableAnimalMemory";
                 case "enableHuntedAdrenaline":
                 case "enableHuntEndurance":
+                case "enableOffMapHuntingExpeditions":
+                case "enableExtendedHuntingExpeditions":
+                case "enableExpeditionIncidents":
+                case "enableExpeditionBiomeEvents":
+                case "enableInteractiveExpeditionEncounters":
+                case "allowExpeditionDeaths":
+                case "enableRoamingExpeditionEncounters":
                     return "enableHuntingExpeditions";
                 default:
                     return null;
@@ -338,10 +345,34 @@ namespace Herds
             WildlifeSpeciesBehaviorPresentation.Open();
         }
 
-        private static void GetRange(string name, Type type, out float minimum, out float maximum)
+        private void GetRange(string name, Type type, out float minimum, out float maximum)
         {
             minimum = type == typeof(int) ? 0f : 0f;
             maximum = type == typeof(int) ? 1000f : 1f;
+            switch (name)
+            {
+                case "updateIntervalTicks": minimum = 120f; maximum = 2000f; return;
+                case "unpennedJoinDistance": minimum = 8f; maximum = 60f; return;
+                case "defenseScanIntervalTicks": minimum = 30f; maximum = 300f; return;
+                case "protectiveBodySizeThreshold": minimum = 0.3f; maximum = 4f; return;
+                case "flightDistance": minimum = 8f; maximum = 36f; return;
+                case "maximumInferredHidingBodySize": minimum = 0.1f; maximum = 1f; return;
+                case "defaultHideSuccessChance": minimum = 0.05f; maximum = 1f; return;
+                case "hideEntryTicks": minimum = 30f; maximum = 600f; return;
+                case "failedHideRetryTicks": minimum = 120f; maximum = 2500f; return;
+                case "refugeRefreshIntervalTicks": minimum = 600f; maximum = 5000f; return;
+                case "minimumHideTicks": minimum = 120f; maximum = 2500f; return;
+                case "maximumHideTicks":
+                    minimum = Mathf.Min(15000f, Mathf.Max(120f, settings.minimumHideTicks) + 300f);
+                    maximum = 15000f;
+                    return;
+                case "basePredatorEscapeChance": minimum = 0f; maximum = 0.5f; return;
+                case "predatorEscapeCheckIntervalTicks": minimum = 120f; maximum = 900f; return;
+                case "hiddenPreySafeDistance": minimum = 0f; maximum = 120f; return;
+                case "minimumFieldcraftSkill": minimum = 0f; maximum = 12f; return;
+                case "frightenedMemoryLifetimeTicks": minimum = 60000f; maximum = 3600000f; return;
+                case "packMemberKilledMemoryLifetimeTicks": minimum = 600000f; maximum = 7200000f; return;
+            }
             if (name.IndexOf("Chance", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("chance", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 minimum = 0f;
@@ -377,13 +408,15 @@ namespace Herds
         private string search = string.Empty;
         private string selectedDefName;
 
-        private WildlifeSpeciesBehaviorPresentation()
+        internal WildlifeSpeciesBehaviorPresentation()
         {
             selectedDefName = EligibleSpecies().FirstOrDefault()?.defName;
             document = new InsightUiDocument("wildlife-species-profiles", InsightUi.Empty("profiles-loading"));
             WildlifeUiTheme.Configure(document, false, false);
             document.Root = BuildRoot();
         }
+
+        internal InsightUiDocument Document => document;
 
         public static void Open()
         {
@@ -402,21 +435,27 @@ namespace Herds
                 }).Bind(() => search, value => search = value ?? string.Empty);
 
             List<ThingDef> species = FilteredSpecies();
-            List<InsightUiElement> rows = new List<InsightUiElement>();
-            for (int i = 0; i < species.Count; i++)
+            InsightUiElement speciesList;
+            if (species.Count == 0)
             {
-                ThingDef captured = species[i];
-                InsightUiButton row = InsightUi.Button("species." + captured.defName,
-                    captured.LabelCap.ToString(), () => Select(captured));
-                row.SetTooltip(WildlifeUiText.Get("Wildlife.UI.Profiles.Species.Help"));
-                row.SelectedProvider = () => selectedDefName == captured.defName;
-                rows.Add(row);
+                speciesList = InsightUi.Callout("profiles-no-results", InsightUiCalloutSeverity.Info,
+                    WildlifeUiText.Get("Wildlife.UI.Profiles.NoResults"),
+                    WildlifeUiText.Get("Wildlife.UI.Profiles.NoResults.Help"));
             }
-            if (rows.Count == 0)
-                rows.Add(InsightUi.Label("profiles-no-results", WildlifeUiText.Get("Wildlife.UI.Profiles.NoResults"), InsightUiTextStyle.Caption));
+            else
+            {
+                speciesList = InsightUi.VirtualList("profiles-list-items", species.Count, 34f, index =>
+                {
+                    ThingDef captured = species[index];
+                    InsightUiButton row = InsightUi.Button("species." + captured.defName,
+                        captured.LabelCap.ToString(), () => Select(captured));
+                    row.SetTooltip(WildlifeUiText.Get("Wildlife.UI.Profiles.Species.Help"));
+                    row.SelectedProvider = () => selectedDefName == captured.defName;
+                    return row;
+                }).SetMinSize(0f, 180f);
+            }
 
-            InsightUiElement list = InsightUi.Column("profiles-list", searchField,
-                InsightUi.Scroll("profiles-list-scroll", InsightUi.Column("profiles-list-items", rows.ToArray()).SetGap(4f))).SetGap(8f);
+            InsightUiElement list = InsightUi.Column("profiles-list", searchField, speciesList).SetGap(8f);
             InsightUiElement detail = BuildDetail();
             InsightUiNavigation workspace = InsightUi.Navigation("profiles-responsive-master-detail", 720f)
                 .Add("profiles-master", WildlifeUiText.Get("Wildlife.UI.Profiles.SpeciesList"), list)
@@ -438,6 +477,26 @@ namespace Herds
             PreyProfile defaults = PreyProfileDatabase.DefaultFor(selected);
             SpeciesBehaviorOverride item = FindOverride(selected);
             bool enabled = item?.enabled == true;
+            InsightUiToggle predatorOverride = InsightUi.Toggle("profile-predator-override",
+                WildlifeUiText.Get("Wildlife.UI.Profiles.PredatorOverride"), item?.hasPredatorOverride == true)
+                .Bind(() => FindOverride(selected)?.hasPredatorOverride == true, value =>
+                {
+                    WildlifeSpeciesClassification.SetPredatorOverride(selected, value, FindOverride(selected)?.predator == true);
+                    ChangedAndRebuild();
+                });
+            predatorOverride.Enabled = enabled;
+            predatorOverride.SetTooltip(enabled ? WildlifeUiText.Get("Wildlife.UI.Profiles.PredatorOverride") :
+                WildlifeUiText.Get("Wildlife.UI.Profiles.DisabledHelp"));
+            InsightUiToggle preyOverride = InsightUi.Toggle("profile-prey-override",
+                WildlifeUiText.Get("Wildlife.UI.Profiles.PreyOverride"), item?.hasPreyOverride == true)
+                .Bind(() => FindOverride(selected)?.hasPreyOverride == true, value =>
+                {
+                    WildlifeSpeciesClassification.SetPreyOverride(selected, value, FindOverride(selected)?.prey != false);
+                    ChangedAndRebuild();
+                });
+            preyOverride.Enabled = enabled;
+            preyOverride.SetTooltip(enabled ? WildlifeUiText.Get("Wildlife.UI.Profiles.PreyOverride") :
+                WildlifeUiText.Get("Wildlife.UI.Profiles.DisabledHelp"));
             List<InsightUiElement> controls = new List<InsightUiElement>
             {
                 InsightUi.SectionHeader("profile-header", selected.LabelCap.ToString(),
@@ -452,18 +511,8 @@ namespace Herds
                         if (target != null) target.enabled = value;
                         ChangedAndRebuild();
                     }),
-                InsightUi.Toggle("profile-predator-override", WildlifeUiText.Get("Wildlife.UI.Profiles.PredatorOverride"), item?.hasPredatorOverride == true)
-                    .Bind(() => FindOverride(selected)?.hasPredatorOverride == true, value =>
-                    {
-                        WildlifeSpeciesClassification.SetPredatorOverride(selected, value, FindOverride(selected)?.predator == true);
-                        ChangedAndRebuild();
-                    }),
-                InsightUi.Toggle("profile-prey-override", WildlifeUiText.Get("Wildlife.UI.Profiles.PreyOverride"), item?.hasPreyOverride == true)
-                    .Bind(() => FindOverride(selected)?.hasPreyOverride == true, value =>
-                    {
-                        WildlifeSpeciesClassification.SetPreyOverride(selected, value, FindOverride(selected)?.prey != false);
-                        ChangedAndRebuild();
-                    })
+                predatorOverride,
+                preyOverride
             };
 
             if (enabled)
@@ -547,7 +596,8 @@ namespace Herds
         private List<ThingDef> FilteredSpecies()
         {
             return EligibleSpecies().Where(def => string.IsNullOrWhiteSpace(search) ||
-                def.LabelCap.ToString().IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                def.LabelCap.ToString().IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                def.defName.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
         }
 
         private ThingDef SelectedSpecies() => EligibleSpecies().FirstOrDefault(def => def.defName == selectedDefName);
