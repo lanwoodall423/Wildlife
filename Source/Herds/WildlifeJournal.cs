@@ -892,7 +892,16 @@ namespace Herds
             (value.knowledge > 0f || value.evidence.Count > 0 || value.signals.Count > 0 || value.trails.Count > 0 ||
              value.migrations.Count > 0 || value.localCount > 0);
 
-        private static string PageId(WildlifeJournalPage value) => value.ToString().ToLowerInvariant();
+        private static string PageId(WildlifeJournalPage value)
+        {
+            switch (value)
+            {
+                case WildlifeJournalPage.FieldGuide: return "field-guide";
+                case WildlifeJournalPage.LivingAtlas: return "living-atlas";
+                case WildlifeJournalPage.FieldLog: return "field-log";
+                default: return value.ToString().ToLowerInvariant();
+            }
+        }
 
         private static string Sector(Map activeMap, IntVec3 cell)
         {
