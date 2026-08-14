@@ -38,6 +38,37 @@ companion visibility, and the expected existing `MainButtonDef` window types.
 - Wildlife focus actions share `WildlifeUI`, which closes Wildlife dialogs and the Wildlife
   main tab before selecting the target and moving the camera.
 
+## Deferred Reality regional graph
+
+Regions describe places. Connections describe topology. Transfers/processes describe changes
+across topology.
+
+Wildlife uses DRF's persisted `RealityRegionConnection` graph for abstract migration eligibility
+and adjacent-region discovery. A cardinal surface relationship is one enabled bidirectional
+`cardinal-surface` connection with a deterministic ID and edge/tile metadata; it is not a
+transfer journal and does not create a map. Statistical wildlife processes query outgoing
+connections, apply bounded aggregate migration using elapsed time, and include the connection ID
+in their deterministic operation identity. A live projection suppresses duplicate analytical
+birth/death accounting, while an active player excursion can request escalation to a materialized
+projection through the typed DRF process result. The connection graph exposes immediate neighbors
+only; it is not a pathfinding engine.
+
+## Simple DRF provider path
+
+`WildlifeRealityProvider.BuildFrameworkProvider` is the reference composition
+for ordinary latent simulation. The builder supplies fidelity, the bounded
+analytical process, aggregate population validation/reconciliation, identity
+anchor validation, constraint resolution, and diagnostics. Wildlife's
+transactional map, compression, transfer, excursion, and observation-consistency
+logic is attached with `UseAdvanced(this)` and remains behind the facade.
+
+This keeps the gameplay loop readable: seed a region's aggregate species
+records, schedule stable daily processes, apply elapsed-time growth and
+`RealityPopulationService.Transfer` across enabled graph edges, and let DRF
+pause those processes while a live projection is authoritative. The same
+facade owns the registration, so no second provider registration or manual
+rollback wiring is needed.
+
 ## Shared knowledge adapter
 
 - `KnowledgeFramework.dll` owns the single collapsible pawn Bio panel and the common Novice,
@@ -115,3 +146,38 @@ companion visibility, and the expected existing `MainButtonDef` window types.
 - Normal signal detail, Field Log, Knowledge, Region, and Ecology Snapshot surfaces use qualitative
   warning language. Hidden cause, trace identity, listener processing, claim provenance, and exact
   response diagnostics remain in developer-only bridge traces.
+
+## Population, anchor, and observation rulebook
+
+Wildlife keeps ordinary ecology fungible: wild muffalo, generic insects,
+biomass, and other anonymous animals are `RealityPopulationRecord` quantities
+with `compressionSignificance = Aggregate`. If gameplay cares which individual
+an animal is—because it is named, bonded, tagged, quest-related, player-bound,
+or otherwise important—it becomes a `RealityAnchorRecord` with
+`compressionSignificance = Identity`; its ID is retained in the aggregate's
+`anchoredMemberIds`. The aggregate amount is never the sole record of that
+individual.
+
+The Wildlife provider owns restoration of anchor payloads and RimWorld load IDs.
+An anchor with a load ID is compression-safe only after Wildlife has resolved it
+and marks `externalReferenceState = ProviderResolved`. Unknown, unsafe,
+player-controlled, or quest-critical references veto compression. Wildlife does
+not copy live Pawn graphs into latent state.
+
+Deaths on a materialized wildlife map are reconciled into the latent aggregate
+and/or retained anchor state during compression. Statistical births are disabled
+for the live projection, so they cannot be counted twice. Established player or
+provider facts use `RealityObservationRecord`/`RealityConstraint` with
+`EstablishedFact`; disposable transient sensor detail may use `Disposable`.
+
+## Observation-constrained rematerialization
+
+Wildlife's consistency provider turns an established habitat observation into a
+coarse habitat/population obligation: the next map must support the observed herd
+or suitability, but anonymous muffalo may be regenerated at different valid cells.
+A named or bonded animal is instead an identity anchor; its retained cell/edge
+location is a stronger obligation and missing restoration vetoes the transaction.
+The map factory receives these obligations through DRF and Wildlife validates the
+reconciled projection before commit. If a later gameplay event makes a fact false,
+Wildlife explicitly invalidates or supersedes the observation; it never silently
+contradicts it during map generation.

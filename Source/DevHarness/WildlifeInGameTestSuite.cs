@@ -587,15 +587,33 @@ namespace Herds
 
                     IList<Window> currentWindows = previousWindowStack?.Windows;
                     if (currentWindows != null && previousWindows != null &&
-                        (currentWindows.Count != previousWindows.Count || currentWindows.Where(value => !previousWindows.Contains(value)).Any()))
+                        (currentWindows.Count != previousWindows.Count || currentWindows.Where(value => !previousWindows.Contains(value)).Any() ||
+                            previousWindows.Where(value => !currentWindows.Contains(value)).Any()))
                     {
                         foreach (Window window in currentWindows.Where(value => !previousWindows.Contains(value)).ToList())
                             if (!previousWindowStack.TryRemove(window, false) || previousWindowStack.Windows.Contains(window))
                                 detail += "window removal failed; ";
-                        if (currentWindows.Count != previousWindows.Count ||
-                            currentWindows.Where(value => !previousWindows.Contains(value)).Any() ||
-                            previousWindows.Where(value => !currentWindows.Contains(value)).Any())
-                            detail += "window stack changed; ";
+
+                        foreach (Window window in previousWindows.Where(value => !previousWindowStack.Windows.Contains(value)).ToList())
+                        {
+                            try
+                            {
+                                previousWindowStack.Add(window);
+                            }
+                            catch (Exception exception)
+                            {
+                                detail += "window restore failed (" + WindowIdentity(window) + "): " +
+                                    exception.GetBaseException().Message + "; ";
+                            }
+                        }
+
+                        List<Window> remainingExtraWindows = previousWindowStack.Windows
+                            .Where(value => !previousWindows.Contains(value)).ToList();
+                        List<Window> missingWindows = previousWindows
+                            .Where(value => !previousWindowStack.Windows.Contains(value)).ToList();
+                        if (remainingExtraWindows.Count > 0 || missingWindows.Count > 0)
+                            detail += "window stack changed (extra=" + string.Join(",", remainingExtraWindows.Select(WindowIdentity)) +
+                                "; missing=" + string.Join(",", missingWindows.Select(WindowIdentity)) + "); ";
                     }
                     if (previousCurrentMap != null && Find.CurrentMap != previousCurrentMap)
                         detail += "current map changed; ";
@@ -610,6 +628,12 @@ namespace Herds
                     detail += "UI restore " + exception;
                 }
                 return detail.NullOrEmpty();
+            }
+
+            private static string WindowIdentity(Window window)
+            {
+                if (window == null) return "null";
+                return window.GetType().FullName + "#" + window.GetHashCode();
             }
 
             private bool ValidatePostCleanupState(Game isolatedGame, Map isolatedMap, out string detail)
@@ -1597,6 +1621,9 @@ namespace Herds
             bool fieldLogEmpty = UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty");
             check("UI", fieldLogEmpty || fieldLogList?.GetType().Name == "InsightUiVirtualList",
                 "Field Log uses a bounded virtual list or an explicit localized empty state");
+            check("UI", UiHasElement(journalDocument, "journal-field-log.type-filter") &&
+                UiHasElement(journalDocument, "journal-field-log.urgency-filter"),
+                "Field Log exposes document-owned type and urgency filters");
             if (fieldLogList != null)
                 check("UI", Convert.ToInt32(UiProperty(fieldLogList, "CacheLimit")) == 96 &&
                     Convert.ToInt32(UiProperty(fieldLogList, "ItemCount")) >= 0,
@@ -1604,7 +1631,8 @@ namespace Herds
             int journalRevision = Convert.ToInt32(UiProperty(journalDocument, "Revision"));
             UiRebuildWithSearch(journalPresentation, "__wildlife_no_matching_journal_record__");
             check("UI", Convert.ToInt32(UiProperty(journalDocument, "Revision")) > journalRevision &&
-                UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty"),
+                (UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-NoResults") ||
+                    UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty")),
                 "Journal search rebuilds the snapshot-backed surface with an explicit no-results state");
             UiSetField(journalPresentation, "page", WildlifeJournalPage.Signals);
             UiRebuildWithSearch(journalPresentation, string.Empty);
@@ -1617,6 +1645,41 @@ namespace Herds
                 UiProperty(journalDiagnostics, "DuplicateIds") != null,
                 "Journal exposes render-error and duplicate-ID diagnostics");
             UiInvoke(UiProperty(journalPresentation, "Host"), "PostClose");
+
+            HuntingExpeditionMapComponent expeditionComponent = Find.CurrentMap?.GetComponent<HuntingExpeditionMapComponent>();
+            ExpeditionDestination expeditionDestination = expeditionComponent?.Destinations().FirstOrDefault();
+            List<object> expeditionWindows = new List<object>
+            {
+                new Window_HuntingExpeditionSetup(Find.CurrentMap, expeditionDestination),
+                new Window_ExpeditionDestinationPicker(expeditionComponent, expeditionDestination, null),
+                new Window_ExpeditionRange(Find.CurrentMap),
+                new Window_WildlifeExpeditions(Find.CurrentMap),
+                new Window_HuntingExpeditionStatus(expeditionComponent, null),
+                new Window_ExpeditionAssessment(
+                    "Wildlife.UI.Expedition.Assessment.Title".Translate().ToString(),
+                    "Wildlife.UI.Expedition.Assessment.Empty".Translate().ToString()),
+                new Window_ExpeditionRoute(expeditionComponent, null),
+                new Window_ExpeditionMedicine(Find.CurrentMap, new Dictionary<ThingDef, int>()),
+                new Window_ExpeditionProvisions(Find.CurrentMap, new ExpeditionPlan(), 1f),
+                new Window_InteractiveExpeditionEncounter(expeditionComponent, new HuntingExpeditionRecord())
+            };
+            check("UI", expeditionWindows.All(window =>
+            {
+                object document = UiProperty(window, "Document");
+                return document != null && (UiProperty(document, "Id") as string ?? string.Empty)
+                    .StartsWith("wildlife-expedition", StringComparison.Ordinal);
+            }), "Expedition presentation windows share document-owned InsightCanvas shells");
+            object setupDocument = UiProperty(expeditionWindows[0], "Document");
+            object destinationDocument = UiProperty(expeditionWindows[1], "Document");
+            object rangeDocument = UiProperty(expeditionWindows[2], "Document");
+            check("UI", UiHasElement(setupDocument, "setup.navigation") &&
+                UiHasElement(destinationDocument, "destination.split") &&
+                UiHasElement(rangeDocument, "range.items") &&
+                (UiFindElement(UiProperty(rangeDocument, "Root"), "range.items") == null ||
+                    Convert.ToInt32(UiProperty(UiFindElement(UiProperty(rangeDocument, "Root"), "range.items"), "CacheLimit")) <= 96),
+                "Expedition setup, destination browsing, and range use responsive and bounded surfaces");
+            foreach (object expeditionWindow in expeditionWindows)
+                UiInvoke(expeditionWindow, "PostClose");
 
             object profilesPresentation = UiCreatePresentation("Herds.WildlifeSpeciesBehaviorPresentation");
             object profilesDocument = UiProperty(profilesPresentation, "Document");
@@ -2595,12 +2658,18 @@ namespace Herds
                         (int)WildlifeJournalPage.FieldLog == 6 &&
                         WildlifeJournal.TopLevelPagesForTesting().SequenceEqual(new[]
                         {
-                            WildlifeJournalPage.FieldLog,
-                            WildlifeJournalPage.Knowledge,
-                            WildlifeJournalPage.Region,
-                            WildlifeJournalPage.Chronicle
+                        WildlifeJournalPage.FieldLog,
+                        WildlifeJournalPage.Knowledge,
+                        WildlifeJournalPage.Region,
+                            WildlifeJournalPage.Chronicle,
+                            WildlifeJournalPage.FieldGuide,
+                            WildlifeJournalPage.LivingAtlas,
+                            WildlifeJournalPage.Signals,
+                            WildlifeJournalPage.Investigations,
+                            WildlifeJournalPage.Expeditions,
+                            WildlifeJournalPage.Stories
                         }),
-                        "Journal preserves legacy page values and exposes four top-level hubs");
+                        "Journal preserves legacy page values and exposes all ten stable pages");
                     WildlifeJournalPage[] journalPages =
                     {
                         WildlifeJournalPage.FieldGuide, WildlifeJournalPage.LivingAtlas,

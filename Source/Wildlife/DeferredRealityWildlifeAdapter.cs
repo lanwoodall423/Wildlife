@@ -14,77 +14,111 @@ using Verse;
 
 namespace DeferredReality.Wildlife
 {
-    /// <summary>Wildlife adapter. Regional truth is imported into framework populations; active AI remains Wildlife-owned.</summary>
-    public sealed partial class WildlifeRealityProvider : IRealityProvider, IRealityProcessProvider, IPopulationProvider,
-        IAnchorProvider, ITransactionalAnchorProvider, ITransactionalAnchorCommitProvider, IRealityMapIdentityProvider, IConstraintResolver,
-        IMaterializationProvider, IAdjacentRegionTransferHost, ICompressionProvider, IRealityDiagnosticsProvider,
-        IRealityExcursionTaskProvider, IRealityExcursionTaskCleanupProvider
+    /// <summary>Wildlife gameplay logic. The framework-facing registration is composed by BuildFrameworkProvider.</summary>
+    public sealed partial class WildlifeRealityProvider : ITransactionalAnchorProvider, ITransactionalAnchorCommitProvider,
+        IRealityMapIdentityProvider, IMaterializationProvider, IAdjacentRegionTransferHost, ICompressionProvider,
+        IRealityExcursionTaskProvider, IRealityExcursionTaskCleanupProvider, IRealityMaterializationConsistencyProvider
     {
         public const string ProviderId = "lan.wildlife";
         private DeferredRealityWorldComponent attachedWorld;
         private IDisposable eventSubscription;
-
-        public RealityProviderRegistration Registration { get; } = new RealityProviderRegistration
-        {
-            providerId = ProviderId,
-            displayName = "Wildlife regional ecology",
-            semanticApiVersion = 1,
-            schemaVersion = 1,
-            order = 100,
-            capabilities = RealityProviderCapability.Populations | RealityProviderCapability.Processes |
-                RealityProviderCapability.Anchors | RealityProviderCapability.Constraints |
-                RealityProviderCapability.Materialization | RealityProviderCapability.Compression |
-                RealityProviderCapability.Diagnostics,
-            // Wildlife currently has no persisted source sequence cursor for these events.
-            // Leave operation markers durable until a consuming save contract can prove replay safety.
-            operationRetentionTicks = -1
-        };
+        private readonly HashSet<int> reconciledMapIds = new HashSet<int>();
+        private readonly HashSet<int> reconcilingMapIds = new HashSet<int>();
 
         public void OnRegistered(RealityProviderContext context)
         {
             if (context?.World == null || attachedWorld == context.World) return;
             if (eventSubscription != null) eventSubscription.Dispose();
+            reconciledMapIds.Clear();
+            reconcilingMapIds.Clear();
             attachedWorld = context.World;
             eventSubscription = RealityEventBus.Subscribe(HandleFrameworkEvent);
-            foreach (Map map in Find.Maps ?? Enumerable.Empty<Map>()) MigrateMap(map, context.World);
+            foreach (Map map in Find.Maps ?? Enumerable.Empty<Map>()) ReconcileLiveProjection(map, context.World);
             RebuildExcursionTaskAssociations();
+        }
+
+        internal SimpleRealityProvider BuildFrameworkProvider()
+        {
+            return new SimpleRealityProviderBuilder(ProviderId, "Wildlife regional ecology")
+                .Configure(registration =>
+                {
+                    registration.semanticApiVersion = 1;
+                    registration.order = 100;
+                    registration.defaultFidelity = RealityFidelity.Statistical;
+                    registration.operationRetentionTicks = -1;
+                })
+                .OnRegistered(OnRegistered)
+                .WithFidelity(RealityFidelityMask.All)
+                .AllowTransition(RealityFidelity.Dormant, RealityFidelity.Statistical)
+                .AllowTransition(RealityFidelity.Statistical, RealityFidelity.Narrative)
+                .AllowTransition(RealityFidelity.Statistical, RealityFidelity.Materialized,
+                    RealityFidelityTransitionMechanism.Materialization)
+                .AllowTransition(RealityFidelity.Narrative, RealityFidelity.Materialized,
+                    RealityFidelityTransitionMechanism.Materialization)
+                .AllowTransition(RealityFidelity.Materialized, RealityFidelity.Statistical,
+                    RealityFidelityTransitionMechanism.Compression)
+                .ConfigureFidelity(fidelity =>
+                {
+                    fidelity.validateTransition = (request, vetoes) =>
+                    {
+                        if (request == null || request.providerId != ProviderId)
+                            vetoes.Add(new RealityVeto("wildlife.fidelity-owner", "Wildlife does not own this fidelity transition.", ProviderId));
+                        if (request != null && request.toFidelity == RealityFidelity.Materialized)
+                            vetoes.Add(new RealityVeto("wildlife.fidelity-materialization",
+                                "Wildlife materialization must use the transactional Map service.", ProviderId));
+                        return vetoes.Count == 0;
+                    };
+                    fidelity.fidelityChanged = (context, region, previous, current) =>
+                    {
+                        if (context?.World == null || region == null || current != RealityFidelity.Statistical) return;
+                        foreach (RealityPopulationSnapshot population in context.World.PopulationSnapshots(region.id.ToString(), ProviderId, "wildlife"))
+                            EnsureProcess(context.World, region.id, population.record.populationId);
+                    };
+                })
+                .WithAnalyticalProcess(CanExecute, Execute, RealityFidelityMask.Statistical,
+                    runsWhileLiveProjection: false, mayRequestEscalation: true,
+                    escalationTarget: RealityFidelity.Statistical,
+                    escalationPolicy: RealityFidelityEscalationPolicy.HostApproval)
+                .WithPopulations(new SimplePopulationDefinition
+                {
+                    canChange = CanChangePopulation,
+                    reconcileActiveMap = ReconcileActiveMap
+                })
+                .WithAnchors(new SimpleAnchorDefinition { validate = ValidateAnchor })
+                .WithConstraints(new SimpleConstraintDefinition { canResolve = CanResolve, resolve = Resolve })
+                .WithDiagnostics(DiagnosticLines)
+                .UseAdvanced(this)
+                .Build();
         }
 
         public bool IsOwned(Map map)
         {
-            if (map == null || attachedWorld == null) return false;
-            RealityRegionId id = attachedWorld.RegisterMap(map);
-            return attachedWorld.TryGetRegion(id, out RealityRegionSnapshot region) && region != null &&
-                attachedWorld.IsMigrationCommitted(ProviderId, "regional:" + id, 1);
+            if (map == null || attachedWorld == null || !reconciledMapIds.Contains(map.uniqueID)) return false;
+            DeferredRealityWorldComponent world = DeferredRealityWorldComponent.Current;
+            if (world == null || world != attachedWorld || !world.TryRegionForProjectionMapId(map.uniqueID,
+                out RealityRegionId id)) return false;
+            return world.TryGetRegion(id, out RealityRegionSnapshot region) && region != null &&
+                region.authority == RealityRegionAuthority.LiveProjection && region.projectionMapUniqueId == map.uniqueID;
         }
 
-        public void MigrateMap(Map map, DeferredRealityWorldComponent world = null)
+        public void ReconcileLiveProjection(Map map, DeferredRealityWorldComponent world = null)
         {
             if (map == null) return;
             if (!RealityThreadGuard.IsMainThread)
             {
-                RealityMapLifecycle.RunOnMainThread(() => MigrateMap(map, world));
+                RealityMapLifecycle.RunOnMainThread(() => ReconcileLiveProjection(map, world));
                 return;
             }
             world = world ?? attachedWorld ?? DeferredRealityWorldComponent.Current;
-            if (world == null) return;
+            if (world == null || reconciledMapIds.Contains(map.uniqueID) ||
+                !reconcilingMapIds.Add(map.uniqueID)) return;
             RealityThreadGuard.RequireMainThread();
-            RealityRegionId regionId = world.RegisterMap(map);
-            if (!regionId.IsValid) return;
-            if (IsMaterializing(regionId)) return;
-            string consumerId = "regional:" + regionId;
-            if (world.IsMigrationCommitted(ProviderId, consumerId, 1))
-            {
-                map.GetComponent<WildlifeDeferredProjectionMapComponent>();
-                EnsureAdjacentTopology(world, regionId);
-                ReindexAnchors(world, regionId);
-                SyncMap(map);
-                return;
-            }
-            RegionalWildlifeMapComponent legacy = map.GetComponent<RegionalWildlifeMapComponent>();
-            if (legacy == null) return;
             try
             {
+                RealityRegionId regionId = world.RegisterMap(map);
+                if (!regionId.IsValid || IsMaterializing(regionId)) return;
+                RegionalWildlifeMapComponent legacy = map.GetComponent<RegionalWildlifeMapComponent>();
+                if (legacy == null) return;
                 int orphanIndex = 0;
                 foreach (RegionalSpeciesRecord orphan in legacy.OrphanedRecords ?? Array.Empty<RegionalSpeciesRecord>())
                 {
@@ -108,6 +142,7 @@ namespace DeferredReality.Wildlife
                     {
                         world.UpsertPopulation(new RealityPopulationRecord
                         {
+                            compressionSignificance = RealityCompressionSignificance.Aggregate,
                             populationId = populationId,
                             providerId = ProviderId,
                             kind = "wildlife",
@@ -121,7 +156,7 @@ namespace DeferredReality.Wildlife
                             established = source.population > 0f,
                             extinct = source.population <= 0f,
                             lastUpdateTick = world.Now,
-                            demographicPayload = "legacy-map=" + map.uniqueID + ";confidence=" + source.confidence.ToString("R")
+                            demographicPayload = "projection-map=" + map.uniqueID + ";confidence=" + source.confidence.ToString("R")
                         });
                     }
                     EnsureProcess(world, regionId, populationId);
@@ -134,6 +169,8 @@ namespace DeferredReality.Wildlife
                     {
                         world.UpsertAnchor(new RealityAnchorRecord
                         {
+                            compressionSignificance = RealityCompressionSignificance.Identity,
+                            externalReferenceState = RealityExternalReferenceState.ProviderResolved,
                             anchorId = anchorId,
                             providerId = ProviderId,
                             typeId = roaming.notable ? "notable-animal" : "tagged-animal",
@@ -152,13 +189,14 @@ namespace DeferredReality.Wildlife
                             lifecycle = roaming.state == RoamingAnimalState.Dead ? RealityAnchorLifecycle.Dead : RealityAnchorLifecycle.Present,
                             providerPayload = "species=" + roaming.species.defName + ";state=" + roaming.state + ";reason=" + roaming.reason +
                                 ";direction=" + roaming.direction,
-                            causalProvenance = "wildlife-legacy-map:" + map.uniqueID
+                            causalProvenance = "wildlife-projection-map:" + map.uniqueID
                         });
                     }
                     if (roaming.state != RoamingAnimalState.Present && roaming.state != RoamingAnimalState.Dead)
                     {
                         world.AddConstraint(new RealityConstraint
                         {
+                            compressionSignificance = RealityCompressionSignificance.EstablishedFact,
                             constraintId = "wildlife:departure:" + anchorId,
                             providerId = ProviderId,
                             typeId = "departure",
@@ -166,7 +204,7 @@ namespace DeferredReality.Wildlife
                             createdTick = world.Now,
                             validFromTick = roaming.leftTick,
                             certainty = roaming.tagged || roaming.notable ? 1f : 0.7f,
-                            source = "legacy-roaming-record",
+                            source = "projection-roaming-record",
                             spatialPrecision = string.IsNullOrEmpty(roaming.direction) ? RealityObservationPrecision.Region : RealityObservationPrecision.Edge,
                             affectedAnchorIds = new List<string> { anchorId },
                             priority = roaming.notable ? 5 : 2,
@@ -175,15 +213,20 @@ namespace DeferredReality.Wildlife
                         });
                     }
                 }
-                world.CommitMigration(ProviderId, consumerId, 1, "wildlife-regional-v1");
                 map.GetComponent<WildlifeDeferredProjectionMapComponent>();
                 EnsureAdjacentTopology(world, regionId);
                 ReindexAnchors(world, regionId);
+                reconciledMapIds.Add(map.uniqueID);
             }
             catch (Exception exception)
             {
-                world.Quarantine("wildlife-legacy-map", map.uniqueID.ToString(), ProviderId, exception.Message);
-                Log.Error("Deferred Reality Wildlife migration failed for map " + map.uniqueID + ": " + exception);
+                reconciledMapIds.Remove(map.uniqueID);
+                world.Quarantine("wildlife-projection-import", map.uniqueID.ToString(), ProviderId, exception.Message);
+                Log.Error("Deferred Reality Wildlife projection reconciliation failed for map " + map.uniqueID + ": " + exception);
+            }
+            finally
+            {
+                reconcilingMapIds.Remove(map.uniqueID);
             }
         }
 
@@ -219,9 +262,46 @@ namespace DeferredReality.Wildlife
             RealityPopulationRecord population = attachedWorld != null && attachedWorld.TryGetPopulationRecord(process.payload, out RealityPopulationRecord value)
                 ? value : null;
             if (population == null) return new RealityProcessResult { succeeded = true, pause = true, error = "Population target is unavailable." };
-            if (attachedWorld.TryGetRegion(RealityRegionId.Parse(population.regionId), out RealityRegionSnapshot region) &&
-                region.fidelity == RealityFidelity.Materialized)
-                return new RealityProcessResult { succeeded = true, nextDelayTicks = process.intervalTicks };
+            if (attachedWorld.TryGetRegion(RealityRegionId.Parse(population.regionId), out RealityRegionSnapshot region))
+            {
+                RealityExcursionTicket interaction = attachedWorld.ExcursionSnapshots()
+                    .Where(item => item != null && item.destinationRegionId == population.regionId &&
+                        (item.status == RealityExcursionStatus.Active || item.status == RealityExcursionStatus.ReturnRequested ||
+                         item.status == RealityExcursionStatus.Returning))
+                    .OrderBy(item => item.excursionId, StringComparer.Ordinal).FirstOrDefault();
+                if (interaction != null)
+                    return new RealityProcessResult
+                    {
+                        succeeded = true,
+                        escalation = new RealityProcessEscalationRequest
+                        {
+                            requestedFidelity = RealityFidelity.Materialized,
+                            reason = RealityFidelityEscalationReason.PlayerInteraction,
+                            disposition = RealityFidelityEscalationDisposition.Request,
+                            policy = RealityFidelityEscalationPolicy.HostApproval,
+                            subjectId = interaction.pawnLoadId
+                        }
+                    };
+                RealityAnchorRecord important = attachedWorld.AnchorSnapshots(population.regionId, ProviderId)
+                    .Select(item => item.record)
+                    .Where(item => item != null && item.importance >= 3 && item.lifecycle == RealityAnchorLifecycle.Present)
+                    .OrderBy(item => item.anchorId, StringComparer.Ordinal).FirstOrDefault();
+                if (important != null)
+                    return new RealityProcessResult
+                    {
+                        succeeded = true,
+                        escalation = new RealityProcessEscalationRequest
+                        {
+                            requestedFidelity = RealityFidelity.Narrative,
+                            reason = RealityFidelityEscalationReason.NamedAnchor,
+                            disposition = RealityFidelityEscalationDisposition.Request,
+                            policy = RealityFidelityEscalationPolicy.HostApproval,
+                            subjectId = important.anchorId
+                        }
+                    };
+                if (region.authority == RealityRegionAuthority.LiveProjection)
+                    return new RealityProcessResult { succeeded = true, nextDelayTicks = process.intervalTicks };
+            }
             float days = execution.elapsedTicks / 60000f;
             float capacity = Mathf.Max(population.carryingCapacity, population.amount + 1f);
             float growth = Mathf.Clamp(population.amount * 0.035f * days * (1f - population.amount / capacity), -population.amount, capacity);
@@ -246,7 +326,7 @@ namespace DeferredReality.Wildlife
         {
             if (context?.World == null || population == null || !RealityRegionId.TryParse(population.regionId, out RealityRegionId region)) return;
             Map map = Find.Maps?.FirstOrDefault(candidate => candidate != null && candidate.uniqueID ==
-                context.World.RegionSnapshots().FirstOrDefault(item => item.id == region)?.activeMapUniqueId);
+                context.World.RegionSnapshots().FirstOrDefault(item => item.id == region)?.projectionMapUniqueId);
             RegionalWildlifeMapComponent legacy = map?.GetComponent<RegionalWildlifeMapComponent>();
             RegionalSpeciesRecord row = legacy?.Records?.FirstOrDefault(item =>
                 item?.species?.defName == SpeciesFromSubject(population.subjectId));
@@ -262,9 +342,6 @@ namespace DeferredReality.Wildlife
                 vetoes.Add(new RealityVeto("wildlife.anchor-invalid", "Wildlife anchor has no provider or load identity.", ProviderId));
             return vetoes.Count == 0;
         }
-
-        public void OnAnchorMaterialized(RealityProviderContext context, RealityAnchorRecord anchor) =>
-            ReconcileMaterializedAnchor(context, anchor);
 
         public bool CanResolve(RealityConstraint constraint) => constraint?.providerId == ProviderId && constraint.typeId == "departure";
 
@@ -287,13 +364,13 @@ namespace DeferredReality.Wildlife
         {
             int populations = context.World?.PopulationSnapshots(providerId: ProviderId).Count ?? 0;
             int anchors = context.World?.AnchorSnapshots(providerId: ProviderId).Count ?? 0;
-            int links = context.World?.TopologySnapshots().Count(item => item?.kind == "cardinal-surface") ?? 0;
-            int materialized = context.World?.RegionSnapshots().Count(item => item?.fidelity == RealityFidelity.Materialized) ?? 0;
+            int links = context.World?.ConnectionSnapshots().Count(item => item?.kind == "cardinal-surface" && item.IsEnabled) ?? 0;
+            int materialized = context.World?.RegionSnapshots().Count(item => item?.authority == RealityRegionAuthority.LiveProjection) ?? 0;
             int transfers = context.World?.TransferJournalSnapshots().Count ?? 0;
             return new[]
             {
                 "wildlife populations=" + populations + " anchors=" + anchors + " regional-authority=framework",
-                "wildlife cardinal-links=" + links + " materialized-regions=" + materialized + " transfer-journals=" + transfers
+                "wildlife cardinal-connections=" + links + " materialized-regions=" + materialized + " transfer-journals=" + transfers
             };
         }
 
@@ -304,6 +381,8 @@ namespace DeferredReality.Wildlife
 
         private static void EnsureProcess(DeferredRealityWorldComponent world, RealityRegionId regionId, string populationId)
         {
+            if (world == null || !world.TryGetRegion(regionId, out RealityRegionSnapshot region) ||
+                region.fidelity == RealityFidelity.Dormant) return;
             string processId = "wildlife:population:" + populationId;
             if (world.ProcessSnapshots(regionId.ToString()).Any(item => item.record.processId == processId)) return;
             world.ScheduleProcess(new RealityProcessRecord
@@ -324,7 +403,7 @@ namespace DeferredReality.Wildlife
             if (value?.kind == "map.mapped" && Find.Maps != null)
             {
                 Map map = Find.Maps.FirstOrDefault(item => item?.uniqueID.ToString() == value.payload);
-                if (map != null) MigrateMap(map);
+                if (map != null) ReconcileLiveProjection(map);
             }
         }
     }
@@ -334,23 +413,24 @@ namespace DeferredReality.Wildlife
     public static class WildlifeRealityIntegration
     {
         public static readonly WildlifeRealityProvider Provider = new WildlifeRealityProvider();
+        public static readonly SimpleRealityProvider FrameworkProvider = Provider.BuildFrameworkProvider();
 
         static WildlifeRealityIntegration()
         {
             if (RealityProviderRegistry.TryGet(WildlifeRealityProvider.ProviderId, out IRealityProvider existing) &&
-                existing != null && existing.GetType() != Provider.GetType())
+                existing != null && existing.GetType() != FrameworkProvider.GetType())
             {
                 Log.Error("[DeferredReality] A different provider already owns " +
                     WildlifeRealityProvider.ProviderId + "; the Wildlife adapter will not register. Remove the duplicate adapter.");
                 return;
             }
-            if (!RealityProviderRegistry.Register(Provider))
+            if (!RealityProviderRegistry.Register(FrameworkProvider))
             {
                 Log.Error("[DeferredReality] Wildlife provider registration was rejected; adjacent integration is disabled.");
                 return;
             }
             RealityMapFactoryRegistry.Register(WildlifeRealityProvider.ProviderId, new WildlifeMapFactory());
-            RealityAdjacentSurfaceService.RegisterTransferHost(WildlifeRealityProvider.ProviderId, Provider);
+            RealityRegionTransferService.RegisterTransferHost(WildlifeRealityProvider.ProviderId, Provider);
             WildlifeDeferredRealityBridge.MaterializeBeyondMap = Provider.TryMaterializeTrail;
             WildlifeDeferredRealityBridge.AdjacentRegionSummary = Provider.AdjacentRegionSummary;
             new Harmony("lan.deferredreality.wildlife").PatchAll();
@@ -367,7 +447,7 @@ namespace DeferredReality.Wildlife
         public override void FinalizeInit()
         {
             base.FinalizeInit();
-            WildlifeRealityIntegration.Provider.MigrateMap(map);
+            WildlifeRealityIntegration.Provider.ReconcileLiveProjection(map);
             nextSyncTick = Find.TickManager?.TicksGame ?? 0;
         }
 
@@ -508,6 +588,7 @@ namespace DeferredReality.Wildlife
             {
                 world.AddConstraint(new RealityConstraint
                 {
+                    compressionSignificance = RealityCompressionSignificance.EstablishedFact,
                     constraintId = "wildlife:local-loss:" + operationId,
                     providerId = WildlifeRealityProvider.ProviderId,
                     typeId = "local-loss",
