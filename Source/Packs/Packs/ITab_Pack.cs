@@ -48,22 +48,41 @@ public sealed class ITab_Pack : ITab
         AnimalPackSettings settings = PacksMod.Settings.For(pack.species);
         bool solitary = settings.socialStrategy == PredatorSocialStrategy.Solitary;
         bool observed = component.IsObserved(focus);
+        bool revealIdentity = HerdsCompatibility.CanRevealPackIdentity(pack.species, observed);
+        bool revealSocial = HerdsCompatibility.CanRevealPackSocial(pack.species, observed);
+        bool revealBehavior = HerdsCompatibility.CanRevealPackBehavior(pack.species, observed);
+        bool revealTerritory = HerdsCompatibility.CanRevealPackTerritory(pack.species, observed);
+        bool revealDen = HerdsCompatibility.CanRevealPackDen(pack.species, observed);
         Rect rect = new Rect(0f, 0f, size.x, size.y).ContractedBy(12f);
 
         Text.Font = GameFont.Medium;
-        Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f), focus?.LabelShortCap ?? pack.species.LabelCap);
+        string title = observed && revealIdentity && focus != null
+            ? focus.LabelShortCap.ToString() : pack.species.LabelCap.ToString();
+        Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f), title);
         Text.Font = GameFont.Small;
         Widgets.FillableBar(new Rect(rect.x, rect.y + 32f, rect.width, 7f), observed ? 1f : 0.12f);
-        string identity = solitary ? "Solitary predator" : settings.socialStrategy + " • " + pack.members.Count + " visible";
+        int observedMemberCount = pack.members.Count(member => component.IsObserved(member));
+        string identity = revealIdentity ? (solitary ? "Solitary predator" : settings.socialStrategy + " • " + observedMemberCount + " observed") :
+            "Unidentified predator";
         Widgets.Label(new Rect(rect.x, rect.y + 43f, rect.width, 22f), identity + " • " + (observed ? "Observed" : "Not observed"));
 
-        if (!observed)
+        if (!revealIdentity)
         {
             Rect notice = new Rect(rect.x, rect.y + 70f, rect.width, 68f);
             Widgets.DrawMenuSection(notice);
             Widgets.Label(notice.ContractedBy(9f), solitary
-                ? "Observe this predator from a safe distance or an active observation post to reveal its hunting style, territory, home, and current behavior."
-                : "Observe this group from a safe distance or an active observation post to reveal its leadership, roles, hunting style, territory, den, and current prey.");
+                ? "Observe this predator and build colony wildlife knowledge before its hunting style, territory, home, and current behavior are disclosed."
+                : "Observe this group and build colony wildlife knowledge before its leadership, roles, hunting style, territory, den, and current prey are disclosed.");
+            return;
+        }
+
+        if (!observed || !revealSocial)
+        {
+            Rect notice = new Rect(rect.x, rect.y + 70f, rect.width, 68f);
+            Widgets.DrawMenuSection(notice);
+            Widgets.Label(notice.ContractedBy(9f), !observed
+                ? "Observe this predator from a safe distance or an active observation post to reveal its social structure and behavior."
+                : "The species is identified, but social structure requires stronger Knowledge Framework evidence.");
             return;
         }
 
@@ -78,28 +97,31 @@ public sealed class ITab_Pack : ITab
             DrawSectionTitle(social, "Individual Hunter");
             DrawValueRow(new Rect(social.x + 8f, social.y + 29f, social.width - 16f, 22f), "Lifestyle", "Solitary",
                 "This predator normally hunts, rests, and controls territory alone.");
-            DrawValueRow(new Rect(social.x + 8f, social.y + 51f, social.width - 16f, 22f), "Method", HuntingStyleLabel(settings.huntingStyle),
+            DrawValueRow(new Rect(social.x + 8f, social.y + 51f, social.width - 16f, 22f), "Method", revealBehavior ? HuntingStyleLabel(settings.huntingStyle) : "Unknown",
                 "The positioning and attack method this predator prefers while hunting.");
-            DrawValueRow(new Rect(social.x + 8f, social.y + 73f, social.width - 16f, 22f), "Humans", BoldnessLabel(pack),
+            DrawValueRow(new Rect(social.x + 8f, social.y + 73f, social.width - 16f, 22f), "Humans", BoldnessLabel(pack, revealBehavior),
                 "How willing this predator is to remain near or threaten colonists.");
         }
         else
         {
             DrawSectionTitle(social, "Social Group");
-            DrawThingLink(new Rect(social.x + 8f, social.y + 31f, social.width - 16f, 27f), "Leader", pack.leader,
+            DrawThingLink(new Rect(social.x + 8f, social.y + 31f, social.width - 16f, 27f), "Leader",
+                component.IsObserved(pack.leader) ? pack.leader : null,
                 "The predator that anchors group movement, territory, and coordinated hunts.");
             DrawValueRow(new Rect(social.x + 8f, social.y + 61f, social.width - 16f, 24f), "Structure", settings.socialStrategy.ToString(),
                 "The species' normal social organization. Pair, family, and pack predators coordinate differently.");
         }
 
         DrawSectionTitle(behavior, "Current Behavior");
-        HuntPhase phase = component.HuntPhaseFor(focus);
-        string state = pack.prey != null ? phase.ToString() : pack.record?.claimedCorpse?.Spawned == true ? "Guarding Kill" : "Roaming";
+        HuntPhase phase = revealBehavior ? component.HuntPhaseFor(focus) : default;
+        string state = !revealBehavior ? "Unknown" : pack.prey != null ? phase.ToString() : pack.record?.claimedCorpse?.Spawned == true ? "Guarding Kill" : "Roaming";
         DrawValueRow(new Rect(behavior.x + 8f, behavior.y + 29f, behavior.width - 16f, 22f), "State", state,
             "The predator's current activity or stage of a coordinated hunt.");
-        DrawThingLink(new Rect(behavior.x + 8f, behavior.y + 51f, behavior.width - 16f, 22f), "Prey", pack.prey,
+        bool preyObserved = pack.prey != null && component.IsObserved(pack.prey);
+        bool revealPrey = revealBehavior && HerdsCompatibility.CanRevealCurrentPrey(pack.species, preyObserved);
+        DrawThingLink(new Rect(behavior.x + 8f, behavior.y + 51f, behavior.width - 16f, 22f), "Prey", revealPrey ? pack.prey : null,
             "The animal currently being stalked or attacked.");
-        DrawValueRow(new Rect(behavior.x + 8f, behavior.y + 73f, behavior.width - 16f, 22f), "Hunt Style", HuntingStyleLabel(settings.huntingStyle),
+        DrawValueRow(new Rect(behavior.x + 8f, behavior.y + 73f, behavior.width - 16f, 22f), "Hunt Style", revealBehavior ? HuntingStyleLabel(settings.huntingStyle) : "Unknown",
             "The species' preferred balance of stealth, pursuit, ambush, and positioning.");
 
         Rect territory = new Rect(rect.x, top + 114f, rect.width, 132f);
@@ -107,25 +129,25 @@ public sealed class ITab_Pack : ITab
         DrawSectionTitle(territory, "Home and Territory");
         Thing home = selectedPawn?.Faction == Faction.OfPlayer
             ? selectedPawn.ownership?.OwnedBed
-            : pack.record?.denMarker;
+            : revealDen ? pack.record?.denMarker : null;
         string homeLabel = selectedPawn?.Faction == Faction.OfPlayer ? "Animal Bed" : "Den";
         DrawThingLink(new Rect(territory.x + 9f, territory.y + 31f, territory.width * 0.48f, 28f), homeLabel, home,
             selectedPawn?.Faction == Faction.OfPlayer
                 ? "Tamed predators use assigned animal beds or sleeping spots instead of wild dens."
                 : "The concealed place where this predator or group rests and raises young.");
         DrawValueRow(new Rect(territory.x + territory.width * 0.51f, territory.y + 31f, territory.width * 0.47f, 28f),
-            "Territory", settings.territoryRadius.ToString("0") + " tiles",
+            "Territory", revealTerritory ? "Local range" : "Unknown",
             "The approximate radius this predator patrols, hunts within, and may defend against rival predators.");
         int age = Mathf.Max(0, Find.TickManager.TicksGame - (pack.record?.formedTick ?? Find.TickManager.TicksGame));
         DrawValueRow(new Rect(territory.x + 9f, territory.y + 62f, territory.width - 18f, 27f), "Established",
             age.ToStringTicksToPeriod() + " ago", "How long this individual territory or social group has been established.");
         DrawValueRow(new Rect(territory.x + 9f, territory.y + 92f,
             territory.width - 18f, 27f), "Landscape",
-            HerdsCompatibility.EcologicalRoleSummary(focus),
+            revealTerritory ? HerdsCompatibility.EcologicalRoleSummary(focus) : "Unknown",
             HerdsCompatibility.EcologicalRoleTooltip(focus));
 
         float membersTop = top + 254f;
-        string signalSummary = HerdsCompatibility.PredatorSignalSummary(focus);
+        string signalSummary = revealBehavior ? HerdsCompatibility.PredatorSignalSummary(focus) : null;
         if (!signalSummary.NullOrEmpty())
         {
             Rect signals = new Rect(rect.x, membersTop, rect.width, 72f);
@@ -150,7 +172,8 @@ public sealed class ITab_Pack : ITab
             membersTop += 44f;
         }
         Widgets.Label(new Rect(rect.x + 4f, membersTop, rect.width, 24f), solitary ? "Current Activity" : "Group Members");
-        DrawMembers(new Rect(rect.x, membersTop + 26f, rect.width, rect.yMax - membersTop - 26f), pack, component, selectedPawn);
+        DrawMembers(new Rect(rect.x, membersTop + 26f, rect.width, rect.yMax - membersTop - 26f),
+            pack, component, selectedPawn, revealSocial, revealBehavior);
     }
 
     private void DrawTamedPredator(Pawn pawn)
@@ -193,17 +216,22 @@ public sealed class ITab_Pack : ITab
             "and it follows normal animal training, scheduling, and sleeping behavior.");
     }
 
-    private void DrawMembers(Rect outer, PackSnapshot pack, PackMapComponent component, Pawn selected)
+    private void DrawMembers(Rect outer, PackSnapshot pack, PackMapComponent component, Pawn selected,
+        bool revealSocial, bool revealBehavior)
     {
-        Rect view = new Rect(0f, 0f, outer.width - 16f, Mathf.Max(outer.height, pack.members.Count * 32f));
+        var visibleMembers = pack.members.Where(pawn => pawn != null && component.IsObserved(pawn)).ToList();
+        Rect view = new Rect(0f, 0f, outer.width - 16f,
+            Mathf.Max(outer.height, visibleMembers.Count * 32f));
         Widgets.BeginScrollView(outer, ref scroll, view);
-        for (int i = 0; i < pack.members.Count; i++)
+        for (int i = 0; i < visibleMembers.Count; i++)
         {
-            Pawn pawn = pack.members[i];
+            Pawn pawn = visibleMembers[i];
             Rect row = new Rect(0f, i * 32f, view.width, 28f);
             if (pawn == selected) Widgets.DrawHighlightSelected(row); else Widgets.DrawHighlightIfMouseover(row);
-            Widgets.Label(new Rect(8f, row.y + 3f, view.width * 0.58f, 24f), pawn.LabelShortCap + " • " + component.RoleFor(pawn));
-            string status = pawn.Downed ? "Downed" : pawn.InMentalState ? pawn.MentalStateDef.LabelCap : pawn.CurJobDef?.LabelCap ?? "Idle";
+            string role = revealSocial ? component.RoleFor(pawn).ToString() : "Role unknown";
+            Widgets.Label(new Rect(8f, row.y + 3f, view.width * 0.58f, 24f), pawn.LabelShortCap + " • " + role);
+            string status = !revealBehavior ? "Observed" :
+                pawn.Downed ? "Downed" : pawn.InMentalState ? pawn.MentalStateDef.LabelCap : pawn.CurJobDef?.LabelCap ?? "Idle";
             Text.Anchor = TextAnchor.MiddleRight;
             Widgets.Label(new Rect(view.width * 0.60f, row.y, view.width * 0.37f, 28f), status);
             Text.Anchor = TextAnchor.UpperLeft;
@@ -232,7 +260,8 @@ public sealed class ITab_Pack : ITab
         Widgets.Label(new Rect(row.x + 3f, row.y, row.width * 0.38f, row.height), label);
         Text.Anchor = TextAnchor.MiddleRight;
         GUI.color = thing?.Spawned == true ? new Color(0.55f, 0.82f, 1f) : Color.gray;
-        Widgets.Label(new Rect(row.x + row.width * 0.38f, row.y, row.width * 0.59f, row.height), thing?.Spawned == true ? thing.LabelShortCap : "None");
+        Widgets.Label(new Rect(row.x + row.width * 0.38f, row.y, row.width * 0.59f, row.height),
+            thing?.Spawned == true ? thing.LabelShortCap : "Unknown");
         GUI.color = Color.white;
         Text.Anchor = TextAnchor.UpperLeft;
         TooltipHandler.TipRegion(row, tooltip + (thing?.Spawned == true ? "\n\nClick to select " + thing.LabelShortCap + "." : ""));
@@ -256,9 +285,9 @@ public sealed class ITab_Pack : ITab
         TooltipHandler.TipRegion(row, tooltip);
     }
 
-    private static string BoldnessLabel(PackSnapshot pack)
+    private static string BoldnessLabel(PackSnapshot pack, bool authorized)
     {
-        if (!PacksMod.Settings.enablePredatorBoldness || pack.record == null) return "Unknown";
+        if (!authorized || !PacksMod.Settings.enablePredatorBoldness || pack.record == null) return "Unknown";
         return pack.record.humanBoldness < 0.3f ? "Wary" : pack.record.humanBoldness < 0.65f ? "Cautious" : "Bold";
     }
 

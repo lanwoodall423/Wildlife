@@ -405,7 +405,7 @@ namespace Herds
                 color.a = Mathf.Lerp(0.8f, 0.08f, life);
                 GenDraw.DrawRadiusRing(signal.cell, wave, color);
                 DrawSignalGrammar(signal, life, color);
-                if (Prefs.DevMode && WildlifeDevMaster.CompleteOverlayEnabled)
+                if (Prefs.DevMode && WildlifeDebugState.CompleteOverlayEnabled)
                     GenDraw.DrawRadiusRing(signal.cell, signal.radius, new Color(color.r, color.g, color.b, 0.22f));
             }
         }
@@ -1991,38 +1991,6 @@ namespace Herds
     }
 
     // Compatibility shell for callers from older integrations. The presentation now lives in the Journal.
-    public sealed class Window_WildlifeSignals : Window
-    {
-        private readonly Map map;
-        private readonly Pawn observer;
-        private readonly ThingDef selectedSpecies;
-        private readonly Vector2? speciesScroll;
-        private readonly Vector2? detailScroll;
-        private bool redirected;
-
-        public Window_WildlifeSignals(Map map, Pawn observer, ThingDef selectedSpecies = null,
-            Vector2? speciesScroll = null, Vector2? detailScroll = null)
-        {
-            this.map = map;
-            this.observer = observer;
-            this.selectedSpecies = selectedSpecies;
-            this.speciesScroll = speciesScroll;
-            this.detailScroll = detailScroll;
-            doCloseX = true;
-            absorbInputAroundWindow = true;
-        }
-
-        public override Vector2 InitialSize => new Vector2(920f, 680f);
-
-        public override void DoWindowContents(Rect inRect)
-        {
-            if (redirected) return;
-            redirected = true;
-            Close(false);
-            Window_WildlifeJournal.OpenSignals(map, observer, selectedSpecies, speciesScroll, detailScroll);
-        }
-    }
-
     public static class WildlifeSignalCultureAPI
     {
         public static void NotifyPredatorCoordination(Pawn predator, Pawn prey) =>
@@ -2062,7 +2030,7 @@ namespace Herds
             allowedGameStates = AllowedGameStates.PlayingOnMap)]
         public static void OpenSignals()
         {
-            Window_WildlifeJournal.OpenSignals(Find.CurrentMap, null);
+            WildlifeJournal.OpenSignals(Find.CurrentMap, null);
         }
     }
 }

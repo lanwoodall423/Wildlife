@@ -1,5 +1,5 @@
 . (Join-Path $PSScriptRoot 'WildlifeEnvironment.ps1')
-$report = Join-Path (Get-WildlifeDataPath) 'Wildlife-InGame-Test.txt'
+$report = Join-Path (Get-WildlifeSaveDataPath) 'Wildlife-InGame-Test.txt'
 if (-not (Test-Path -LiteralPath $report)) {
     Write-Output 'summary=NO_REPORT'
     exit 3

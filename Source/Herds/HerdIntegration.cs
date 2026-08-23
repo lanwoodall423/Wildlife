@@ -466,6 +466,7 @@ namespace Herds
     public sealed class ITab_Herd : ITab
     {
         private Vector2 scroll;
+        private readonly WildlifeInspectorCanvas canvas = new WildlifeInspectorCanvas("wildlife-inspector-herd");
 
         public ITab_Herd()
         {
@@ -487,17 +488,24 @@ namespace Herds
         {
             Pawn selected = SelThing as Pawn;
             HerdMapComponent component = selected?.Map?.GetComponent<HerdMapComponent>();
-            HerdSnapshot herd = component?.HerdFor(selected);
-            if (herd == null)
+            if (canvas != null)
             {
-                DrawIndependentAnimal(selected);
+                canvas.Draw(new Rect(0f, 0f, size.x, size.y), selected?.thingIDNumber ?? -1,
+                    () => WildlifeInspectorUi.Herd(selected, component));
                 return;
             }
+            HerdSnapshot herd = component?.HerdFor(selected);
+            List<Pawn> visibleMembers = (herd?.members ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
+            Pawn visibleLeader = herd?.leader != null && WildlifeInsightDisclosure.IsPresentationVisible(herd.leader)
+                ? herd.leader : null;
+            Pawn visibleSentinel = herd?.sentinel != null && WildlifeInsightDisclosure.IsPresentationVisible(herd.sentinel)
+                ? herd.sentinel : null;
             PreyProfile profile = herd.profile ?? PreyProfileDatabase.For(selected.def);
             bool soloBird = profile?.socialType == PreySocialType.Flock && herd.members.Count <= 1;
             bool solitary = profile?.socialType == PreySocialType.Solitary || soloBird;
             bool flock = profile?.socialType == PreySocialType.Flock && !soloBird;
-            bool observed = component.IsObserved(selected);
+            bool observed = component?.IsObserved(selected) == true;
             Rect rect = new Rect(0f, 0f, size.x, size.y).ContractedBy(12f);
             int knowledge = HuntingKnowledgeMapComponent.ColonyLevel(selected.def);
             float knowledgeXp = HuntingKnowledgeMapComponent.ColonyExperience(selected.def);
@@ -509,7 +517,7 @@ namespace Herds
             Widgets.FillableBar(new Rect(rect.x, rect.y + 32f, rect.width, 7f), Mathf.Clamp01(knowledgeXp / 1200f));
             string identity = !WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge) ? "Unidentified wildlife" :
                 soloBird ? "Solo bird" : solitary ? "Solitary" :
-                herd.Label + "  •  " + herd.members.Count + " visible";
+                herd.Label + "  •  " + visibleMembers.Count + " visible";
             Widgets.Label(new Rect(rect.x, rect.y + 43f, rect.width, 22f), identity + "  •  " + HuntingKnowledgeMapComponent.LevelLabel(knowledge) + "  •  " + (observed ? "Observed" : "Not observed"));
             if (!WildlifeTabKnowledgePolicy.RevealsIdentity(knowledge))
             {
@@ -553,10 +561,10 @@ namespace Herds
             else
             {
                 DrawSectionTitle(social, flock ? "Flock" : "Social Group");
-                DrawThingLink(new Rect(social.x + 8f, social.y + 31f, social.width - 16f, 27f), flock ? "Lead Bird" : "Leader", herd.leader,
+                DrawThingLink(new Rect(social.x + 8f, social.y + 31f, social.width - 16f, 27f), flock ? "Lead Bird" : "Leader", visibleLeader,
                     flock ? "The bird currently at the front of the flock's shifting formation." :
                     "The group member that anchors cohesion and guides ordinary group movement.");
-                DrawThingLink(new Rect(social.x + 8f, social.y + 61f, social.width - 16f, 27f), flock ? "Lookout" : "Sentinel", herd.sentinel,
+                DrawThingLink(new Rect(social.x + 8f, social.y + 61f, social.width - 16f, 27f), flock ? "Lookout" : "Sentinel", visibleSentinel,
                     flock ? "Flocks rotate their lookout. An alert lookout can trigger a rapid group scatter." :
                     "The member currently watching for danger. Its vigilance helps determine how quickly the group detects and reacts to threats.");
             }
@@ -568,9 +576,9 @@ namespace Herds
             bool revealBehavior = WildlifeTabKnowledgePolicy.RevealsBehavior(knowledge);
             Widgets.Label(stateRect, revealBehavior ? StateLabel(herd) : "State  —  Requires Studied knowledge");
             Widgets.Label(vigilanceRect, "Vigilance  " + (revealBehavior
-                ? component.VigilanceFor(selected).ToStringPercent() : "Unknown"));
+                ? WildlifeInsightDisclosure.InspectorVigilance(selected, component, knowledge) : "Unknown"));
             Widgets.Label(personalityRect, "Personality  " + (revealBehavior
-                ? WildlifeLifeUtility.PersonalityLabel(selected) : "Unknown"));
+                ? WildlifeInsightDisclosure.InspectorPersonality(selected, component, knowledge) : "Unknown"));
             TooltipHandler.TipRegion(stateRect, solitary
                 ? "This animal's current response. Calm animals follow normal routines; threatened animals may flee, hide, freeze, or stand their ground."
                 : "The group's current coordinated response. Calm groups follow normal routines; threatened groups flee, scatter, hide, freeze, protect young, or stand their ground.");
@@ -584,7 +592,9 @@ namespace Herds
             Thing home = revealHabitat ? component.HomeFor(selected) : null;
             string homeLabel = home is Plant ? "Tree home" : home?.TryGetComp<CompHidingRefuge>() != null ? "Den / refuge" : "Home";
             DrawThingLink(new Rect(habitat.x + 9f, habitat.y + 31f, habitat.width * 0.48f, 28f), homeLabel, home);
-            DrawThingLink(new Rect(habitat.x + habitat.width * 0.51f, habitat.y + 31f, habitat.width * 0.47f, 28f), "Threat", revealHabitat ? herd.defenseThreat : null);
+            Thing visibleThreat = revealHabitat && !(herd.defenseThreat is Pawn threatPawn &&
+                !WildlifeInsightDisclosure.IsPresentationVisible(threatPawn)) ? herd.defenseThreat : null;
+            DrawThingLink(new Rect(habitat.x + habitat.width * 0.51f, habitat.y + 31f, habitat.width * 0.47f, 28f), "Threat", visibleThreat);
             DrawThingLink(new Rect(habitat.x + 9f, habitat.y + 62f, habitat.width * 0.48f, 27f), "Enclosure", revealHabitat ? herd.pen?.parent : null);
             DrawValueRow(new Rect(habitat.x + habitat.width * 0.51f, habitat.y + 62f,
                 habitat.width * 0.47f, 27f), "Season", revealHabitat
@@ -635,7 +645,7 @@ namespace Herds
                 membersTop += 44f;
             }
             Widgets.Label(new Rect(rect.x + 4f, membersTop, rect.width, 24f), solitary ? "Current Activity" : "Group Members");
-            DrawMembers(new Rect(rect.x, membersTop + 26f, rect.width, rect.yMax - membersTop - 26f), herd.members, ref scroll, selected);
+            DrawMembers(new Rect(rect.x, membersTop + 26f, rect.width, rect.yMax - membersTop - 26f), visibleMembers, ref scroll, selected);
         }
 
         private void DrawIndependentAnimal(Pawn animal)
@@ -792,6 +802,7 @@ namespace Herds
     public sealed class ITab_PenHerds : ITab
     {
         private Vector2 scroll;
+        private readonly WildlifeInspectorCanvas canvas = new WildlifeInspectorCanvas("wildlife-inspector-pen");
 
         public ITab_PenHerds()
         {
@@ -805,6 +816,12 @@ namespace Herds
         {
             CompAnimalPenMarker pen = SelThing?.TryGetComp<CompAnimalPenMarker>();
             IReadOnlyList<HerdSnapshot> herds = pen?.parent?.Map?.GetComponent<HerdMapComponent>()?.HerdsFor(pen) ?? Array.Empty<HerdSnapshot>();
+            if (canvas != null)
+            {
+                canvas.Draw(new Rect(0f, 0f, size.x, size.y), pen?.parent?.thingIDNumber ?? -1,
+                    () => WildlifeInspectorUi.Pen(pen, herds));
+                return;
+            }
             Rect rect = new Rect(0f, 0f, size.x, size.y).ContractedBy(12f);
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f), "Prey groups in " + (pen?.RenamableLabel ?? "pen"));
@@ -815,7 +832,8 @@ namespace Herds
                 return;
             }
             float height = 0f;
-            for (int i = 0; i < herds.Count; i++) height += 54f + herds[i].members.Count * 28f;
+            for (int i = 0; i < herds.Count; i++)
+                height += 54f + (herds[i].members ?? new List<Pawn>()).Count(WildlifeInsightDisclosure.IsPresentationVisible) * 28f;
             Rect outRect = new Rect(rect.x, rect.y + 40f, rect.width, rect.height - 40f);
             Rect view = new Rect(0f, 0f, outRect.width - 16f, Mathf.Max(outRect.height, height));
             Widgets.BeginScrollView(outRect, ref scroll, view);
@@ -823,15 +841,17 @@ namespace Herds
             for (int i = 0; i < herds.Count; i++)
             {
                 HerdSnapshot herd = herds[i];
-                float sectionHeight = 48f + herd.members.Count * 28f;
+                List<Pawn> visibleMembers = (herd.members ?? new List<Pawn>())
+                    .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
+                float sectionHeight = 48f + visibleMembers.Count * 28f;
                 Rect section = new Rect(0f, y, view.width, sectionHeight);
                 Widgets.DrawMenuSection(section);
-                Widgets.Label(new Rect(10f, y + 6f, view.width * 0.52f, 26f), herd.Label + " (" + herd.members.Count + ")");
+                Widgets.Label(new Rect(10f, y + 6f, view.width * 0.52f, 26f), herd.Label + " (" + visibleMembers.Count + ")");
                 string summary = herd.defenseMode == HerdDefenseMode.None ? "State: Calm" : ITab_Herd.StateLabel(herd);
                 Widgets.Label(new Rect(view.width * 0.54f, y + 6f, view.width * 0.43f, 26f), summary);
-                for (int memberIndex = 0; memberIndex < herd.members.Count; memberIndex++)
+                for (int memberIndex = 0; memberIndex < visibleMembers.Count; memberIndex++)
                 {
-                    Pawn pawn = herd.members[memberIndex];
+                    Pawn pawn = visibleMembers[memberIndex];
                     Rect row = new Rect(8f, y + 38f + memberIndex * 28f, view.width - 16f, 25f);
                     Widgets.DrawHighlightIfMouseover(row);
                     Widgets.Label(new Rect(row.x + 6f, row.y + 2f, row.width * 0.58f, 22f), pawn.LabelShortCap);

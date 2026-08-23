@@ -450,7 +450,7 @@ namespace Herds
             if (HerdsMod.Settings?.enableTrailReading != true || Find.CurrentMap != map ||
                 leads.Count == 0) return;
             int now = Find.TickManager.TicksGame;
-            bool unified = Prefs.DevMode && WildlifeDevMaster.CompleteOverlayEnabled;
+            bool unified = Prefs.DevMode && WildlifeDebugState.CompleteOverlayEnabled;
             int drawn = 0;
             for (int i = leads.Count - 1; i >= 0 && drawn < 16; i--)
             {

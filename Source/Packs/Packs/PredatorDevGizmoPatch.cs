@@ -29,7 +29,6 @@ public static class PredatorDevGizmoPatch
 		}
 		PackMapComponent component = __instance.Map.GetComponent<PackMapComponent>();
 		AnimalPackSettings config = PacksMod.Settings.For(__instance.def);
-		yield return Action("DEV: Wildlife Overview", "Open the complete organized wildlife development dashboard.", TexCommand.OpenLinkedQuestTex, OpenWildlifeDashboard);
 		yield return new Command_Toggle
 		{
 			defaultLabel = "DEV: Complete Overlay", defaultDesc = "Toggle all prey, predator, hunt, den, home, range, role, and development visuals together.", icon = TexCommand.GatherSpotActive,
@@ -241,21 +240,15 @@ public static class PredatorDevGizmoPatch
 		};
 	}
 
-	internal static void OpenWildlifeDashboard()
-	{
-		Type type = AccessTools.TypeByName("Herds.WildlifeDevMaster"); MethodInfo method = AccessTools.Method(type, "OpenDashboard");
-		if (method != null) method.Invoke(null, null); else Messages.Message("Herds and Hiders dashboard is unavailable.", MessageTypeDefOf.RejectInput, false);
-	}
-
 	internal static bool CompleteOverlayActive()
 	{
-		Type type = AccessTools.TypeByName("Herds.WildlifeDevMaster"); FieldInfo field = AccessTools.Field(type, "CompleteOverlayEnabled");
+		Type type = AccessTools.TypeByName("Herds.WildlifeDebugState"); FieldInfo field = AccessTools.Field(type, "CompleteOverlayEnabled");
 		return field != null ? (bool)field.GetValue(null) : PredatorDevTools.OverlayEnabled;
 	}
 
 	internal static void ToggleCompleteOverlay()
 	{
-		Type type = AccessTools.TypeByName("Herds.WildlifeDevMaster"); MethodInfo method = AccessTools.Method(type, "ToggleCompleteOverlay");
+		Type type = AccessTools.TypeByName("Herds.WildlifeDebugState"); MethodInfo method = AccessTools.Method(type, "ToggleCompleteOverlay");
 		if (method != null) method.Invoke(null, null); else PredatorDevTools.OverlayEnabled = !PredatorDevTools.OverlayEnabled;
 	}
 

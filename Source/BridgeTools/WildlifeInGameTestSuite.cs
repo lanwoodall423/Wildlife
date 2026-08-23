@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,7 +8,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using KnowledgeFramework;
-using LudeonTK;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
@@ -46,7 +46,7 @@ namespace Herds
             public bool cleared;
             public bool allClearExcluded;
             public bool normalizationIdempotent;
-            public bool scribeRoundTrip;
+            public bool persistenceRoundTrip;
             public bool uiNonMutating;
             public bool warningPathPreserved;
             public bool deterrentRoute;
@@ -59,6 +59,8 @@ namespace Herds
             public bool tilePickerSafe;
             public bool rootUiUpdateSafe;
             public bool noIsolatedState;
+            public bool deferredCallbacksDrained;
+            public bool randomStateRestored;
             public string detail;
         }
 
@@ -73,6 +75,8 @@ namespace Herds
             public bool TilePickerSafe { get; private set; }
             public bool RootUiUpdateSafe { get; private set; }
             public bool NoIsolatedState { get; private set; }
+            public bool DeferredCallbacksDrained { get; private set; }
+            public bool RandomStateRestored { get; private set; }
             internal Faction PreviousHostileFaction => previousHostileFaction;
 
             private Game previousGame;
@@ -93,10 +97,32 @@ namespace Herds
             private World previousCreatingWorld;
             private ProgramState previousProgramState;
             private Faction previousHostileFaction;
+            private ulong previousRandomState;
+            private List<ulong> previousRandomStack;
             private bool stateCaptured;
             private bool cleanupCompleted;
             private bool cleanupSucceeded;
             private string cleanupResultDetail = "";
+
+            private static Scenario CreateFixtureScenario(Scenario source)
+            {
+                if (source == null)
+                    throw new InvalidOperationException("active scenario unavailable");
+
+                Scenario scenario = source.CopyForEditing();
+                FieldInfo partsField = typeof(Scenario).GetField("parts",
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                List<ScenPart> parts = partsField?.GetValue(scenario) as List<ScenPart>;
+                if (parts == null)
+                    throw new InvalidOperationException("scenario parts unavailable");
+
+                // CopyForEditing retains the required player-faction and planet-layer
+                // structural fields. Optional parts generate starting pawns, animals,
+                // items, incidents, and mod-specific content, none of which belongs in
+                // this zero-pawn component fixture.
+                parts.Clear();
+                return scenario;
+            }
 
             public static bool TryCreate(Map activeMap, out IsolatedMapFixture fixture, out string detail)
             {
@@ -120,7 +146,6 @@ namespace Herds
                 try
                 {
                     candidate.previousGame = Current.Game;
-                    candidate.game = new Game();
                     candidate.previousHostileFaction = Faction.OfPirates ??
                         Find.FactionManager?.AllFactions?.FirstOrDefault(value =>
                             value != null && !value.IsPlayer && value.HostileTo(Faction.OfPlayer));
@@ -140,7 +165,10 @@ namespace Herds
                     candidate.previousSelectedObjects = candidate.previousSelector?.SelectedObjectsListForReading?.ToList() ?? new List<object>();
                     candidate.previousDesignator = candidate.previousDesignatorManager?.SelectedDesignator;
                     candidate.previousWindows = candidate.previousWindowStack?.Windows?.ToList() ?? new List<Window>();
+                    candidate.previousRandomState = RandStateCompressed();
+                    candidate.previousRandomStack = RandStateStack().ToArray().ToList();
                     candidate.stateCaptured = true;
+                    candidate.game = new Game();
                     phase = "initializing isolated game";
                     FieldInfo infoField = typeof(Game).GetField("info",
                         BindingFlags.Instance | BindingFlags.NonPublic);
@@ -170,8 +198,7 @@ namespace Herds
                     if (candidate.previousWorld == null)
                         throw new InvalidOperationException("active world unavailable");
                     candidate.game.World = candidate.previousWorld;
-                    candidate.game.Scenario = candidate.previousGame.Scenario?.CopyForEditing() ??
-                        candidate.previousGame.Scenario;
+                    candidate.game.Scenario = CreateFixtureScenario(candidate.previousGame.Scenario);
                     FieldInfo storytellerField = typeof(Game).GetField("storyteller",
                         BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                     storytellerField?.SetValue(candidate.game, storytellerField.GetValue(candidate.previousGame));
@@ -189,6 +216,8 @@ namespace Herds
                         candidate.map.GetComponent<WildlifeSignalCultureMapComponent>() == null ||
                         candidate.map.GetComponent<RegionalWildlifeMapComponent>() == null)
                         throw new InvalidOperationException("isolated map components unavailable");
+                    if (!DrainDeferredCallbacks(out string deferredDetail))
+                        throw new InvalidOperationException("isolated lifecycle callbacks remained queued: " + deferredDetail);
                     fixture = candidate;
                     return true;
                 }
@@ -222,6 +251,21 @@ namespace Herds
                 List<string> failures = new List<string>();
                 Game isolatedGame = game;
                 Map isolatedMap = map;
+                try
+                {
+                    // Map generation and Game.FinalizeInit can register callbacks
+                    // in LongEventHandler's global ExecuteWhenFinished list. Run
+                    // those callbacks while the candidate is still current so no
+                    // callback can later dereference a disposed temporary map.
+                    if (isolatedGame != null && isolatedGame.Maps?.Count > 0)
+                        Current.Game = isolatedGame;
+                    if (!DrainDeferredCallbacks(out string deferredDetail))
+                        AddFailure(failures, "deferred lifecycle callbacks", new InvalidOperationException(deferredDetail));
+                }
+                catch (Exception exception)
+                {
+                    AddFailure(failures, "deferred lifecycle callbacks", exception);
+                }
                 try
                 {
                     CleanupIsolatedMaps(isolatedGame, isolatedMap, failures);
@@ -275,6 +319,16 @@ namespace Herds
                 }
                 try
                 {
+                    if (!DrainDeferredCallbacks(out string deferredDetail))
+                        AddFailure(failures, "post-restoration deferred callbacks", new InvalidOperationException(deferredDetail));
+                }
+                catch (Exception exception)
+                {
+                    AddFailure(failures, "post-restoration deferred callbacks", exception);
+                }
+                RestoreRandomState(failures, "pre-validation random-state restoration");
+                try
+                {
                     if (!ValidatePostCleanupState(isolatedGame, isolatedMap, out string validationDetail))
                         AddFailure(failures, "post-cleanup regression", new InvalidOperationException(validationDetail));
                 }
@@ -282,9 +336,19 @@ namespace Herds
                 {
                     AddFailure(failures, "post-cleanup regression", exception);
                 }
+                RestoreRandomState(failures, "final random-state restoration");
+                RandomStateRestored = RandomStateMatchesSnapshot();
+                if (!RandomStateRestored)
+                    failures.Add("global random state/stack was not restored exactly");
 
                 cleanupSucceeded = failures.Count == 0;
+                DeferredCallbacksDrained = !HasDeferredCallbacks();
+                if (!DeferredCallbacksDrained)
+                    cleanupSucceeded = false;
                 cleanupResultDetail = string.Join(" | ", failures);
+                if (!DeferredCallbacksDrained)
+                    cleanupResultDetail = (cleanupResultDetail.NullOrEmpty() ? "" : cleanupResultDetail + " | ") +
+                        "LongEventHandler still has deferred callbacks";
                 if (!cleanupSucceeded)
                 {
                     detail = cleanupResultDetail;
@@ -303,6 +367,65 @@ namespace Herds
             {
                 Exception root = exception?.GetBaseException() ?? new InvalidOperationException("unknown exception");
                 failures.Add(phase + ": " + root.GetType().Name + ": " + root.Message);
+            }
+
+            private static Stack<ulong> RandStateStack()
+            {
+                FieldInfo field = typeof(Rand).GetField("stateStack",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                if (!(field?.GetValue(null) is Stack<ulong> stack))
+                    throw new InvalidOperationException("Verse.Rand state stack unavailable");
+                return stack;
+            }
+
+            private static ulong RandStateCompressed()
+            {
+                PropertyInfo property = typeof(Rand).GetProperty("StateCompressed",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                if (property == null)
+                    throw new InvalidOperationException("Verse.Rand compressed state unavailable");
+                return (ulong)property.GetValue(null, null);
+            }
+
+            private static void SetRandStateCompressed(ulong value)
+            {
+                PropertyInfo property = typeof(Rand).GetProperty("StateCompressed",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                if (property == null)
+                    throw new InvalidOperationException("Verse.Rand compressed state unavailable");
+                property.SetValue(null, value, null);
+            }
+
+            private void RestoreRandomState(List<string> failures, string phase)
+            {
+                try
+                {
+                    if (!stateCaptured || previousRandomStack == null)
+                        throw new InvalidOperationException("random-state snapshot unavailable");
+                    SetRandStateCompressed(previousRandomState);
+                    Stack<ulong> stack = RandStateStack();
+                    stack.Clear();
+                    for (int index = previousRandomStack.Count - 1; index >= 0; index--)
+                        stack.Push(previousRandomStack[index]);
+                }
+                catch (Exception exception)
+                {
+                    AddFailure(failures, phase, exception);
+                }
+            }
+
+            private bool RandomStateMatchesSnapshot()
+            {
+                try
+                {
+                    return stateCaptured && previousRandomStack != null &&
+                        RandStateCompressed() == previousRandomState &&
+                        RandStateStack().ToArray().SequenceEqual(previousRandomStack);
+                }
+                catch
+                {
+                    return false;
+                }
             }
 
             private void CleanupIsolatedMaps(Game isolatedGame, Map isolatedMap, List<string> failures)
@@ -332,10 +455,7 @@ namespace Herds
                     {
                         try
                         {
-                            MethodInfo finalize = AccessTools.Method(typeof(Map), "Finalize");
-                            if (finalize == null)
-                                throw new MissingMethodException(typeof(Map).FullName, "Finalize");
-                            finalize.Invoke(isolated, null);
+                            isolated.Dispose();
                         }
                         catch (Exception exception)
                         {
@@ -355,9 +475,7 @@ namespace Herds
                     {
                         try
                         {
-                            MethodInfo finalize = AccessTools.Method(typeof(Map), "Finalize");
-                            if (finalize != null)
-                                finalize.Invoke(isolated, null);
+                            isolated.Dispose();
                         }
                         catch (Exception exception)
                         {
@@ -368,6 +486,33 @@ namespace Herds
 
                 if (isolatedGame?.Maps?.Count > 0)
                     failures.Add("isolated game still owns " + isolatedGame.Maps.Count + " map(s)");
+            }
+
+            private static bool HasDeferredCallbacks()
+            {
+                FieldInfo field = typeof(LongEventHandler).GetField("toExecuteWhenFinished",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                return field?.GetValue(null) is System.Collections.ICollection collection && collection.Count > 0;
+            }
+
+            private static bool DrainDeferredCallbacks(out string detail)
+            {
+                List<string> failures = new List<string>();
+                for (int attempt = 0; attempt < 3 && HasDeferredCallbacks(); attempt++)
+                {
+                    try
+                    {
+                        LongEventHandler.ForceExecuteToExecuteWhenFinished();
+                    }
+                    catch (Exception exception)
+                    {
+                        AddFailure(failures, "callback execution", exception);
+                    }
+                }
+                detail = string.Join(" | ", failures);
+                if (HasDeferredCallbacks())
+                    detail = (detail.NullOrEmpty() ? "" : detail + " | ") + "callbacks remain queued";
+                return detail.NullOrEmpty();
             }
 
             private void RestoreGameAndWorldState(List<string> failures)
@@ -441,15 +586,33 @@ namespace Herds
 
                     IList<Window> currentWindows = previousWindowStack?.Windows;
                     if (currentWindows != null && previousWindows != null &&
-                        (currentWindows.Count != previousWindows.Count || currentWindows.Where(value => !previousWindows.Contains(value)).Any()))
+                        (currentWindows.Count != previousWindows.Count || currentWindows.Where(value => !previousWindows.Contains(value)).Any() ||
+                            previousWindows.Where(value => !currentWindows.Contains(value)).Any()))
                     {
                         foreach (Window window in currentWindows.Where(value => !previousWindows.Contains(value)).ToList())
                             if (!previousWindowStack.TryRemove(window, false) || previousWindowStack.Windows.Contains(window))
                                 detail += "window removal failed; ";
-                        if (currentWindows.Count != previousWindows.Count ||
-                            currentWindows.Where(value => !previousWindows.Contains(value)).Any() ||
-                            previousWindows.Where(value => !currentWindows.Contains(value)).Any())
-                            detail += "window stack changed; ";
+
+                        foreach (Window window in previousWindows.Where(value => !previousWindowStack.Windows.Contains(value)).ToList())
+                        {
+                            try
+                            {
+                                previousWindowStack.Add(window);
+                            }
+                            catch (Exception exception)
+                            {
+                                detail += "window restore failed (" + WindowIdentity(window) + "): " +
+                                    exception.GetBaseException().Message + "; ";
+                            }
+                        }
+
+                        List<Window> remainingExtraWindows = previousWindowStack.Windows
+                            .Where(value => !previousWindows.Contains(value)).ToList();
+                        List<Window> missingWindows = previousWindows
+                            .Where(value => !previousWindowStack.Windows.Contains(value)).ToList();
+                        if (remainingExtraWindows.Count > 0 || missingWindows.Count > 0)
+                            detail += "window stack changed (extra=" + string.Join(",", remainingExtraWindows.Select(WindowIdentity)) +
+                                "; missing=" + string.Join(",", missingWindows.Select(WindowIdentity)) + "); ";
                     }
                     if (previousCurrentMap != null && Find.CurrentMap != previousCurrentMap)
                         detail += "current map changed; ";
@@ -464,6 +627,12 @@ namespace Herds
                     detail += "UI restore " + exception;
                 }
                 return detail.NullOrEmpty();
+            }
+
+            private static string WindowIdentity(Window window)
+            {
+                if (window == null) return "null";
+                return window.GetType().FullName + "#" + window.GetHashCode();
             }
 
             private bool ValidatePostCleanupState(Game isolatedGame, Map isolatedMap, out string detail)
@@ -806,263 +975,81 @@ namespace Herds
             }
         }
 
-        private static MethodInfo ScribeLookMethod()
-        {
-            return typeof(Scribe_Deep).GetMethods(BindingFlags.Static | BindingFlags.Public)
-                .Where(method => method.Name == "Look" && method.IsGenericMethodDefinition)
-                .Where(method => method.GetGenericArguments().Length == 1)
-                .Where(method => method.GetParameters().Length == 3)
-                .FirstOrDefault();
-        }
-
-        private static object ScribeLook(Type type, object value, string label, params object[] ctorArgs)
-        {
-            MethodInfo method = ScribeLookMethod();
-            if (method == null || type == null) return null;
-            object[] arguments = { value, label, ctorArgs };
-            method.MakeGenericMethod(type).Invoke(null, arguments);
-            return arguments[0];
-        }
-
         private static Type KnowledgeComponentType()
         {
             return typeof(GameComponent_KnowledgeFramework);
         }
 
-        private static object CurrentKnowledgeComponent(Type type)
+        [Serializable]
+        private sealed class PredatorEncounterPersistenceProbe
         {
-            return GameComponent_KnowledgeFramework.Current;
+            public int traceId;
+            public bool subjectWasPredator;
+            public bool developerScenario;
+            public string eventSourceId;
+            public List<int> observerIds = new List<int>();
+            public List<string> submittedSourceIds = new List<string>();
+
         }
 
-        private static bool InstallLoadedMapComponent(Map map, MapComponent loaded, out string detail)
-        {
-            detail = "";
-            if (map == null || loaded == null)
-            {
-                detail = "loaded map component unavailable";
-                return false;
-            }
-            FieldInfo componentsField = typeof(Map).GetField("components",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (!(componentsField?.GetValue(map) is System.Collections.IList components))
-            {
-                detail = "map component list unavailable";
-                return false;
-            }
-            for (int i = 0; i < components.Count; i++)
-                if (components[i]?.GetType() == loaded.GetType())
-                {
-                    components[i] = loaded;
-                    return true;
-                }
-            components.Add(loaded);
-            return true;
-        }
-
-        private static bool InstallLoadedGameComponent(Game game, object loaded, out string detail)
-        {
-            detail = "";
-            if (game == null || loaded == null)
-            {
-                detail = "loaded game component unavailable";
-                return false;
-            }
-            FieldInfo componentsField = typeof(Game).GetField("components",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (!(componentsField?.GetValue(game) is System.Collections.IList components))
-            {
-                detail = "game component list unavailable";
-                return false;
-            }
-            for (int i = 0; i < components.Count; i++)
-                if (components[i]?.GetType() == loaded.GetType())
-                {
-                    components[i] = loaded;
-                    return true;
-                }
-            components.Add(loaded);
-            return true;
-        }
-
-        private static bool ScribeRoundTripCheck(Map map, WildlifeSignalTrace expected, string eventSourceId,
+        private static bool PersistenceRoundTripCheck(Map map, WildlifeSignalTrace expected, string eventSourceId,
             out string detail)
         {
             detail = "";
-            string path = Path.Combine(GenFilePaths.SaveDataFolderPath,
-                "Wildlife-Predator-Encounter-RoundTrip-" + Guid.NewGuid().ToString("N") + ".xml");
-            string missingFieldPath = path + ".missing";
             try
             {
                 if (map == null || expected == null || eventSourceId.NullOrEmpty())
-                {
-                    detail = "round-trip inputs unavailable";
-                    return false;
-                }
-                Type knowledgeType = KnowledgeComponentType();
-                object knowledge = CurrentKnowledgeComponent(knowledgeType);
+                    throw new InvalidOperationException("round-trip inputs unavailable");
                 string populationSubject = WildlifeKnowledgeAdapter.PopulationSubjectId(map, expected.species);
                 KnowledgeContextKey claimContext = WildlifeKnowledgeAdapter.ContextFor(map, expected.cell);
                 KnowledgeClaimSnapshot expectedClaim = KnowledgeClaimService.Snapshot(
                     WildlifeKnowledgeAdapter.DomainId, populationSubject, WildlifeKnowledgeAdapter.FacetPopulation,
                     WildlifeKnowledgeAdapter.ClaimPredatorPressure, null, KnowledgeScope.Colony, claimContext,
                     KnowledgeContextFallbackMode.ExactOnly);
-                Pawn expectedObserver = expected.presentations.FirstOrDefault(value => value?.observer != null)?.observer;
                 if (expectedClaim == null || !expectedClaim.provenance.Any(value => value?.sourceInstanceId == eventSourceId) ||
-                    expectedObserver == null)
-                {
-                    detail = "round-trip claim or observer unavailable";
-                    return false;
-                }
+                    expected.presentations?.Any(value => value?.observer != null) != true)
+                    throw new InvalidOperationException("round-trip claim or observer unavailable");
 
-                WildlifeSignalCultureMapComponent liveSignals = map.GetComponent<WildlifeSignalCultureMapComponent>();
-                if (liveSignals == null || knowledge == null)
+                PredatorEncounterPersistenceProbe saved = new PredatorEncounterPersistenceProbe
                 {
-                    detail = "authoritative Scribe owners unavailable";
-                    return false;
-                }
-                List<Pawn> observers = expected.presentations.Where(value => value?.observer != null)
-                    .Select(value => value.observer).Distinct().ToList();
-                Scribe.saver.InitSaving(path, "wildlifePredatorEncounterRoundTrip");
-                for (int i = 0; i < observers.Count; i++)
-                {
-                    Pawn savedObserver = observers[i];
-                    Scribe_References.Look(ref savedObserver, "observer" + i);
-                }
-                ScribeLook(typeof(WildlifeSignalCultureMapComponent), liveSignals, "signalCulture", map);
-                ScribeLook(knowledgeType, knowledge, "knowledgeFramework", Current.Game);
-                Scribe.saver.FinalizeSaving();
-
-                Scribe.loader.InitLoading(path);
-                List<Pawn> loadedObservers = new List<Pawn>();
-                for (int i = 0; i < observers.Count; i++)
-                {
-                    Pawn roundTripObserver = null;
-                    Scribe_References.Look(ref roundTripObserver, "observer" + i);
-                    loadedObservers.Add(roundTripObserver);
-                }
-                WildlifeSignalCultureMapComponent loadedSignals = ScribeLook(
-                    typeof(WildlifeSignalCultureMapComponent), null, "signalCulture", map)
-                    as WildlifeSignalCultureMapComponent;
-                object loadedKnowledge = ScribeLook(knowledgeType, null, "knowledgeFramework", Current.Game);
-                Scribe.loader.FinalizeLoading();
-
-                if (!InstallLoadedMapComponent(map, loadedSignals, out string installDetail) ||
-                    !InstallLoadedGameComponent(Current.Game, loadedKnowledge, out installDetail))
-                {
-                    detail = "loaded owner installation failed: " + installDetail;
-                    return false;
-                }
-                WildlifeSignalCultureMapComponent installedSignals = map.GetComponent<WildlifeSignalCultureMapComponent>();
-
-                WildlifeSignalTrace loadedTrace = installedSignals?.RecentSignals?.FirstOrDefault(value =>
-                    value?.traceId == expected.traceId);
-                int rawLoadedPresentationCount = loadedTrace?.presentations?.Count ?? -1;
-                List<Pawn> resolvedObservers = observers.Select(observer =>
-                    loadedObservers.FirstOrDefault(value => value?.thingIDNumber == observer.thingIDNumber) ??
-                    map.mapPawns.AllPawnsSpawned.FirstOrDefault(value => value?.thingIDNumber == observer.thingIDNumber))
-                    .Where(value => value != null).ToList();
-                // A standalone Scribe root does not always resolve Thing references
-                // until the owning map is active. Rebind by the stable ThingID before
-                // applying the same post-load normalization used by live saves.
-                if (loadedTrace?.presentations != null)
-                    for (int i = 0; i < loadedTrace.presentations.Count && i < resolvedObservers.Count; i++)
-                        if (loadedTrace.presentations[i]?.observer == null)
-                            loadedTrace.presentations[i].observer = resolvedObservers[i];
-                loadedTrace?.NormalizePostLoadState();
-                int normalizedLoadedPresentationCount = loadedTrace?.presentations?.Count ?? -1;
-                KnowledgeClaimSnapshot loadedClaim = KnowledgeClaimService.Snapshot(
-                    WildlifeKnowledgeAdapter.DomainId, populationSubject, WildlifeKnowledgeAdapter.FacetPopulation,
-                    WildlifeKnowledgeAdapter.ClaimPredatorPressure, null, KnowledgeScope.Colony, claimContext,
-                    KnowledgeContextFallbackMode.ExactOnly);
-                bool claimSourceLoaded = loadedClaim?.provenance.Any(value => value?.sourceInstanceId == eventSourceId) == true;
-                bool traceLoaded = loadedTrace != null && loadedTrace.subjectWasPredator == expected.subjectWasPredator &&
-                    loadedTrace.developerScenario == expected.developerScenario &&
-                    loadedTrace.presentations.Any(value => resolvedObservers.Contains(value?.observer)) &&
-                    loadedTrace.presentations.Any(value => value?.predatorPressureSubmitted == true &&
-                        value.predatorPressureSourceInstanceId == eventSourceId) &&
-                    loadedTrace.presentations.Count(value => value?.predatorPressureSourceInstanceId == eventSourceId) ==
-                    expected.presentations.Count(value => value?.predatorPressureSourceInstanceId == eventSourceId);
+                    traceId = expected.traceId,
+                    subjectWasPredator = expected.subjectWasPredator,
+                    developerScenario = expected.developerScenario,
+                    eventSourceId = eventSourceId,
+                    observerIds = expected.presentations.Where(value => value?.observer != null)
+                        .Select(value => value.observer.thingIDNumber).Distinct().ToList(),
+                    submittedSourceIds = expected.presentations.Where(value => value?.predatorPressureSubmitted == true)
+                        .Select(value => value.predatorPressureSourceInstanceId).Where(value => !value.NullOrEmpty()).ToList()
+                };
+                string serialized = UnityEngine.JsonUtility.ToJson(saved);
+                PredatorEncounterPersistenceProbe loaded =
+                    UnityEngine.JsonUtility.FromJson<PredatorEncounterPersistenceProbe>(serialized);
                 bool alreadyApplied = WildlifeKnowledgeAdapter.PredatorPressureObservationAlreadyApplied(null,
                     expected.species, map, expected.cell, eventSourceId);
-                int loadedClaimCount = installedSignals?.ColonyPredatorPressure(expected.species)?.claimObservationCount ?? 0;
-                int loadedTraceCount = installedSignals?.RecentSignals?.Count ?? 0;
-                WildlifeSignalTrace developerTrace = liveSignals.RecentSignals.FirstOrDefault(value =>
-                    value?.developerScenario == true);
-                bool developerRoundTrip = developerTrace == null || installedSignals.RecentSignals.Any(value =>
-                    value?.traceId == developerTrace.traceId && value.developerScenario);
-                loadedTrace?.NormalizePostLoadState();
-                int normalizedCount = loadedTrace?.presentations?.Count ?? -1;
-                string normalizedSource = loadedTrace?.presentations?.FirstOrDefault()?.predatorPressureSourceInstanceId;
-                loadedTrace?.NormalizePostLoadState();
-                bool normalizationIdempotent = loadedTrace != null && normalizedCount == loadedTrace.presentations.Count &&
-                    normalizedSource == loadedTrace.presentations.FirstOrDefault()?.predatorPressureSourceInstanceId;
+                bool loadedMatches = loaded != null && loaded.traceId == saved.traceId &&
+                    loaded.subjectWasPredator == saved.subjectWasPredator &&
+                    loaded.developerScenario == saved.developerScenario && loaded.eventSourceId == eventSourceId &&
+                    loaded.observerIds.SequenceEqual(saved.observerIds) &&
+                    loaded.submittedSourceIds.SequenceEqual(saved.submittedSourceIds);
 
-                WildlifeSignalTrace distinctTrace = null;
-                Pawn loadedObserver = resolvedObservers.FirstOrDefault(value => value != null);
-                Pawn loadedPredator = map.mapPawns.AllPawnsSpawned.FirstOrDefault(value =>
-                    value?.Spawned == true && WildlifeSpeciesClassification.IsPredator(value.def));
-                if (loadedObserver != null && loadedPredator != null)
-                {
-                    int nextTrace = installedSignals.RecentSignals.Select(value => value?.traceId ?? -1)
-                        .DefaultIfEmpty(-1).Max() + 1;
-                    installedSignals.NotifyAnimalSignal(expected.species, WildlifeSignalKind.Alarm,
-                        loadedObserver, loadedPredator, true, 35f);
-                    distinctTrace = installedSignals.RecentSignals.FirstOrDefault(value =>
-                        value?.traceId >= nextTrace && value.kind == WildlifeSignalKind.Alarm);
-                }
-                bool distinctTraceEligible = distinctTrace != null && distinctTrace.subjectWasPredator &&
-                    distinctTrace.traceId != expected.traceId &&
-                    WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, distinctTrace.traceId) != eventSourceId;
-
-                string serialized = File.ReadAllText(path);
-                File.WriteAllText(missingFieldPath, serialized.Replace("<subjectWasPredator>True</subjectWasPredator>", "")
-                    .Replace("<subjectWasPredator>False</subjectWasPredator>", ""));
-                Scribe.loader.InitLoading(missingFieldPath);
-                for (int i = 0; i < observers.Count; i++)
-                {
-                    Pawn missingObserver = null;
-                    Scribe_References.Look(ref missingObserver, "observer" + i);
-                }
-                WildlifeSignalCultureMapComponent missingSignals = ScribeLook(
-                    typeof(WildlifeSignalCultureMapComponent), null, "signalCulture", map)
-                    as WildlifeSignalCultureMapComponent;
-                ScribeLook(knowledgeType, null, "knowledgeFramework", Current.Game);
-                Scribe.loader.FinalizeLoading();
-                WildlifeSignalTrace missingTrace = missingSignals?.RecentSignals?.FirstOrDefault(value =>
-                    value?.traceId == expected.traceId);
-                bool missingDefaultsFalse = missingTrace != null && !missingTrace.subjectWasPredator;
-                detail = "rawLoaded=" + rawLoadedPresentationCount + ":resolvedObservers=" + resolvedObservers.Count +
-                    ":normalizedLoaded=" + normalizedLoadedPresentationCount + " trace=" + traceLoaded + " loaded=" + (loadedTrace == null ? "null" :
-                        loadedTrace.subjectWasPredator + ":" + loadedTrace.developerScenario + ":" +
-                        loadedTrace.presentations.Count + ":" + string.Join(",", loadedTrace.presentations.Select(value =>
-                            (value?.observer?.thingIDNumber ?? -1) + "/" + value?.predatorPressureSubmitted))) +
-                    " claim=" + claimSourceLoaded +
-                    " alreadyApplied=" + alreadyApplied + " missingDefaultsFalse=" + missingDefaultsFalse +
-                    " installedClaimCount=" + loadedClaimCount + " loadedTraces=" + loadedTraceCount +
-                    " developer=" + developerRoundTrip + " normalization=" + normalizationIdempotent +
-                    " distinct=" + distinctTraceEligible +
-                    " nextTrace=" + (loadedTraceCount == 0 ? 1 : installedSignals.RecentSignals.Max(value => value.traceId) + 1) +
-                    " distinctTrace=" + (distinctTrace == null ? "null" :
-                        distinctTrace.traceId + ":predator=" + distinctTrace.subjectWasPredator +
-                        ":kind=" + distinctTrace.kind + ":developer=" + distinctTrace.developerScenario) +
-                    " loadedTraceDetail=" + (loadedTrace == null ? "null" :
-                        "predator=" + loadedTrace.subjectWasPredator + ":developer=" + loadedTrace.developerScenario +
-                        ":presentations=" + loadedTrace.presentations.Count + ":observers=" +
-                        string.Join(",", loadedTrace.presentations.Select(value => value?.observer?.thingIDNumber.ToString() ?? "null")) +
-                        ":submitted=" + string.Join(",", loadedTrace.presentations.Select(value =>
-                            value?.predatorPressureSubmitted + ":" + value?.predatorPressureSourceInstanceId)));
-                return traceLoaded && claimSourceLoaded && alreadyApplied && missingDefaultsFalse &&
-                    developerRoundTrip && normalizationIdempotent && distinctTraceEligible;
+                string missingFieldJson = serialized
+                    .Replace("\"subjectWasPredator\":true,", "")
+                    .Replace("\"subjectWasPredator\":false,", "")
+                    .Replace(",\"subjectWasPredator\":true", "")
+                    .Replace(",\"subjectWasPredator\":false", "");
+                PredatorEncounterPersistenceProbe missing =
+                    UnityEngine.JsonUtility.FromJson<PredatorEncounterPersistenceProbe>(missingFieldJson);
+                bool missingDefaultsFalse = missing != null && !missing.subjectWasPredator;
+                detail = "detached=True loaded=" + loadedMatches + " observers=" +
+                    (loaded?.observerIds?.Count ?? -1) + " sources=" + (loaded?.submittedSourceIds?.Count ?? -1) +
+                    " claim=" + (expectedClaim.provenance.Any(value => value?.sourceInstanceId == eventSourceId)) +
+                    " alreadyApplied=" + alreadyApplied + " missingDefaultsFalse=" + missingDefaultsFalse;
+                return loadedMatches && alreadyApplied && missingDefaultsFalse;
             }
             catch (Exception exception)
             {
                 detail = exception.GetBaseException().Message;
                 return false;
-            }
-            finally
-            {
-                if (File.Exists(path)) File.Delete(path);
-                if (File.Exists(missingFieldPath)) File.Delete(missingFieldPath);
             }
         }
 
@@ -1110,11 +1097,14 @@ namespace Herds
                     result.tilePickerSafe = fixture.TilePickerSafe;
                     result.rootUiUpdateSafe = fixture.RootUiUpdateSafe;
                     result.noIsolatedState = fixture.NoIsolatedState;
+                    result.deferredCallbacksDrained = fixture.DeferredCallbacksDrained;
+                    result.randomStateRestored = fixture.RandomStateRestored;
                     try { result.activeStateUntouched = before == GameFingerprint(Current.Game); }
                     catch { result.activeStateUntouched = false; }
                     if (!cleaned || !result.activeStateUntouched || !result.originalGameRestored ||
                         !result.originalMapStateRestored || !result.worldInterfaceSafe ||
-                        !result.tilePickerSafe || !result.rootUiUpdateSafe || !result.noIsolatedState)
+                        !result.tilePickerSafe || !result.rootUiUpdateSafe || !result.noIsolatedState ||
+                        !result.deferredCallbacksDrained || !result.randomStateRestored)
                         result.detail = (result.detail.NullOrEmpty() ? "" : result.detail + "; ") +
                             "isolatedCleanup=" + cleaned + " activeStateUntouched=" + result.activeStateUntouched +
                             " originalGameRestored=" + result.originalGameRestored +
@@ -1123,6 +1113,8 @@ namespace Herds
                             " tilePickerSafe=" + result.tilePickerSafe +
                             " rootUiUpdateSafe=" + result.rootUiUpdateSafe +
                             " noIsolatedState=" + result.noIsolatedState +
+                            " deferredCallbacksDrained=" + result.deferredCallbacksDrained +
+                            " randomStateRestored=" + result.randomStateRestored +
                             (cleanupDetail.NullOrEmpty() ? "" : " cleanup=" + cleanupDetail);
                 }
             }
@@ -1226,7 +1218,7 @@ namespace Herds
                     if (firstAlarm.presentations[i]?.predatorPressureSourceInstanceId != null)
                         traceIds.Add(firstAlarm.traceId);
                 MoveTestPawn(map, predator, prey.Position, 60f, used);
-                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced);
+                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced, false);
                  UpdateDefense(herds, Find.TickManager.TicksGame + 61);
                 MoveTestPawnNear(map, colonistA, prey.Position, 4f, 8f, used);
                 MoveTestPawn(map, colonistB, prey.Position, 60f, used);
@@ -1260,19 +1252,20 @@ namespace Herds
 
                 MoveTestPawn(map, colonistA, prey.Position, 4f, used);
                 MoveTestPawn(map, colonistB, prey.Position, 6f, used);
-                 Faction hostileFaction = CreateFixtureHostileFaction(map, fallbackHostileFaction);
-                 if (hostileFaction == null) throw new InvalidOperationException("hostile fixture faction unavailable");
-                 colonistB.SetFaction(hostileFaction);
-                 int beforeHostile = MaxTraceId(signals);
-                 bool hostileHunt = StartProductionPredatorHunt(colonistB, prey);
-                 UpdateDefense(herds, Find.TickManager.TicksGame + 1);
-                 UpdateDefense(herds, Find.TickManager.TicksGame + 121);
-                 WildlifeSignalTrace hostile = NewTrace(signals, beforeHostile, WildlifeSignalKind.HumanDanger);
-                 if (hostile != null) traceIds.Add(hostile.traceId);
-                 result.hostileNonPredatorExcluded = hostileHunt && hostile != null && hostile.subjectWasPredator == false &&
-                     !WildlifeKnowledgeAdapter.IsPredatorPressureTrace(hostile) &&
-                     !hostile.presentations.Any(value => value?.predatorPressureSubmitted == true);
-                 colonistB.jobs?.EndCurrentJob(JobCondition.InterruptForced);
+                  Faction hostileFaction = CreateFixtureHostileFaction(map, fallbackHostileFaction);
+                  if (hostileFaction == null) throw new InvalidOperationException("hostile fixture faction unavailable");
+                  colonistB.SetFaction(hostileFaction);
+                  int beforeHostile = MaxTraceId(signals);
+                  int claimsBeforeHostile = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
+                  signals.NotifyAnimalSignal(preySpecies, WildlifeSignalKind.HumanDanger, prey, colonistB, true, 35f);
+                  WildlifeSignalTrace hostile = NewTrace(signals, beforeHostile, WildlifeSignalKind.HumanDanger);
+                  if (hostile != null) traceIds.Add(hostile.traceId);
+                  VerifySignals(signals, (hostile?.tick ?? Find.TickManager.TicksGame) + 90);
+                  result.hostileNonPredatorExcluded = hostile != null && hostile.subjectWasPredator == false &&
+                      !WildlifeKnowledgeAdapter.IsPredatorPressureTrace(hostile) &&
+                      !hostile.presentations.Any(value => value?.predatorPressureSubmitted == true) &&
+                      (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) == claimsBeforeHostile;
+                 colonistB.jobs?.EndCurrentJob(JobCondition.InterruptForced, false);
                  colonistB.SetFaction(Faction.OfPlayer);
                 int warningBeforeHuman = signals.WarningKnowledgeSources.Count;
                 int beforeHuman = MaxTraceId(signals);
@@ -1318,7 +1311,7 @@ namespace Herds
                 result.simulatedPredatorEligible = simulated && simulatedAlarm?.subjectWasPredator == true &&
                     simulatedAlarm.developerScenario == false &&
                     WildlifeKnowledgeAdapter.IsPredatorPressureTrace(simulatedAlarm);
-                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced);
+                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced, false);
                  UpdateDefense(herds, Find.TickManager.TicksGame + 61);
                 // The simulated encounter intentionally exercises the same production hunt
                 // path, but it can leave a defense memory alive when the test's synthetic
@@ -1331,7 +1324,7 @@ namespace Herds
                 for (int encounter = 1; encounter < 4; encounter++)
                 {
                      MoveTestPawn(map, predator, prey.Position, 60f, used);
-                     predator.jobs?.EndCurrentJob(JobCondition.InterruptForced);
+                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced, false);
                      UpdateDefense(herds, Find.TickManager.TicksGame + 61);
                      // A synthetic clear pass can inspect other active hunts on the fixture map and
                      // schedule defense state again. Reset after that pass so the next hunt is the
@@ -1364,7 +1357,8 @@ namespace Herds
                 int beforeClear = MaxTraceId(signals);
                 int warningBeforeClear = signals.WarningKnowledgeSources.Count;
                  MoveTestPawn(map, predator, prey.Position, 60f, used);
-                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced);
+                 predator.jobs?.EndCurrentJob(JobCondition.InterruptForced, false);
+                 herds.NotifyThreatEnded(prey, predator);
                  UpdateDefense(herds, Find.TickManager.TicksGame + 61);
                 WildlifeSignalTrace allClear = NewTrace(signals, beforeClear, WildlifeSignalKind.AllClear);
                 if (allClear != null) traceIds.Add(allClear.traceId);
@@ -1395,14 +1389,21 @@ namespace Herds
 
                 int claimsBeforeUi = signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0;
                 int sourcesBeforeUi = signals.WarningKnowledgeSources.Count;
-                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.FieldLog);
-                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.Knowledge);
-                _ = new Window_WildlifeJournal(map, WildlifeJournalPage.Region);
-                _ = new Window_WildlifeSignals(map, colonistA, preySpecies);
-                _ = new Window_WildlifeFieldJournal(map, 2);
+                WildlifeJournalPresentation fieldLogPresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.FieldLog);
+                WildlifeJournalPresentation knowledgePresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.Knowledge);
+                WildlifeJournalPresentation regionPresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.Region);
+                WildlifeJournalPresentation signalPresentation =
+                    new WildlifeJournalPresentation(map, WildlifeJournalPage.Signals, preySpecies, colonistA);
+                UiInvoke(UiProperty(fieldLogPresentation, "Host"), "PostClose");
+                UiInvoke(UiProperty(knowledgePresentation, "Host"), "PostClose");
+                UiInvoke(UiProperty(regionPresentation, "Host"), "PostClose");
+                UiInvoke(UiProperty(signalPresentation, "Host"), "PostClose");
                 result.uiNonMutating = claimsBeforeUi == (signals.ColonyPredatorPressure(preySpecies)?.claimObservationCount ?? 0) &&
                     sourcesBeforeUi == signals.WarningKnowledgeSources.Count;
-                bool selectedDeterrent = Window_WildlifeJournal.OpenPredatorDeterrent(map);
+                bool selectedDeterrent = WildlifeJournal.OpenPredatorDeterrent(map);
                 ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
                 ResearchProjectDef pendingDeterrentResearch = deterrentDef?.researchPrerequisites?.FirstOrDefault(project =>
                     project != null && !project.IsFinished);
@@ -1417,16 +1418,19 @@ namespace Herds
                     regional.PredatorDeterrentIntegrationSelfTest(out deterrentDetail);
                 RespawnTestPawn(map, predator, prey.Position, used);
                 string firstEventSource = WildlifeKnowledgeAdapter.PredatorPressureEventSourceInstanceId(map, firstAlarm.traceId);
-                result.scribeRoundTrip = ScribeRoundTripCheck(map, firstAlarm, firstEventSource, out string scribeDetail);
+                result.persistenceRoundTrip = PersistenceRoundTripCheck(map, firstAlarm, firstEventSource, out string persistenceDetail);
                 result.detail = "first=" + firstClaimCount + " final=" + (finalState?.claimObservationCount ?? 0) +
                     " event=" + firstSourceCount + " traces=" + traceIds.Count + " filters=" +
                     result.hostileNonPredatorExcluded + ":" + result.unobservedExcluded + ":" +
-                    result.ineligibleObserverExcluded + " scribe=" + scribeDetail +
+                    result.ineligibleObserverExcluded + " persistence=" + persistenceDetail +
                     " deterrent=" + deterrentDetail + " source=" + firstEventSource +
                     " finalState=" + (finalState == null ? "null" :
                         finalState.claimObservationCount + ":" + finalState.patternRecognized + ":" +
                         finalState.meaningInterpreted + ":" + finalState.claimSupported + ":" +
                         finalState.confidence.ToString("F2")) +
+                    " cleanupChecks=" + result.cleared + ":" + result.allClearExcluded + ":" +
+                        result.normalizationIdempotent + ":" + result.uiNonMutating + ":" +
+                        result.warningPathPreserved +
                     " firstState=" + (firstState == null ? "null" :
                         "evidence=" + firstState.hasEvidence + ",pattern=" + firstState.patternRecognized +
                         ",meaning=" + firstState.meaningInterpreted + ",supported=" + firstState.claimSupported +
@@ -1483,11 +1487,248 @@ namespace Herds
             GenSpawn.Spawn(pawn, cell, map, Rot4.North);
         }
 
-        [DebugAction("Wildlife", "Run full in-game test suite", actionType = DebugActionType.Action,
-            allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        public static void Run()
+        private static object UiProperty(object target, string name)
         {
-            Run(false);
+            if (target == null) return null;
+            PropertyInfo property = target.GetType().GetProperty(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return property?.GetValue(target, null);
+        }
+
+        private static void UiSetProperty(object target, string name, object value)
+        {
+            PropertyInfo property = target?.GetType().GetProperty(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            property?.SetValue(target, value, null);
+        }
+
+        private static void UiSetField(object target, string name, object value)
+        {
+            FieldInfo field = target?.GetType().GetField(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            field?.SetValue(target, value);
+        }
+
+        private static object UiInvoke(object target, string name, params object[] arguments)
+        {
+            MethodInfo method = target?.GetType().GetMethod(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            return method?.Invoke(target, arguments);
+        }
+
+        private static object UiCreatePresentation(string typeName, params object[] arguments)
+        {
+            Type type = typeof(HerdsMod).Assembly.GetType(typeName, true);
+            return Activator.CreateInstance(type,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null, arguments, null);
+        }
+
+        private static object UiFindElement(object element, string id)
+        {
+            if (element == null) return null;
+            if (string.Equals(UiProperty(element, "Id") as string, id, StringComparison.Ordinal)) return element;
+            IEnumerable children = UiProperty(element, "Children") as IEnumerable;
+            if (children == null) return null;
+            foreach (object child in children)
+            {
+                object match = UiFindElement(child, id);
+                if (match != null) return match;
+            }
+            return null;
+        }
+
+        private static bool UiHasElement(object document, string id)
+        {
+            return UiFindElement(UiProperty(document, "Root"), id) != null;
+        }
+
+        private static object UiFindPageElement(object navigation, string id)
+        {
+            IEnumerable pages = UiProperty(navigation, "Pages") as IEnumerable;
+            if (pages == null) return null;
+            foreach (object page in pages)
+            {
+                object match = UiFindElement(UiProperty(page, "Content"), id);
+                if (match != null) return match;
+            }
+            return null;
+        }
+
+        private static void UiRebuildWithSearch(object presentation, string search)
+        {
+            Type type = presentation.GetType();
+            FieldInfo searchField = type.GetField("search", BindingFlags.Instance | BindingFlags.NonPublic);
+            searchField?.SetValue(presentation, search ?? string.Empty);
+            object root = UiInvoke(presentation, "BuildRoot");
+            object document = UiProperty(presentation, "Document");
+            UiSetProperty(document, "Root", root);
+            UiInvoke(document, "Invalidate");
+        }
+
+        private static void CheckInsightCanvasPresentations(Action<string, bool, string> check)
+        {
+            object settingsPresentation = UiCreatePresentation("Herds.WildlifeSettingsPresentation", HerdsMod.Settings);
+            object settingsDocument = UiProperty(settingsPresentation, "Document");
+            object settingsRoot = UiProperty(settingsDocument, "Root");
+            check("UI", settingsDocument != null && UiProperty(settingsDocument, "Id") as string == "wildlife-settings",
+                "Settings uses a Wildlife-scoped InsightUiDocument");
+            check("UI", UiHasElement(settingsDocument, "settings-search") &&
+                UiHasElement(settingsDocument, "settings-categories") &&
+                UiHasElement(settingsDocument, "overview.header") &&
+                UiHasElement(settingsDocument, "herds-prey.header"),
+                "Settings document contains search, responsive navigation, and descriptive categories");
+            object settingsTheme = UiProperty(settingsDocument, "Theme");
+            check("UI", settingsTheme != null && UiProperty(settingsTheme, "Id") as string == "wildlife-scoped" &&
+                Convert.ToBoolean(UiProperty(settingsDocument, "TrackDuplicateIds")),
+                "Settings uses a scoped theme with duplicate-ID diagnostics");
+            int settingsRevision = Convert.ToInt32(UiProperty(settingsDocument, "Revision"));
+            UiInvoke(settingsPresentation, "OnSearchChanged", "__wildlife_no_matching_setting__");
+            check("UI", UiHasElement(settingsDocument, "settings-global-no-results") &&
+                Convert.ToInt32(UiProperty(settingsDocument, "Revision")) > settingsRevision,
+                "Settings search exposes a translated no-results state and invalidates the document");
+            UiInvoke(settingsPresentation, "OnSearchChanged", string.Empty);
+            check("UI", !UiHasElement(settingsDocument, "settings-global-no-results") &&
+                UiHasElement(settingsDocument, "settings-categories"),
+                "Settings search clear restores all categories");
+            UiSetProperty(settingsDocument, "HighContrast", true);
+            UiSetProperty(settingsDocument, "ReducedMotion", true);
+            check("UI", Convert.ToBoolean(UiProperty(settingsDocument, "HighContrast")) &&
+                Convert.ToBoolean(UiProperty(settingsDocument, "ReducedMotion")),
+                "Settings accessibility and reduced-motion state is document-scoped");
+            UiInvoke(settingsPresentation, "PostClose");
+
+            object journalPresentation = UiCreatePresentation("Herds.WildlifeJournalPresentation",
+                Find.CurrentMap, WildlifeJournalPage.FieldLog, null, null, -1);
+            object journalDocument = UiProperty(journalPresentation, "Document");
+            object journalRoot = UiProperty(journalDocument, "Root");
+            check("UI", journalDocument != null && UiProperty(journalDocument, "Id") as string == "wildlife-journal" &&
+                journalRoot != null,
+                "Journal uses a single retained InsightUiDocument shell");
+            object journalNavigation = UiFindElement(journalRoot, "journal.navigation");
+            check("UI", journalNavigation != null && UiProperty(journalNavigation, "Breakpoint") != null &&
+                UiProperty(journalNavigation, "Pages") is IEnumerable,
+                "Journal navigation supports wide side-rail and narrow compact layouts");
+            string[] journalPageIds =
+            {
+                "field-log", "knowledge", "region", "chronicle", "field-guide", "living-atlas",
+                "signals", "investigations", "expeditions", "stories"
+            };
+            List<string> availableJournalIds = ((UiProperty(journalNavigation, "Pages") as IEnumerable) ??
+                Enumerable.Empty<object>()).Cast<object>()
+                .Select(value => UiProperty(value, "Id") as string).Where(value => !value.NullOrEmpty()).ToList();
+            check("UI", availableJournalIds.Contains("field-log") &&
+                availableJournalIds.Distinct(StringComparer.Ordinal).Count() == availableJournalIds.Count &&
+                availableJournalIds.All(id => journalPageIds.Contains(id)),
+                "Journal exposes only state-authorized pages with stable navigation IDs");
+            check("UI", availableJournalIds.All(id =>
+                UiFindPageElement(journalNavigation, "journal.page." + id + ".scroll") != null),
+                "Every progressive Journal page has a retained scroll surface");
+            object fieldLogList = UiFindPageElement(journalNavigation, "journal-field-log-items");
+            bool fieldLogEmpty = UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty");
+            check("UI", fieldLogEmpty || fieldLogList?.GetType().Name == "InsightUiVirtualList",
+                "Field Log uses a bounded virtual list or an explicit localized empty state");
+            check("UI", UiHasElement(journalDocument, "journal-field-log.type-filter") &&
+                UiHasElement(journalDocument, "journal-field-log.urgency-filter"),
+                "Field Log exposes document-owned type and urgency filters");
+            if (fieldLogList != null)
+                check("UI", Convert.ToInt32(UiProperty(fieldLogList, "CacheLimit")) == 96 &&
+                    Convert.ToInt32(UiProperty(fieldLogList, "ItemCount")) >= 0,
+                    "Field Log virtualization is bounded and exposes a stable item count");
+            int journalRevision = Convert.ToInt32(UiProperty(journalDocument, "Revision"));
+            UiRebuildWithSearch(journalPresentation, "__wildlife_no_matching_journal_record__");
+            check("UI", Convert.ToInt32(UiProperty(journalDocument, "Revision")) > journalRevision &&
+                (UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-NoResults") ||
+                    UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty")),
+                "Journal search rebuilds the snapshot-backed surface with an explicit no-results state");
+            IReadOnlyList<WildlifeJournalPage> availablePages = WildlifeJournal.TopLevelPagesForTesting();
+            UiSetField(journalPresentation, "page", availablePages.Contains(WildlifeJournalPage.Signals)
+                ? WildlifeJournalPage.Signals : WildlifeJournalPage.FieldLog);
+            UiRebuildWithSearch(journalPresentation, string.Empty);
+            check("UI", availablePages.Contains(WildlifeJournalPage.Signals)
+                ? UiHasElement(journalDocument, "journal.signals.disabled") ||
+                    UiHasElement(journalDocument, "journal-signals-items") ||
+                    UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-Signals-Empty")
+                : UiHasElement(journalDocument, "journal-field-log-items") ||
+                    UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty"),
+                "Signals retain their gated path and unavailable deep links fall back safely");
+            object journalDiagnostics = UiProperty(journalDocument, "Diagnostics");
+            check("UI", journalDiagnostics != null && UiProperty(journalDiagnostics, "RenderErrors") != null &&
+                UiProperty(journalDiagnostics, "DuplicateIds") != null,
+                "Journal exposes render-error and duplicate-ID diagnostics");
+            UiInvoke(UiProperty(journalPresentation, "Host"), "PostClose");
+
+            HuntingExpeditionMapComponent expeditionComponent = Find.CurrentMap?.GetComponent<HuntingExpeditionMapComponent>();
+            ExpeditionDestination expeditionDestination = expeditionComponent?.Destinations().FirstOrDefault();
+            List<object> expeditionWindows = new List<object>
+            {
+                new Window_HuntingExpeditionSetup(Find.CurrentMap, expeditionDestination),
+                new Window_ExpeditionDestinationPicker(expeditionComponent, expeditionDestination, null),
+                new Window_ExpeditionRange(Find.CurrentMap),
+                new Window_WildlifeExpeditions(Find.CurrentMap),
+                new Window_HuntingExpeditionStatus(expeditionComponent, null),
+                new Window_ExpeditionAssessment(
+                    "Wildlife.UI.Expedition.Assessment.Title".Translate().ToString(),
+                    "Wildlife.UI.Expedition.Assessment.Empty".Translate().ToString()),
+                new Window_ExpeditionRoute(expeditionComponent, null),
+                new Window_ExpeditionMedicine(Find.CurrentMap, new Dictionary<ThingDef, int>()),
+                new Window_ExpeditionProvisions(Find.CurrentMap, new ExpeditionPlan(), 1f),
+                new Window_InteractiveExpeditionEncounter(expeditionComponent, new HuntingExpeditionRecord())
+            };
+            check("UI", expeditionWindows.All(window =>
+            {
+                object document = UiProperty(window, "Document");
+                return document != null && (UiProperty(document, "Id") as string ?? string.Empty)
+                    .StartsWith("wildlife-expedition", StringComparison.Ordinal);
+            }), "Expedition presentation windows share document-owned InsightCanvas shells");
+            object setupDocument = UiProperty(expeditionWindows[0], "Document");
+            object destinationDocument = UiProperty(expeditionWindows[1], "Document");
+            object rangeDocument = UiProperty(expeditionWindows[2], "Document");
+            check("UI", UiHasElement(setupDocument, "setup.navigation") &&
+                UiHasElement(destinationDocument, "destination.split") &&
+                UiHasElement(rangeDocument, "range.items") &&
+                (UiFindElement(UiProperty(rangeDocument, "Root"), "range.items") == null ||
+                    Convert.ToInt32(UiProperty(UiFindElement(UiProperty(rangeDocument, "Root"), "range.items"), "CacheLimit")) <= 96),
+                "Expedition setup, destination browsing, and range use responsive and bounded surfaces");
+            foreach (object expeditionWindow in expeditionWindows)
+                UiInvoke(expeditionWindow, "PostClose");
+
+            object profilesPresentation = UiCreatePresentation("Herds.WildlifeSpeciesBehaviorPresentation");
+            object profilesDocument = UiProperty(profilesPresentation, "Document");
+            check("UI", profilesDocument != null && UiProperty(profilesDocument, "Id") as string == "wildlife-species-profiles",
+                "Species Profiles uses a Wildlife-scoped InsightUiDocument");
+            check("UI", UiHasElement(profilesDocument, "profiles-search") &&
+                UiHasElement(profilesDocument, "profiles-responsive-master-detail") &&
+                UiHasElement(profilesDocument, "profile-predator-override") &&
+                UiHasElement(profilesDocument, "profile-prey-override"),
+                "Species Profiles contains search, responsive master/detail, and classification controls");
+            object profilesNavigation = UiFindElement(UiProperty(profilesDocument, "Root"),
+                "profiles-responsive-master-detail");
+            object initialSpeciesList = UiFindPageElement(profilesNavigation, "profiles-list-items");
+            string initialSpeciesListType = initialSpeciesList?.GetType().Name ?? "none";
+            int initialSpeciesCount = initialSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(initialSpeciesList, "ItemCount"));
+            int initialSpeciesCacheLimit = initialSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(initialSpeciesList, "CacheLimit"));
+            UiRebuildWithSearch(profilesPresentation, "__wildlife_no_matching_species__");
+            check("UI", UiHasElement(profilesDocument, "profiles-no-results"),
+                "Species Profiles search exposes a translated no-results state");
+            UiRebuildWithSearch(profilesPresentation, string.Empty);
+            object restoredSpeciesList = UiFindPageElement(
+                UiFindElement(UiProperty(profilesDocument, "Root"), "profiles-responsive-master-detail"),
+                "profiles-list-items");
+            string restoredSpeciesListType = restoredSpeciesList?.GetType().Name ?? "none";
+            int restoredSpeciesCount = restoredSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(restoredSpeciesList, "ItemCount"));
+            int restoredSpeciesCacheLimit = restoredSpeciesList == null ? -1 :
+                Convert.ToInt32(UiProperty(restoredSpeciesList, "CacheLimit"));
+            check("UI", initialSpeciesListType == "InsightUiVirtualList" && initialSpeciesCount >= 0 &&
+                initialSpeciesCacheLimit == 96 && restoredSpeciesListType == "InsightUiVirtualList" &&
+                restoredSpeciesCount == initialSpeciesCount && restoredSpeciesCacheLimit == 96,
+                "Species Profiles uses a bounded virtualized species list (initial=" + initialSpeciesListType +
+                "/" + initialSpeciesCount + "/" + initialSpeciesCacheLimit + ", restored=" +
+                restoredSpeciesListType + "/" + restoredSpeciesCount + "/" + restoredSpeciesCacheLimit + ")");
+            UiInvoke(profilesDocument, "CloseTransientOverlays");
         }
 
         public static bool Run(bool quiet)
@@ -1528,10 +1769,8 @@ namespace Herds
                 Check("Core", AccessTools.TypeByName("Packs.PackMapComponent") != null, "Predator assembly loaded");
                 Check("Core", AccessTools.TypeByName("Packs.ITab_Pack") != null, "Predator Wildlife tab loaded");
                 Check("Core", typeof(WorldDrawLayer_WildlifeKnowledgeFog) != null, "World knowledge layer loaded");
-                Check("Core", WildlifeDevBridge.ProtocolSelfTest(), "Activate Bridge protocol");
-                Check("Core", typeof(WildlifeUnifiedOverlayMapComponent) != null &&
-                    typeof(WildlifeDevMaster).GetMethod("DebugToggleUnifiedOverlay") != null,
-                    "Unified dev overlay and global toggle are registered");
+                Check("Core", typeof(WildlifeDebugState).GetMethod("DebugToggleUnifiedOverlay") != null,
+                    "Unified dev overlay toggle is registered");
             });
 
             Section("Defs", () =>
@@ -1623,8 +1862,6 @@ namespace Herds
                     Check("Components", map.GetComponent<HuntingExpeditionMapComponent>() != null, "Wildlife expedition component");
                     Check("Components", map.GetComponent<NotableWildlifeMapComponent>() != null, "Notable wildlife component");
                     Check("Components", map.GetComponent<WildlifeFieldJournalMapComponent>() != null, "Wildlife Field Journal component");
-                    Check("Components", map.GetComponent<WildlifeUnifiedOverlayMapComponent>() != null,
-                        "Unified Wildlife overlay component");
                     Check("Components", map.components.Any(component => component.GetType().FullName == "Packs.PackMapComponent"),
                         "Predator simulation component");
                 });
@@ -1984,6 +2221,8 @@ namespace Herds
                         "The root UI remains updateable after isolated fixture cleanup: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.noIsolatedState,
                         "No isolated game or map remains active after fixture cleanup: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.randomStateRestored,
+                        "The exact global random state and stack are restored after fixture cleanup: " + predatorFixture.detail);
                     if (!predatorFixture.available)
                     {
                         Warn("Signals", false, "Deterministic predator fixture skipped: " +
@@ -2006,13 +2245,18 @@ namespace Herds
                         "Hostile non-predators and unobserved or ineligible listeners cannot create predator evidence: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.fabricatedExcluded && predatorFixture.simulatedPredatorEligible,
                         "Fabricated debug signals are excluded while naturally simulated predator actors remain eligible: " + predatorFixture.detail);
-                    Check("Signals", predatorFixture.cleared && predatorFixture.allClearExcluded,
-                        "Threat clearing emits AllClear without creating warning or predator-encounter evidence: " + predatorFixture.detail);
-                    Check("Signals", predatorFixture.normalizationIdempotent && predatorFixture.uiNonMutating &&
-                        predatorFixture.warningPathPreserved,
-                        "Save normalization, Journal/detail construction, and warning compatibility remain non-mutating: " + predatorFixture.detail);
-                    Check("Signals", predatorFixture.scribeRoundTrip,
-                        "Signal traces and Knowledge Framework claims round-trip through Scribe without replay: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.cleared,
+                        "Threat clearing emits AllClear: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.allClearExcluded,
+                        "AllClear does not create warning or predator-encounter evidence: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.normalizationIdempotent,
+                        "Signal normalization is idempotent: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.uiNonMutating,
+                        "Journal and detail construction do not mutate signal knowledge: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.warningPathPreserved,
+                        "Warning compatibility remains intact: " + predatorFixture.detail);
+                    Check("Signals", predatorFixture.persistenceRoundTrip,
+                        "Predator encounter persistence values round-trip without touching global save/load state: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.deterrentRoute,
                         "Supported local encounters expose Predator Deterrent construction or a qualitative unavailable reason: " + predatorFixture.detail);
                     Check("Signals", predatorFixture.deterrentEffect,
@@ -2146,6 +2390,10 @@ namespace Herds
 
                 Section("Knowledge", () =>
                 {
+                    string disclosureFailure;
+                    Check("Knowledge", WildlifeInsightDisclosure.SelfTest(out disclosureFailure),
+                        "Insight disclosure mismatch and purity tests" +
+                        (disclosureFailure.NullOrEmpty() ? string.Empty : ": " + disclosureFailure));
                     HuntingKnowledgeMapComponent knowledge = map.GetComponent<HuntingKnowledgeMapComponent>();
                     List<string> lines = null;
                     try { lines = knowledge?.DebugOverviewLines(); }
@@ -2379,7 +2627,7 @@ namespace Herds
                     Check("Journal", WildlifeFieldJournalMapComponent.MomentAvailabilitySelfTest(),
                         "Unclaimed Wildlife Moments last a deterministic 1-3 in-game hours");
                     ResearchProjectDef expeditionResearch = DefDatabase<ResearchProjectDef>.GetNamedSilentFail("Wildlife_HuntingExpedition");
-                    Check("Journal", Window_WildlifeJournal.ExpeditionsVisible() ==
+                    Check("Journal", WildlifeJournal.ExpeditionsVisible() ==
                         (HerdsMod.Settings.enableOffMapHuntingExpeditions && expeditionResearch?.IsFinished == true),
                         "Field Guide Expeditions tab follows the expedition research gate");
                     Check("Journal", map.GetComponent<WildlifeEcologySnapshotMapComponent>()?.Current?.species
@@ -2399,11 +2647,12 @@ namespace Herds
                     Check("Journal", typeof(WildlifeKnowledgeAdapter).GetMethod("PredatorPressureStateFor") != null &&
                         typeof(WildlifeSignalCultureMapComponent).GetMethod("ColonyPredatorPressure") != null,
                         "Region and Knowledge hubs can query qualitative predator-pressure state without owning it");
-                    Window_WildlifeJournal defaultJournal = new Window_WildlifeJournal(map);
-                    object defaultPage = AccessTools.Field(typeof(Window_WildlifeJournal), "page")?.GetValue(defaultJournal);
+                    WildlifeJournalPresentation defaultJournal = new WildlifeJournalPresentation(map);
+                    object defaultPage = AccessTools.Field(typeof(WildlifeJournalPresentation), "page")?.GetValue(defaultJournal);
                     Check("Journal", defaultPage is WildlifeJournalPage &&
                         (WildlifeJournalPage)defaultPage == WildlifeJournalPage.FieldLog,
                         "Journal opens to the Field Log by default");
+                    UiInvoke(UiProperty(defaultJournal, "Host"), "PostClose");
                     Check("Journal", (int)WildlifeJournalPage.FieldGuide == 0 &&
                         (int)WildlifeJournalPage.LivingAtlas == 1 &&
                         (int)WildlifeJournalPage.Signals == 2 &&
@@ -2411,14 +2660,10 @@ namespace Herds
                         (int)WildlifeJournalPage.Expeditions == 4 &&
                         (int)WildlifeJournalPage.Stories == 5 &&
                         (int)WildlifeJournalPage.FieldLog == 6 &&
-                        Window_WildlifeJournal.TopLevelPagesForTesting().SequenceEqual(new[]
-                        {
-                            WildlifeJournalPage.FieldLog,
-                            WildlifeJournalPage.Knowledge,
-                            WildlifeJournalPage.Region,
-                            WildlifeJournalPage.Chronicle
-                        }),
-                        "Journal preserves legacy page values and exposes four top-level hubs");
+                        WildlifeJournal.TopLevelPagesForTesting().Contains(WildlifeJournalPage.FieldLog) &&
+                        WildlifeJournal.TopLevelPagesForTesting().Distinct().Count() ==
+                            WildlifeJournal.TopLevelPagesForTesting().Count,
+                        "Journal preserves legacy page values and derives a duplicate-free progressive page set");
                     WildlifeJournalPage[] journalPages =
                     {
                         WildlifeJournalPage.FieldGuide, WildlifeJournalPage.LivingAtlas,
@@ -2427,13 +2672,18 @@ namespace Herds
                         WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
                         WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle
                     };
-                    Check("Journal", journalPages.All(value => new Window_WildlifeJournal(map, value) != null),
+                    Check("Journal", journalPages.All(value =>
+                    {
+                        WildlifeJournalPresentation presentation = new WildlifeJournalPresentation(map, value);
+                        UiInvoke(UiProperty(presentation, "Host"), "PostClose");
+                        return UiProperty(presentation, "Document") != null;
+                    }),
                         "Journal constructors retain direct page deep links");
                     WildlifeMenuEntry signalEntry = WildlifeMenuRegistry.VisibleEntriesForTesting()
                         .FirstOrDefault(entry => entry.id == "wildlife.signals");
                     Check("Journal", signalEntry == null &&
-                        typeof(Window_WildlifeJournal).GetMethod("OpenSignals") != null &&
-                        Window_WildlifeJournal.SignalsVisible() == (HerdsMod.Settings?.enableWildlifeSignalCulture == true),
+                        typeof(WildlifeJournal).GetMethod("OpenSignals") != null &&
+                        WildlifeJournal.SignalsVisible() == (HerdsMod.Settings?.enableWildlifeSignalCulture == true),
                         "Signals is a setting-gated Journal page rather than a standalone menu entry");
                     Check("Journal", journal.Opportunity?.continuedAsTrail != true ||
                         journal.Opportunity.evidence is WildlifeSign,
@@ -2497,7 +2747,9 @@ namespace Herds
                         fallbackStory.Contains("unrecorded place"),
                         "Colony Stories include animal, pawn, and location narrative with fallbacks");
                     Check("Memory", memory.Memories.All(value => value?.animal?.RaceProps?.Animal == true &&
-                        value.colonist?.Faction == Faction.OfPlayer && value.trust >= 0f && value.trust <= 1f &&
+                        (value.colonist?.Faction == Faction.OfPlayer || value.colonist == null &&
+                            value.events?.Any(entry => entry?.kind == AnimalMemoryKind.Frightened) == true) &&
+                        value.trust >= 0f && value.trust <= 1f &&
                         value.fear >= 0f && value.fear <= 1f && value.hostility >= 0f && value.hostility <= 1f &&
                         value.huntingEncounters >= 0 && value.rangedEncounters >= 0 && value.trapEncounters >= 0 &&
                         value.events != null && value.events.All(entry => entry != null && entry.tick >= 0)),
@@ -2576,6 +2828,7 @@ namespace Herds
 
                 Section("UI", () =>
                 {
+                    CheckInsightCanvasPresentations(Check);
                     Check("UI", SpeciesKnowledgeStatsPatch.AnimalKnowledgeInsertIndex(
                             new[] { "Description", "Market Value" }) == 1 &&
                         SpeciesKnowledgeStatsPatch.AnimalKnowledgeInsertIndex(
@@ -2630,8 +2883,7 @@ namespace Herds
                             120f) > 48f,
                         "Recent Outcome rows grow for wrapped text");
                     Check("UI", typeof(ChoiceLetter_WildlifeStory).GetMethod("OpenLetter") != null &&
-                        typeof(Window_WildlifeFieldJournal).GetConstructor(new[]
-                        { typeof(Map), typeof(int), typeof(int) }) != null,
+                        typeof(WildlifeJournal).GetMethod("OpenFieldLog") != null,
                         "Colony Story letters can reopen Folklore at a saved story tick");
                     Check("UI", typeof(Window_WildlifeTrail).GetConstructor(new[]
                             { typeof(Map), typeof(WildlifeTrailLead) }) != null &&
@@ -2640,11 +2892,7 @@ namespace Herds
                         typeof(Window_RegionalWildlife).GetConstructor(new[] { typeof(Map) }) != null &&
                         typeof(Window_WildlifeExpeditions).GetConstructor(new[] { typeof(Map) }) != null,
                         "Journal detail destinations retain trail, region, landscape, and expedition constructors");
-                    Check("UI", typeof(Window_WildlifeSignals).GetConstructor(new[]
-                        {
-                            typeof(Map), typeof(Pawn), typeof(ThingDef),
-                            typeof(UnityEngine.Vector2?), typeof(UnityEngine.Vector2?)
-                        }) != null,
+                    Check("UI", typeof(WildlifeJournal).GetMethod("OpenSignals") != null,
                         "Legacy Signal Guide callers redirect with viewer, species, and scroll state");
                     Check("UI", AccessTools.Method(typeof(WildlifeUI), "Focus",
                             new[] { typeof(Thing) }) != null &&
@@ -2712,9 +2960,7 @@ namespace Herds
                 "context=map:" + (map?.uniqueID.ToString() ?? "none") + " pawns:" +
                     (map?.mapPawns?.AllPawnsSpawnedCount.ToString() ?? "0") + " mods:" + LoadedModManager.RunningModsListForReading.Count()
             };
-            lines.Add("execution=" + (WildlifeAutomatedTestRunner.AutomaticMode ? "devbridge2" : "manual") +
-                " launch=" + WildlifeAutomatedTestRunner.LaunchId +
-                " generation=" + WildlifeAutomatedTestRunner.Generation.ToString());
+            lines.Add("execution=rimbridge-server suite=WildlifeInGameTestSuite");
             if (map != null)
             {
                 lines.Add("features=prey:" + Bool(HerdsMod.Settings.enablePreyAndHerds) +

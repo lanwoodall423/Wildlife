@@ -181,15 +181,22 @@ namespace Herds
         public readonly ThingDef species;
         public readonly string subjectId;
         public readonly string stageId;
+        internal readonly int stageOrder;
         public readonly float knowledge;
         public readonly float confidence;
+        internal readonly float populationKnowledge;
+        internal readonly float habitatKnowledge;
         public readonly int localCount;
         public readonly float nearbyPopulation;
         public readonly float regionalPopulation;
+        internal readonly bool hasRegionalRecord;
+        internal readonly float previousNearbyPopulation;
         public readonly float habitatQuality;
         public readonly float pressure;
         public readonly string forecast;
         public readonly string policy;
+        internal readonly string diseaseRisk;
+        internal readonly string interventionSummary;
         public readonly IReadOnlyList<WildlifeEvidenceSnapshot> evidence;
         public readonly IReadOnlyList<WildlifeTrailSnapshot> trails;
         public readonly IReadOnlyList<WildlifeMigrationSnapshot> migrations;
@@ -200,20 +207,29 @@ namespace Herds
             int localCount, float nearbyPopulation, float regionalPopulation, float habitatQuality,
             float pressure, string forecast, string policy, IEnumerable<WildlifeEvidenceSnapshot> evidence,
             IEnumerable<WildlifeTrailSnapshot> trails, IEnumerable<WildlifeMigrationSnapshot> migrations,
-            IEnumerable<WildlifeSignalSnapshot> signals, IEnumerable<string> variations)
+            IEnumerable<WildlifeSignalSnapshot> signals, IEnumerable<string> variations,
+            float populationKnowledge = 0f, float habitatKnowledge = 0f, bool hasRegionalRecord = false,
+            float previousNearbyPopulation = 0f, string diseaseRisk = null, string interventionSummary = null)
         {
             this.species = species;
             subjectId = WildlifeKnowledgeAdapter.SpeciesSubjectId(species);
             this.stageId = stageId;
+            stageOrder = WildlifeKnowledgeAdapter.StageOrder(stageId);
             this.knowledge = knowledge;
             this.confidence = confidence;
+            this.populationKnowledge = populationKnowledge;
+            this.habitatKnowledge = habitatKnowledge;
             this.localCount = localCount;
             this.nearbyPopulation = nearbyPopulation;
             this.regionalPopulation = regionalPopulation;
+            this.hasRegionalRecord = hasRegionalRecord;
+            this.previousNearbyPopulation = previousNearbyPopulation;
             this.habitatQuality = habitatQuality;
             this.pressure = pressure;
             this.forecast = forecast;
             this.policy = policy;
+            this.diseaseRisk = diseaseRisk;
+            this.interventionSummary = interventionSummary;
             this.evidence = ReadOnly(evidence);
             this.trails = ReadOnly(trails);
             this.migrations = ReadOnly(migrations);
@@ -355,6 +371,8 @@ namespace Herds
             defs.AddRange(map.mapPawns.AllPawnsSpawned.Where(pawn => pawn?.RaceProps?.Animal == true).Select(pawn => pawn.def));
             defs.AddRange(regional?.Records?.Where(record => record?.species != null).Select(record => record.species) ?? Enumerable.Empty<ThingDef>());
             defs.AddRange(events.Where(value => value?.map == map && value.species != null).Select(value => value.species));
+            defs.AddRange(DefDatabase<ThingDef>.AllDefs.Where(value => value?.race?.Animal == true &&
+                WildlifeKnowledgeAdapter.StageOrder(WildlifeKnowledgeAdapter.ColonyStage(value)) > 0));
             defs = defs.Where(value => value != null).Distinct().OrderBy(value => value.label).ToList();
 
             List<WildlifeTrailSnapshot> trails = (trailMap?.TrailLeads ?? new List<WildlifeTrailLead>())
@@ -374,18 +392,24 @@ namespace Herds
                 float population = record?.population ?? nearby;
                 float confidence = record?.confidence ?? 0f;
                 float pressure = population <= 0f ? 0f : Mathf.Clamp01((local + nearby * 0.28f) / Mathf.Max(1f, population));
+                string stage = WildlifeKnowledgeAdapter.ColonyStage(def);
+                float populationKnowledge = WildlifeKnowledgeAdapter.ColonyKnowledge(def, WildlifeKnowledgeAdapter.FacetPopulation);
+                float habitatKnowledge = WildlifeKnowledgeAdapter.ColonyKnowledge(def, WildlifeKnowledgeAdapter.FacetHabitat);
                 List<WildlifeEvent> recent = events.Where(value => value?.map == map && value.species == def && IsPlayerFacingEvidence(value))
                     .OrderByDescending(value => value.tick).Take(24).ToList();
                 List<WildlifeEvidenceSnapshot> evidence = MergeEvidence(recent);
                 IReadOnlyList<string> variations = WildlifeRegionalVariation.Variations(map, def);
-                species.Add(new WildlifeSpeciesSnapshot(def, WildlifeKnowledgeAdapter.ColonyStage(def),
+                species.Add(new WildlifeSpeciesSnapshot(def, stage,
                     WildlifeKnowledgeAdapter.ColonyKnowledge(def), confidence, local, nearby, population,
                     WildlifeLearningAPI.HabitatScoreAt(map, map.Center), pressure,
                     record == null ? "No regional estimate" : regional.Forecast(record),
                     record == null ? "Nonintervention" : regional.PolicyLabel(record),
                     evidence,
                     trails.Where(value => value.species == def), migrations.Where(value => value.species == def),
-                    signals.Where(value => value.species == def), variations));
+                    signals.Where(value => value.species == def), variations, populationKnowledge, habitatKnowledge,
+                    record != null, record?.previousNearbyPopulation ?? 0f,
+                    record == null ? null : regional.DiseaseRisk(record),
+                    record == null ? null : regional.InterventionSummary(record)));
             }
 
             snapshot = new WildlifeEcologySnapshot(map, now, regional?.HabitatQuality ?? 0.5f,

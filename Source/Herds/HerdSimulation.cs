@@ -116,6 +116,8 @@ namespace Herds
         private sealed class DefenseMemory
         {
             public Thing threat;
+            public Thing endedThreat;
+            public int endedUntilTick;
             public int expiresTick;
             public HerdDefenseMode mode;
             public bool forced;
@@ -274,7 +276,7 @@ namespace Herds
                 GenDraw.DrawRadiusRing(herd.center, Mathf.Clamp(Mathf.Sqrt(herd.members.Count), 0.6f, 6f), color);
                 GenDraw.DrawLineBetween(herd.center.ToVector3Shifted(), herd.movementTarget.ToVector3Shifted());
                 if (herd.defenseThreat?.Spawned == true) GenDraw.DrawLineBetween(herd.center.ToVector3Shifted(), herd.defenseThreat.Position.ToVector3Shifted(), SimpleColor.Red);
-                if (WildlifeDevMaster.CompleteOverlayEnabled)
+                if (WildlifeDebugState.CompleteOverlayEnabled)
                 {
                     for (int memberIndex = 0; memberIndex < herd.members.Count; memberIndex++)
                     {
@@ -297,14 +299,14 @@ namespace Herds
                     if (view.Contains(hiddenRecords[i].cell))
                     {
                         GenDraw.DrawRadiusRing(hiddenRecords[i].cell, 0.75f, Color.magenta);
-                        if (WildlifeDevMaster.CompleteOverlayEnabled)
+                        if (WildlifeDebugState.CompleteOverlayEnabled)
                         {
                             GenDraw.DrawRadiusRing(hiddenRecords[i].cell, HerdsMod.Settings.hiddenPreySafeDistance, new Color(1f, 0f, 1f, 0.32f));
                             if (hiddenRecords[i].threat?.Spawned == true) GenDraw.DrawLineBetween(hiddenRecords[i].cell.ToVector3Shifted(), hiddenRecords[i].threat.Position.ToVector3Shifted(), SimpleColor.Red);
                         }
                     }
             }
-            if (WildlifeDevMaster.CompleteOverlayEnabled)
+            if (WildlifeDebugState.CompleteOverlayEnabled)
             {
                 Action<List<Building_WildlifeTool>, Color> drawTools = (tools, color) => { for (int i = 0; i < tools.Count; i++) if (tools[i]?.Spawned == true && view.Contains(tools[i].Position)) GenDraw.DrawRadiusRing(tools[i].Position, tools[i].InfluenceRadius, color); };
                 drawTools(observationPosts, Color.cyan); drawTools(baitStations, Color.yellow); drawTools(predatorDeterrents, Color.red); drawTools(wildlifeReserves, Color.green);
@@ -324,7 +326,7 @@ namespace Herds
                 Text.Font = GameFont.Small;
                 Widgets.Label(panel.ContractedBy(8f), PerformanceSummary());
             }
-            if (Prefs.DevMode && WildlifeDevMaster.CompleteOverlayEnabled)
+            if (Prefs.DevMode && WildlifeDebugState.CompleteOverlayEnabled)
             {
                 CellRect currentView = Find.CameraDriver.CurrentViewRect;
                 for (int herdIndex = 0; herdIndex < herds.Count; herdIndex++)
@@ -391,7 +393,7 @@ namespace Herds
                 "HOMES claimed=" + homeRefugeByPawn.Count + " occupiedRefuges=" + hiddenByRefuge.Count + " abandoned=" + abandonedHomeTick.Count,
                 "PLAYER TOOLS observation=" + observationPosts.Count + " bait=" + baitStations.Count + " deterrent=" + predatorDeterrents.Count + " reserves=" + wildlifeReserves.Count,
                 "DEFENSE orders=" + defenseByPawn.Count + " rememberedThreats=" + defenseMemory.Count + " alarms=" + alarmsRaised + " false=" + falseAlarms,
-                "DIAGNOSTICS overlay=" + WildlifeDevMaster.CompleteOverlayEnabled + " logging=" + WildlifeTestLog.Enabled
+                "DIAGNOSTICS overlay=" + WildlifeDebugState.CompleteOverlayEnabled + " logging=" + WildlifeTestLog.Enabled
             };
         }
 
@@ -484,7 +486,10 @@ namespace Herds
             if (!herdByPawn.TryGetValue(member, out HerdSnapshot herd)) return;
             if (defenseMemory.TryGetValue(herd.id, out DefenseMemory existing) && existing.simulated) return;
             RememberThreat(herd, threat, Find.TickManager.TicksGame + Mathf.Max(300, durationTicks));
-            defenseMemory[herd.id].forced = false;
+            DefenseMemory memory = defenseMemory[herd.id];
+            memory.endedThreat = null;
+            memory.endedUntilTick = 0;
+            memory.forced = false;
             nextDefenseTick = 0;
         }
 
@@ -505,7 +510,10 @@ namespace Herds
             EnsureCurrent();
             if (!herdByPawn.TryGetValue(member, out HerdSnapshot herd) || !defenseMemory.TryGetValue(herd.id, out DefenseMemory memory) || memory.simulated) return;
             if (threat != null && memory.threat != threat) return;
-            memory.expiresTick = Mathf.Min(memory.expiresTick, Find.TickManager.TicksGame + 60);
+            int now = Find.TickManager?.TicksGame ?? 0;
+            memory.expiresTick = Mathf.Min(memory.expiresTick, now + 60);
+            memory.endedThreat = threat ?? memory.threat;
+            memory.endedUntilTick = now + 60;
             nextDefenseTick = 0;
         }
 
@@ -1417,7 +1425,12 @@ namespace Herds
                 }
                 if (prey != null && (WildlifeSpeciesClassification.IsPredator(attacker.def) ||
                     attacker.HostileTo(prey)) && herdByPawn.TryGetValue(prey, out HerdSnapshot huntedGroup))
-                    RememberThreat(huntedGroup, attacker, now + 900);
+                {
+                    int liveTick = Find.TickManager?.TicksGame ?? now;
+                    if (!defenseMemory.TryGetValue(huntedGroup.id, out DefenseMemory ended) ||
+                        ended.endedThreat != attacker || liveTick > ended.endedUntilTick)
+                        RememberThreat(huntedGroup, attacker, now + 900);
+                }
             }
 
             if (HerdsMod.Settings.preyAvoidColonists)
@@ -1474,6 +1487,19 @@ namespace Herds
                     if (WildlifeTestLog.Enabled) WildlifeTestLog.WriteTransition("defense:" + herd.id, "Defense", "Calm", herd.leader);
                     continue;
                 }
+                bool invalidThreat = memory.threat == null || memory.threat.DestroyedOrNull() || !memory.threat.Spawned;
+                bool tooFar = !memory.simulated && memory.threat != null && memory.threat.Spawned && memory.threat.Position.DistanceToSquared(herd.center) > 2500;
+                bool shouldClear = now >= memory.expiresTick || invalidThreat || tooFar;
+                if (shouldClear)
+                {
+                    if (memory.signalBroadcast)
+                        map.GetComponent<WildlifeSignalCultureMapComponent>()?.NotifyAnimalSignal(
+                            herd.species, WildlifeSignalKind.AllClear, herd.sentinel ?? herd.leader,
+                            memory.threat, true, 24f);
+                    if (WildlifeTestLog.Enabled) WildlifeTestLog.WriteTransition("defense:" + herd.id, "Defense", "Calm(reason=" + (now >= memory.expiresTick ? "expired" : invalidThreat ? "invalid-threat" : "too-far") + ")", herd.leader, memory.threat);
+                    defenseMemory.Remove(herd.id);
+                    continue;
+                }
                 if (now < memory.reactionTick)
                 {
                     if (WildlifeTestLog.Enabled) WildlifeTestLog.WriteTransition("defense:" + herd.id, "Defense", "AlarmDelay until=" + memory.reactionTick, herd.sentinel, memory.threat);
@@ -1497,18 +1523,6 @@ namespace Herds
                 {
                     memory.alarmPropagated = true;
                     PropagateAlarm(herd, memory.threat, now);
-                }
-                bool invalidThreat = memory.threat == null || memory.threat.DestroyedOrNull() || !memory.threat.Spawned;
-                bool tooFar = !memory.simulated && memory.threat != null && memory.threat.Spawned && memory.threat.Position.DistanceToSquared(herd.center) > 2500;
-                if (now >= memory.expiresTick || invalidThreat || tooFar)
-                {
-                    if (memory.signalBroadcast)
-                        map.GetComponent<WildlifeSignalCultureMapComponent>()?.NotifyAnimalSignal(
-                            herd.species, WildlifeSignalKind.AllClear, herd.sentinel ?? herd.leader,
-                            memory.threat, true, 24f);
-                    if (WildlifeTestLog.Enabled) WildlifeTestLog.WriteTransition("defense:" + herd.id, "Defense", "Calm(reason=" + (now >= memory.expiresTick ? "expired" : invalidThreat ? "invalid-threat" : "too-far") + ")", herd.leader, memory.threat);
-                    defenseMemory.Remove(herd.id);
-                    continue;
                 }
                 if (!memory.forced)
                 {

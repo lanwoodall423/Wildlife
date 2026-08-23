@@ -12,7 +12,7 @@ $frameworkRoot = if ([string]::IsNullOrWhiteSpace($KnowledgeFrameworkPath)) {
 } else { [IO.Path]::GetFullPath($KnowledgeFrameworkPath) }
 $frameworkAssembly = Join-Path $frameworkRoot '1.6\Assemblies\KnowledgeFramework.dll'
 $adapterPath = Join-Path $wildlifeRoot 'Source\Herds\WildlifeKnowledgeAdapter.cs'
-$testPath = Join-Path $wildlifeRoot 'Source\Herds\WildlifeInGameTestSuite.cs'
+$testPath = Join-Path $wildlifeRoot 'Source\BridgeTools\WildlifeInGameTestSuite.cs'
 $aboutPath = Join-Path $wildlifeRoot 'About\About.xml'
 
 foreach ($path in @($frameworkAssembly, $adapterPath, $testPath, $aboutPath)) {

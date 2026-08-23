@@ -1,9 +1,22 @@
-# Wildlife
+# Content Mod Development
 
-- Package ID: `Lan.Wildlife`.
-- Adapter source: `Source/Herds/WildlifeDevBridge.cs`; loaded-module manifest output: `DevTools/BridgeAdapters`.
-- Build: `dotnet build Source\Herds\Herds.csproj -c Release`; validate/build binding: `DevTools\Build-WildlifeBridgeAdapter.ps1`, `DevTools\Test-WildlifeBridgeAdapter.ps1`.
-- Query fresh live Dev Bridge context before runtime tests with the Dev Bridge checkout's `DevTools\devbridge.ps1`.
-- Wildlife module changes require a full restart. An adapter reload alone cannot replace `Herds.dll`.
-- Wildlife owns the provider and controls its optional integration; Dev Bridge is optional.
-- Full workflow: `DevTools/DEVBRIDGE_AGENT.md`.
+This repository is a RimWorld content mod.
+
+For source changes, RimTest owns build, generation, local deployment,
+RimWorld lifecycle, affected-test selection, and runtime validation.
+
+Use:
+
+rimtest doctor --json
+
+before validation, and normally:
+
+rimtest affected --run --json
+
+after source changes.
+
+Do not manually copy assemblies into the live mod directory, manually
+substitute RimWorld launches for RimTest lifecycle operations, or call
+RimContext/DevBridge2 directly when RimTest owns the workflow.
+
+Artifact freshness must be proven before runtime results are accepted.

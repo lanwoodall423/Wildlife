@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>Wildlife.BridgeTools</RootNamespace>
+    <AssemblyName>Wildlife.BridgeTools</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <OutputPath>..\..\..\..\BridgeTools\Wildlife\</OutputPath>
+    <DebugType>none</DebugType>
+    <!-- The 2.1.0 SDK is shipped by the current RimBridgeServer source tree but is not
+         published on NuGet yet. Set RIMBRIDGE_SERVER_SDK_PATH to compile against that
+         exact host SDK; the released 2.0.0 package is the portable API-compatible fallback. -->
+    <RimBridgeServerSdkPath Condition="'$(RimBridgeServerSdkPath)' == ''">$(RIMBRIDGE_SERVER_SDK_PATH)</RimBridgeServerSdkPath>
+    <RimBridgeServerSdkPackageVersion Condition="'$(RimBridgeServerSdkPackageVersion)' == ''">2.0.0</RimBridgeServerSdkPackageVersion>
+  </PropertyGroup>
+  <Import Project="..\..\DevTools\RimWorldReferences.props" />
+  <ItemGroup>
+    <ProjectReference Include="..\Herds\Herds.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Packs\PacksAndPredators.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+    <PackageReference Include="RimBridgeServer.Sdk" Version="$(RimBridgeServerSdkPackageVersion)"
+                      Condition="'$(RimBridgeServerSdkPath)' == ''">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>compile;build;buildTransitive;analyzers</IncludeAssets>
+    </PackageReference>
+    <Reference Include="RimBridgeServer.Sdk" Condition="'$(RimBridgeServerSdkPath)' != ''">
+      <HintPath>$(RimBridgeServerSdkPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.JSONSerializeModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(WildlifeHarmonyPath)</HintPath><Private>false</Private></Reference>
+    <Reference Include="KnowledgeFramework"><HintPath>$(KnowledgeFrameworkAssemblyPath)</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

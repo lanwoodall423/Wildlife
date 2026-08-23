@@ -64,14 +64,7 @@ public sealed class Building_PredatorDen : Building
 			};
 		}
 		if (!Prefs.DevMode) yield break;
-		yield return new Command_Action
-		{
-			defaultLabel = "DEV: Wildlife Overview",
-			defaultDesc = "Open the organized wildlife development dashboard.",
-			icon = TexCommand.OpenLinkedQuestTex,
-			action = PredatorDevGizmoPatch.OpenWildlifeDashboard
-		};
-		yield return new Command_Toggle
+        yield return new Command_Toggle
 		{
 			defaultLabel = "DEV: Complete Overlay",
 			defaultDesc = "Toggle all wildlife assessment visuals together.",

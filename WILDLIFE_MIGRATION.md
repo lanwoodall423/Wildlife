@@ -53,6 +53,57 @@ Wildlife Knowledge records keep their domain and subject IDs; a later bridge can
 map legacy map-context claims to the stable region context after explicit
 consumer-level aliases are registered.
 
+## InsightCanvas player presentation boundary
+
+Wildlife's player-facing information surfaces use the InsightCanvas v2
+document/host contract. The Journal and expedition suite are full retained
+documents. Compact inspect paths use the shared `WildlifeInspectorCanvas` host
+with a 30-tick snapshot bucket, stable IDs, bounded `VirtualList` rows, scoped
+theme settings, keyboard focus, map-focus buttons, and `PostClose` overlay
+cleanup. The migrated paths are:
+
+- herd and pen-group inspect tabs;
+- hiding-refuge inspect tabs;
+- animal memory tabs and the timeline/social-relationship window;
+- colonist species-knowledge details; and
+- fieldcraft hunt setup, including target, party, risk, resource, and readiness
+  choices.
+
+Knowledge and observation gates are evaluated while the retained root is built;
+callbacks only change the underlying selection/policy and request a bounded
+rebuild. The UI assembly references the installed InsightCanvas package and
+does not bundle its DLL. Labels for these paths are keyed in
+`1.6/Languages/English/Keyed/Herds.xml`.
+
+The following native/manual surfaces remain deliberate boundaries rather than
+InsightCanvas consumers: RimWorld's world-map/tile picker and map overlays,
+Knowledge Framework's own knowledge menu, and development-only diagnostic
+windows. Their ownership is external or map-native. The old overview entry is
+a compatibility redirect into the Journal. Regional ecology, landscape,
+progression, notable-story, and trail compatibility entries remain available
+to older integrations; new top-level player navigation goes through the
+Journal/expedition documents and does not create a second Journal shell.
+
+The Journal and those compatibility entries share `WildlifeInsightDisclosure`, a
+presentation-only projection over Wildlife simulation, Knowledge Framework V3, colony
+knowledge, and Regional Wildlife/DRF state. The projection carries stable subject IDs,
+precision, certainty, provenance, evidence summaries, and allowed actions. It is the only
+place where player-facing availability is decided: it never writes Knowledge Framework
+state or makes gameplay decisions. Research without Knowledge does not fabricate a
+species or population, Knowledge without research can still reveal learned biology, and a
+spawned-but-unseen animal cannot become an exact local count or current-location focus.
+Measured population text requires an authorized operational telemetry source; otherwise
+the UI uses qualitative or approximate wording. Retained Pawn references are historical
+context only when the animal is absent.
+
+Journal navigation keeps the legacy enum values and stable page IDs, but the visible page
+set is derived from the current snapshot. Field Log is always the safe root; unavailable
+deep links fall back there and retained navigation focus is restored after rebuild. The
+same projection feeds Journal Knowledge/Field Guide/Region/Living Atlas, Regional
+Wildlife, Herd inspectors, and the optional reflection-based Packs boundary. Deterministic
+in-game checks cover research/Knowledge mismatch, KF-only knowledge, unseen spawned
+animals, hidden positions, and projection purity.
+
 ## Exactly-once event domains
 
 Wildlife currently uses durable operation-ID markers for `consume`, `release`,
@@ -93,9 +144,9 @@ with the same stable ID is rejected with a duplicate-installation diagnostic.
 
 ## In-game departure and reload checks
 
-Run the existing Wildlife in-game test suite with the optional adapter loaded and
-also run the adapter verification action. For a trail Pawn, save at each of
-these boundaries: before outbound `ExitMap`, after the Pawn is resident on the
+Run `rimtest run wildlife-in-game-suite --json` with the optional adapter loaded;
+the RimTest recipe covers the adapter boundary. For a trail Pawn, save at each
+of these boundaries: before outbound `ExitMap`, after the Pawn is resident on the
 adjacent map, after a task heartbeat, and during return. Reloading must rebuild
 the task association from the durable ticket, serialized `WildlifeTrailLead`,
 and exact Pawn load ID without producing a progress heartbeat from the baseline.

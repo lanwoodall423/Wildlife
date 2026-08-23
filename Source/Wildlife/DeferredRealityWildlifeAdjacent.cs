@@ -240,17 +240,17 @@ namespace DeferredReality.Wildlife
 
         internal string AdjacentRegionSummary(Map map)
         {
-            if (map == null || attachedWorld == null || !attachedWorld.TryRegionForLegacyMap(map.uniqueID, out RealityRegionId source)) return null;
-            List<RealityTopologyLink> links = attachedWorld.TopologySnapshots(source.ToString())
-                .Where(item => item.kind == "cardinal-surface" && item.fromRegionId == source.ToString()).ToList();
+            if (map == null || attachedWorld == null || !attachedWorld.TryRegionForProjectionMapId(map.uniqueID, out RealityRegionId source)) return null;
+            List<RealityRegionConnection> links = attachedWorld.OutgoingConnections(source, "cardinal-surface").ToList();
             if (links.Count == 0) return null;
             int known = 0;
             int materialized = 0;
-            foreach (RealityTopologyLink link in links)
+            foreach (RealityRegionConnection link in links)
             {
-                if (attachedWorld.PopulationSnapshots(link.toRegionId, ProviderId, "wildlife").Count > 0) known++;
-                if (attachedWorld.RegionSnapshots().Any(item => item.id.ToString() == link.toRegionId &&
-                    item.fidelity == RealityFidelity.Materialized)) materialized++;
+                if (!link.TryGetDestinationRegionId(source.ToString(), out string destinationId)) continue;
+                if (attachedWorld.PopulationSnapshots(destinationId, ProviderId, "wildlife").Count > 0) known++;
+                if (attachedWorld.RegionSnapshots().Any(item => item.id.ToString() == destinationId &&
+                    item.authority == RealityRegionAuthority.LiveProjection)) materialized++;
             }
             return "Deferred adjacent regions: " + known + "/" + links.Count + " known" +
                 (materialized > 0 ? " • " + materialized + " materialized" : "");
@@ -277,6 +277,78 @@ namespace DeferredReality.Wildlife
             plan.AddStep("wildlife-plan-adjacent-habitat");
         }
 
+        public void BuildMaterializationConstraints(RealityMaterializationConsistencyContext context,
+            RealityMaterializationConsistencyPlan plan)
+        {
+            if (context?.World == null || plan == null) return;
+            foreach (RealityPopulationSnapshot snapshot in context.World.PopulationSnapshots(plan.RegionId, ProviderId, "wildlife")
+                .Where(item => item?.record != null).OrderBy(item => item.record.populationId, StringComparer.Ordinal))
+            {
+                RealityPopulationRecord population = snapshot.record;
+                plan.AddConstraint(new RealityMaterializationConstraint
+                {
+                    constraintId = "wildlife:population:" + population.populationId,
+                    providerId = ProviderId,
+                    sourceConstraintId = population.populationId,
+                    regionId = plan.RegionId,
+                    subjectId = population.subjectId,
+                    kind = "wildlife-habitat-population",
+                    spatialPrecision = RealityObservationPrecision.Habitat,
+                    enforcement = RealityMaterializationConstraintEnforcement.Required,
+                    certainty = population.established ? 1f : 0.7f,
+                    confidence = population.uncertainty <= 0f ? 1f :
+                        Mathf.Clamp01(population.amount / (population.amount + population.uncertainty)),
+                    conflictDomainKey = "wildlife:population:" + population.subjectId,
+                    conflictFacetKey = population.kind,
+                    payload = "amount=" + population.amount.ToString("R", CultureInfo.InvariantCulture) +
+                        ";uncertainty=" + population.uncertainty.ToString("R", CultureInfo.InvariantCulture) +
+                        ";habitat=" + population.habitatSuitability.ToString("R", CultureInfo.InvariantCulture)
+                });
+            }
+            foreach (RealityAnchorSnapshot snapshot in context.World.AnchorSnapshots(plan.RegionId, ProviderId)
+                .Where(item => item?.record != null).OrderBy(item => item.record.anchorId, StringComparer.Ordinal))
+            {
+                RealityAnchorRecord anchor = snapshot.record;
+                RealityLocation location = anchor.lastKnownLocation;
+                if (anchor.lifecycle == RealityAnchorLifecycle.Dead || anchor.lifecycle == RealityAnchorLifecycle.Retired ||
+                    location == null || !RealityObservationPrecisionRules.IsSpatiallyPrecise(location.precision)) continue;
+                plan.AddConstraint(new RealityMaterializationConstraint
+                {
+                    constraintId = "wildlife:anchor-location:" + anchor.anchorId,
+                    providerId = ProviderId,
+                    sourceConstraintId = anchor.anchorId,
+                    regionId = plan.RegionId,
+                    subjectId = anchor.anchorId,
+                    kind = "wildlife-identity-location",
+                    spatialPrecision = location.precision,
+                    enforcement = RealityObservationPrecisionRules.DefaultEnforcement(location.precision),
+                    certainty = 1f,
+                    confidence = 1f,
+                    location = location.Clone(),
+                    conflictDomainKey = "wildlife:anchor-location:" + anchor.anchorId,
+                    conflictFacetKey = anchor.typeId,
+                    payload = anchor.providerPayload
+                });
+            }
+        }
+
+        public void ValidateMaterializationConsistency(RealityMaterializationContext context,
+            RealityMaterializationConsistencyPlan plan, IList<RealityVeto> vetoes)
+        {
+            if (context?.World == null || plan == null) return;
+            if (context.World.PopulationSnapshots(plan.RegionId, ProviderId, "wildlife").Count == 0)
+                vetoes.Add(new RealityVeto("wildlife.consistency-population-missing",
+                    "Wildlife cannot rematerialize without its aggregate habitat populations.", ProviderId, 3));
+            foreach (RealityMaterializationConstraint obligation in plan.MaterializationConstraints
+                .Where(item => item != null && item.providerId == ProviderId && item.kind == "wildlife-identity-location"))
+            {
+                if (!context.World.AnchorSnapshots(plan.RegionId, ProviderId)
+                    .Any(item => item?.record != null && item.record.anchorId == obligation.subjectId))
+                    vetoes.Add(new RealityVeto("wildlife.consistency-missing-identity",
+                        "A retained Wildlife identity anchor is missing during rematerialization.", ProviderId, 3));
+            }
+        }
+
         public void Prepare(RealityMaterializationRequest request, RealityMaterializationPlan plan)
         {
             plan.AddStep("wildlife-prepare-population-projection");
@@ -289,7 +361,7 @@ namespace DeferredReality.Wildlife
             context.RuntimeState["wildlife.materialization-map"] = CaptureMaterializationMapState(context.Map);
             context.World.RegisterMap(context.Map, region);
             MaterializingRegions.Remove(region.ToString());
-            MigrateMap(context.Map, context.World);
+            ReconcileLiveProjection(context.Map, context.World);
             SyncMap(context.Map);
             EnsureAdjacentTopology(context.World, region);
             context.Plan.AddStep("wildlife-apply-active-projection");
@@ -617,7 +689,7 @@ namespace DeferredReality.Wildlife
                 return false;
             }
             Map destinationMap = Find.Maps?.FirstOrDefault(map => map != null && map.uniqueID ==
-                attachedWorld.RegionSnapshots().FirstOrDefault(item => item.id == destination)?.activeMapUniqueId);
+                attachedWorld.RegionSnapshots().FirstOrDefault(item => item.id == destination)?.projectionMapUniqueId);
             if (destinationMap == null)
             {
                 OpenWorldTravelFallback(sourceMap);
@@ -658,7 +730,7 @@ namespace DeferredReality.Wildlife
                 OpenWorldTravelFallback(sourceMap);
                 return false;
             }
-            RealityAdjacentTransferResult transfer = RealityAdjacentSurfaceService.TryTransfer(new RealityAdjacentTransferRequest
+            RealityAdjacentTransferResult transfer = RealityRegionTransferService.TryTransfer(new RealityAdjacentTransferRequest
             {
                 providerId = ProviderId,
                 sourceMap = sourceMap,
@@ -707,7 +779,7 @@ namespace DeferredReality.Wildlife
             if (context?.World == null || anchor?.providerId != ProviderId ||
                 !RealityRegionId.TryParse(anchor.regionId, out RealityRegionId region)) return;
             RealityRegionSnapshot snapshot = context.World.RegionSnapshots().FirstOrDefault(item => item.id == region);
-            Map map = Find.Maps?.FirstOrDefault(candidate => candidate != null && candidate.uniqueID == snapshot?.activeMapUniqueId);
+            Map map = Find.Maps?.FirstOrDefault(candidate => candidate != null && candidate.uniqueID == snapshot?.projectionMapUniqueId);
             Pawn pawn = map?.mapPawns?.AllPawnsSpawned?.FirstOrDefault(candidate =>
                 candidate?.GetUniqueLoadID() == anchor.optionalRimWorldLoadId);
             anchor.lastKnownTick = context.Now;
@@ -776,7 +848,7 @@ namespace DeferredReality.Wildlife
         internal WildlifeAnimalDeparture PrepareAnimalDeparture(Map map, Pawn animal, IntVec3 edge)
         {
             if (map == null || animal?.def?.race?.Animal != true || animal.Faction != null || attachedWorld == null) return null;
-            if (!attachedWorld.TryRegionForLegacyMap(map.uniqueID, out RealityRegionId source) || !source.IsValid) return null;
+            if (!attachedWorld.TryRegionForProjectionMapId(map.uniqueID, out RealityRegionId source) || !source.IsValid) return null;
             RealityRegionId destination = SelectAdjacentRegion(source, DirectionFor(edge, map));
             if (!destination.IsValid || destination == source) return null;
             string sourceId = ProviderPopulationId(source, animal.def.defName);
@@ -831,6 +903,8 @@ namespace DeferredReality.Wildlife
                         anchorId = anchorId,
                         providerId = ProviderId,
                         typeId = "roaming-animal",
+                        compressionSignificance = RealityCompressionSignificance.Identity,
+                        externalReferenceState = RealityExternalReferenceState.ProviderResolved,
                         optionalRimWorldLoadId = departure.animal.GetUniqueLoadID(),
                         importance = 1,
                         observationLevel = RealityObservationPrecision.Edge
@@ -958,18 +1032,18 @@ namespace DeferredReality.Wildlife
         private void EnsureAdjacentTopology(DeferredRealityWorldComponent world, RealityRegionId source)
         {
             if (world == null || !source.IsValid || !DeferredRealityModSettings.Current.enableAdjacentRegions || Find.WorldGrid == null) return;
-            List<RealityTopologyLink> existing = world.TopologySnapshots(source.ToString())
-                .Where(item => item.kind == "cardinal-surface" && item.fromRegionId == source.ToString()).ToList();
+            List<RealityRegionConnection> existing = world.OutgoingConnections(source, "cardinal-surface").ToList();
             if (existing.Count > 0)
             {
-                foreach (RealityTopologyLink link in existing)
-                    if (RealityRegionId.TryParse(link.toRegionId, out RealityRegionId destination)) SeedLatentRegion(world, destination);
+                foreach (RealityRegionConnection link in existing)
+                    if (link.TryGetDestinationRegionId(source.ToString(), out string destinationId) &&
+                        RealityRegionId.TryParse(destinationId, out RealityRegionId destination)) SeedLatentRegion(world, destination);
                 return;
             }
             Map sourceMap = Find.Maps?.FirstOrDefault(map => map != null && map.uniqueID ==
-                world.RegionSnapshots().FirstOrDefault(item => item.id == source)?.activeMapUniqueId);
+                world.RegionSnapshots().FirstOrDefault(item => item.id == source)?.projectionMapUniqueId);
             if (sourceMap == null) return;
-            foreach (RealityRegionSnapshot neighbor in RealityAdjacentSurfaceService.EnsureCardinalNeighbors(sourceMap))
+            foreach (RealityRegionSnapshot neighbor in RealityRegionTopologyService.EnsureCardinalNeighbors(sourceMap))
                 if (neighbor != null) SeedLatentRegion(world, neighbor.id);
         }
 
@@ -1015,6 +1089,7 @@ namespace DeferredReality.Wildlife
             float amount = Mathf.Clamp(2f + commonality * 14f + Math.Abs(seed % 7), 1f, 90f);
             world.UpsertPopulation(new RealityPopulationRecord
             {
+                compressionSignificance = RealityCompressionSignificance.Aggregate,
                 populationId = populationId,
                 providerId = ProviderId,
                 kind = "wildlife",
@@ -1038,11 +1113,11 @@ namespace DeferredReality.Wildlife
         {
             if (source == null || process == null || attachedWorld == null || !source.migrationAllowed || source.amount < 1f) return;
             float capacity = Mathf.Max(1f, source.carryingCapacity);
-            foreach (RealityTopologyLink link in attachedWorld.TopologySnapshots(source.regionId)
-                .Where(item => item.kind == "cardinal-surface" && item.fromRegionId == source.regionId)
-                .OrderBy(item => item.linkId, StringComparer.Ordinal))
+            foreach (RealityRegionConnection link in attachedWorld.OutgoingConnections(source.regionId, "cardinal-surface")
+                .OrderBy(item => item.connectionId, StringComparer.Ordinal))
             {
-                RealityPopulationSnapshot destination = attachedWorld.PopulationSnapshots(link.toRegionId, ProviderId, "wildlife")
+                if (!link.TryGetDestinationRegionId(source.regionId, out string destinationId)) continue;
+                RealityPopulationSnapshot destination = attachedWorld.PopulationSnapshots(destinationId, ProviderId, "wildlife")
                     .FirstOrDefault(item => item.record.subjectId == source.subjectId && item.record.migrationAllowed);
                 if (destination == null) continue;
                 float destinationCapacity = Mathf.Max(1f, destination.record.carryingCapacity);
@@ -1052,7 +1127,7 @@ namespace DeferredReality.Wildlife
                 float amount = Mathf.Clamp(source.amount * pressure * 0.025f * days, 0.1f, Mathf.Min(2.5f, source.amount * 0.12f));
                 RealityPopulationMutationResult result = RealityPopulationService.Transfer(attachedWorld,
                     source.populationId, destination.record.populationId, amount,
-                    "wildlife:migration:" + process.processId + ":" + process.executionCount + ":" + link.linkId,
+                    "wildlife:migration:" + process.processId + ":" + process.executionCount + ":" + link.connectionId,
                     execution.toTick, ProviderId);
                 if (result.succeeded || result.duplicate) return;
             }
@@ -1060,14 +1135,14 @@ namespace DeferredReality.Wildlife
 
         private RealityRegionId SelectAdjacentRegion(RealityRegionId source, string direction)
         {
-            List<RealityTopologyLink> links = attachedWorld?.TopologySnapshots(source.ToString())
-                .Where(item => item.kind == "cardinal-surface" && item.fromRegionId == source.ToString())
-                .OrderBy(item => item.linkId, StringComparer.Ordinal).ToList();
+            List<RealityRegionConnection> links = attachedWorld?.OutgoingConnections(source, "cardinal-surface")
+                .OrderBy(item => item.connectionId, StringComparer.Ordinal).ToList();
             if (links == null || links.Count == 0) return default(RealityRegionId);
             int hash = RealityDeterminism.StableHash(direction ?? string.Empty);
             if (hash == int.MinValue) hash = int.MaxValue;
             int index = Math.Abs(hash) % links.Count;
-            return RealityRegionId.TryParse(links[index].toRegionId, out RealityRegionId result) ? result : default(RealityRegionId);
+            return links[index].TryGetDestinationRegionId(source.ToString(), out string destinationId) &&
+                RealityRegionId.TryParse(destinationId, out RealityRegionId result) ? result : default(RealityRegionId);
         }
 
         private static IntVec3 FindEntryCell(Map map, string edge, int offset)
@@ -1157,7 +1232,8 @@ namespace DeferredReality.Wildlife
                 !RealityRegionId.TryParse(parent.regionId, out RealityRegionId parentRegion) || parentRegion != markerRegion)
                 return "The map parent is not the expected Wildlife identity for the represented region.";
             if (!attachedWorld.TryGetRegion(markerRegion, out RealityRegionSnapshot region) || region == null ||
-                region.activeMapUniqueId != request.Map.uniqueID)
+                region.authority != RealityRegionAuthority.LiveProjection ||
+                region.projectionMapUniqueId != request.Map.uniqueID)
                 return "The active map projection does not match the adjacent-site marker.";
 
             var claims = new List<RealityMapIdentityClaim>();

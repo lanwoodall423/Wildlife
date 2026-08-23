@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
+using InsightCanvas;
 using KnowledgeFramework;
 using RimWorld;
 using UnityEngine;
@@ -22,2090 +24,1471 @@ namespace Herds
         Chronicle = 9
     }
 
-    /// <summary>One responsive presentation surface for Wildlife's evidence loop.</summary>
-    public sealed class Window_WildlifeJournal : Window
+    /// <summary>Compatibility entry points for the one retained Wildlife Journal document.</summary>
+    public static class WildlifeJournal
     {
-        private readonly Map map;
-        private WildlifeJournalPage page;
-        private ThingDef selectedSpecies;
-        private Vector2 leftScroll;
-        private Vector2 bodyScroll;
-        private string search = string.Empty;
-        private int cachedTick = -1;
-        private int cachedKnowledgeRevision = -1;
-        private WildlifeEcologySnapshot cachedSnapshot;
-        private List<ThingDef> cachedSpecies = new List<ThingDef>();
-        private List<AtlasActivity> atlasActivities = new List<AtlasActivity>();
-        private List<FieldLogItem> cachedFieldLog = new List<FieldLogItem>();
-        private Pawn signalObserver;
-        private Vector2? initialSignalSpeciesScroll;
-        private Vector2? initialSignalDetailScroll;
-        private readonly int focusedFieldLogTick;
-        private WildlifeSignalJournalPanel signalPanel;
-        private const float HubActionHeight = 88f;
-        private const float HubActionRowStep = 98f;
-        private readonly Dictionary<string, IReadOnlyList<KnowledgeFacetSnapshotV2>> facetCache =
-            new Dictionary<string, IReadOnlyList<KnowledgeFacetSnapshotV2>>(StringComparer.Ordinal);
-
-        private enum AtlasActivityKind
+        public static void Open(Map map, WildlifeJournalPage page = WildlifeJournalPage.FieldLog,
+            ThingDef species = null, Pawn observer = null, int focusedFieldLogTick = -1)
         {
-            Presence,
-            Trend,
-            Trail,
-            Migration,
-            Signal
-        }
-
-        private sealed class AtlasActivity
-        {
-            public AtlasActivityKind kind;
-            public ThingDef species;
-            public IntVec3 cell;
-            public string title;
-            public string detail;
-            public float confidence;
-            public int tick;
-        }
-
-        private enum FieldLogItemKind
-        {
-            Moment,
-            Signal,
-            Trail,
-            Investigation,
-            Expedition,
-            Outcome
-        }
-
-        private sealed class FieldLogItem
-        {
-            public FieldLogItemKind kind;
-            public string key;
-            public string title;
-            public string detail;
-            public string meaning;
-            public string location;
-            public string certainty;
-            public int tick;
-            public ThingDef species;
-            public bool urgent;
-            public WildlifeTrailLead trail;
-            public WildlifeExperienceEvent outcome;
-        }
-
-        public override Vector2 InitialSize => new Vector2(Mathf.Min(1180f, UI.screenWidth * 0.94f), Mathf.Min(780f, UI.screenHeight * 0.90f));
-
-        public Window_WildlifeJournal(Map map, WildlifeJournalPage page = WildlifeJournalPage.FieldLog,
-            ThingDef selectedSpecies = null, Pawn signalObserver = null,
-            Vector2? signalSpeciesScroll = null, Vector2? signalDetailScroll = null,
-            int focusedFieldLogTick = -1)
-        {
-            this.map = map ?? Find.CurrentMap;
-            this.page = page;
-            this.selectedSpecies = selectedSpecies;
-            this.signalObserver = signalObserver;
-            initialSignalSpeciesScroll = signalSpeciesScroll;
-            initialSignalDetailScroll = signalDetailScroll;
-            this.focusedFieldLogTick = focusedFieldLogTick;
-            doCloseX = true;
-            absorbInputAroundWindow = true;
-            resizeable = true;
+            WildlifeJournalPresentation presentation = new WildlifeJournalPresentation(
+                map ?? Find.CurrentMap, page, species, observer, focusedFieldLogTick);
+            Find.WindowStack.Add(presentation.Window);
         }
 
         public static void OpenSignals(Map map, Pawn observer = null, ThingDef species = null,
-            Vector2? speciesScroll = null, Vector2? detailScroll = null)
-        {
-            WildlifeJournalPage targetPage = SignalsVisible()
-                ? WildlifeJournalPage.Signals : WildlifeJournalPage.FieldLog;
-            Find.WindowStack.Add(new Window_WildlifeJournal(map, targetPage, species, observer,
-                speciesScroll, detailScroll));
-        }
+            Vector2? speciesScroll = null, Vector2? detailScroll = null) =>
+            Open(map, SignalsVisible() ? WildlifeJournalPage.Signals : WildlifeJournalPage.FieldLog,
+                species, observer);
 
-        public static void OpenFieldLog(Map map, int focusedTick = -1)
-        {
-            Find.WindowStack.Add(new Window_WildlifeJournal(map, WildlifeJournalPage.FieldLog,
-                null, null, null, null, focusedTick));
-        }
-
-        public override void DoWindowContents(Rect inRect)
-        {
-            Map activeMap = map ?? Find.CurrentMap;
-            RefreshModel(activeMap);
-            if (page == WildlifeJournalPage.Expeditions && !ExpeditionsVisible()) page = WildlifeJournalPage.FieldLog;
-            if (page == WildlifeJournalPage.Signals && !SignalsVisible())
-                page = WildlifeJournalPage.FieldLog;
-            Text.Font = GameFont.Medium;
-            float freshnessWidth = Mathf.Clamp(inRect.width * 0.30f, 220f, 300f);
-            Widgets.Label(new Rect(inRect.x, inRect.y, Mathf.Max(160f, inRect.width - freshnessWidth - 18f), 34f), "Wildlife Journal");
-            Text.Font = GameFont.Small;
-            GUI.color = new Color(0.66f, 0.76f, 0.68f);
-            Widgets.Label(new Rect(inRect.x, inRect.y + 30f, inRect.width - 220f, 24f),
-                "Notice  >  gather evidence  >  form a hypothesis  >  investigate  >  decide  >  preserve the story");
-            GUI.color = Color.white;
-            DrawFreshnessMark(new Rect(inRect.xMax - freshnessWidth, inRect.y + 3f, freshnessWidth, 24f));
-
-            Rect tabs = new Rect(inRect.x, inRect.y + 57f, inRect.width, 34f);
-            DrawTabs(tabs);
-            float bodyY = tabs.yMax + 8f;
-            if (!IsHubPage(page))
-            {
-                DrawDetailNavigation(new Rect(inRect.x, bodyY, inRect.width, 28f));
-                bodyY += 36f;
-            }
-            Rect body = new Rect(inRect.x, bodyY, inRect.width,
-                Mathf.Max(1f, inRect.yMax - bodyY));
-            if (activeMap == null)
-            {
-                Widgets.Label(body, "No active map. Wildlife evidence will appear here when a map is available.");
-                return;
-            }
-            switch (page)
-            {
-                case WildlifeJournalPage.FieldLog: DrawFieldLog(body, activeMap); break;
-                case WildlifeJournalPage.Knowledge: DrawKnowledgeHub(body, activeMap); break;
-                case WildlifeJournalPage.Region: DrawRegionHub(body, activeMap); break;
-                case WildlifeJournalPage.Chronicle: DrawChronicleHub(body, activeMap); break;
-                case WildlifeJournalPage.LivingAtlas: DrawLivingAtlas(body, activeMap); break;
-                case WildlifeJournalPage.Signals: DrawSignals(body, activeMap); break;
-                case WildlifeJournalPage.Investigations: DrawInvestigations(body, activeMap); break;
-                case WildlifeJournalPage.Expeditions: DrawExpeditions(body, activeMap); break;
-                case WildlifeJournalPage.Stories: DrawStories(body, activeMap); break;
-                default: DrawFieldGuide(body, activeMap); break;
-            }
-        }
-
-        private void RefreshModel(Map activeMap)
-        {
-            int now = Find.TickManager?.TicksGame ?? 0;
-            int knowledgeRevision = KnowledgeQuery.Revision;
-            if (cachedSnapshot != null && cachedSnapshot.map == activeMap && cachedTick == now / 30 &&
-                cachedKnowledgeRevision == knowledgeRevision) return;
-            cachedSnapshot = WildlifeEcologySnapshots.For(activeMap);
-            IReadOnlyList<WildlifeEvent> history = WildlifeEventRouter.Shared.History;
-            HashSet<ThingDef> mapSpecies = new HashSet<ThingDef>(activeMap?.mapPawns?.AllPawnsSpawned
-                .Where(pawn => pawn?.RaceProps?.Animal == true).Select(pawn => pawn.def) ?? Enumerable.Empty<ThingDef>());
-            if (cachedSnapshot != null)
-            {
-                foreach (WildlifeMigrationSnapshot migration in cachedSnapshot.migrations)
-                    if (migration?.species != null) mapSpecies.Add(migration.species);
-                foreach (WildlifeTrailSnapshot trail in cachedSnapshot.trails)
-                    if (trail?.species != null) mapSpecies.Add(trail.species);
-            }
-            foreach (WildlifeEvent value in history.Where(value => value?.map == activeMap && value.species != null))
-                mapSpecies.Add(value.species);
-            HashSet<ThingDef> seenSpecies = new HashSet<ThingDef>(history
-                .Where(value => value?.map == activeMap && value.species != null &&
-                    value.observer?.Faction == Faction.OfPlayer && value.observer.RaceProps?.Humanlike == true)
-                .Select(value => value.species));
-            foreach (Pawn colonist in activeMap?.mapPawns?.FreeColonistsSpawned ?? Enumerable.Empty<Pawn>())
-                foreach (ThingDef species in mapSpecies)
-                    if (WildlifeKnowledgeAdapter.PersonalKnowledge(colonist, species) > 0f) seenSpecies.Add(species);
-            // TaggedString is intentionally not comparable in RimWorld's runtime. Use stable
-            // strings for deterministic ordering instead of passing the wrapper to LINQ.
-            cachedSpecies = OrderByKnowledge(cachedSnapshot?.species.Where(value => value?.species != null &&
-                mapSpecies.Contains(value.species) && seenSpecies.Contains(value.species)) ?? Enumerable.Empty<WildlifeSpeciesSnapshot>())
-                .Select(value => value.species)
-                .ToList() ?? new List<ThingDef>();
-            atlasActivities = BuildAtlasActivities(activeMap, cachedSnapshot, now);
-            cachedFieldLog = BuildFieldLog(activeMap, now);
-            cachedTick = now / 30;
-            cachedKnowledgeRevision = knowledgeRevision;
-            facetCache.Clear();
-            if (page != WildlifeJournalPage.Signals &&
-                (selectedSpecies == null || !cachedSpecies.Contains(selectedSpecies)))
-                selectedSpecies = cachedSpecies.FirstOrDefault();
-        }
-
-        private void DrawTabs(Rect rect)
-        {
-            GUI.color = Color.white;
-            Text.Anchor = TextAnchor.MiddleCenter;
-            List<string> labels = new List<string> { "Field Log", "Knowledge", "Region", "Chronicle" };
-            List<WildlifeJournalPage> pages = new List<WildlifeJournalPage>
-            {
-                WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
-                WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle
-            };
-            Widgets.DrawBoxSolid(rect, new Color(0.11f, 0.13f, 0.13f, 1f));
-            float width = rect.width / labels.Count;
-            for (int i = 0; i < labels.Count; i++)
-            {
-                Rect tab = new Rect(rect.x + i * width, rect.y, width, rect.height);
-                if (page == pages[i] || HubForPage(page) == pages[i])
-                    Widgets.DrawBoxSolid(tab.ContractedBy(1f), new Color(0.28f, 0.43f, 0.33f, 1f));
-                else Widgets.DrawHighlightIfMouseover(tab.ContractedBy(1f));
-                if (Widgets.ButtonInvisible(tab))
-                {
-                    page = pages[i];
-                    if (page != WildlifeJournalPage.Signals && pages[i] != WildlifeJournalPage.Signals)
-                    {
-                        bodyScroll = Vector2.zero;
-                        leftScroll = Vector2.zero;
-                    }
-                }
-                Widgets.Label(tab.ContractedBy(4f), labels[i]);
-            }
-            Text.Anchor = TextAnchor.UpperLeft;
-        }
-
-        private void DrawDetailNavigation(Rect rect)
-        {
-            WildlifeJournalPage hub = HubForPage(page);
-            Widgets.DrawMenuSection(rect);
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(0.68f, 0.78f, 0.70f);
-            Widgets.Label(new Rect(rect.x + 9f, rect.y + 6f, rect.width - 190f, 18f),
-                HubLabel(hub) + " / " + DetailLabel(page));
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            if (Widgets.ButtonText(new Rect(rect.xMax - 178f, rect.y + 2f, 168f, 24f),
-                "Back to " + HubLabel(hub)))
-            {
-                page = hub;
-                bodyScroll = Vector2.zero;
-                leftScroll = Vector2.zero;
-            }
-        }
-
-        private static bool IsHubPage(WildlifeJournalPage value) =>
-            value == WildlifeJournalPage.FieldLog || value == WildlifeJournalPage.Knowledge ||
-            value == WildlifeJournalPage.Region || value == WildlifeJournalPage.Chronicle;
-
-        private static WildlifeJournalPage HubForPage(WildlifeJournalPage value)
-        {
-            switch (value)
-            {
-                case WildlifeJournalPage.FieldGuide:
-                case WildlifeJournalPage.Signals:
-                    return WildlifeJournalPage.Knowledge;
-                case WildlifeJournalPage.LivingAtlas:
-                case WildlifeJournalPage.Expeditions:
-                    return WildlifeJournalPage.Region;
-                case WildlifeJournalPage.Investigations:
-                case WildlifeJournalPage.Stories:
-                    return WildlifeJournalPage.Chronicle;
-                default:
-                    return value == WildlifeJournalPage.Knowledge || value == WildlifeJournalPage.Region ||
-                        value == WildlifeJournalPage.Chronicle ? value : WildlifeJournalPage.FieldLog;
-            }
-        }
-
-        private static string HubLabel(WildlifeJournalPage value) => value == WildlifeJournalPage.Knowledge
-            ? "Knowledge" : value == WildlifeJournalPage.Region ? "Region" :
-            value == WildlifeJournalPage.Chronicle ? "Chronicle" : "Field Log";
-
-        private static string DetailLabel(WildlifeJournalPage value) => value == WildlifeJournalPage.FieldGuide
-            ? "Field Guide" : value == WildlifeJournalPage.LivingAtlas ? "Living Atlas" :
-            value == WildlifeJournalPage.Signals ? "Signals" : value == WildlifeJournalPage.Investigations
-                ? "Investigations" : value == WildlifeJournalPage.Expeditions ? "Expeditions" :
-                value == WildlifeJournalPage.Stories ? "Stories" : "Detail";
-
-        private void DrawFreshnessMark(Rect rect)
-        {
-            float pulse = 0.50f + Mathf.Sin(Time.realtimeSinceStartup * 2.2f) * 0.08f;
-            GUI.color = new Color(0.45f, 0.80f, 0.58f, pulse);
-            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y + 8f, 8f, 8f), GUI.color);
-            GUI.color = new Color(0.68f, 0.76f, 0.69f);
-            Widgets.Label(new Rect(rect.x + 14f, rect.y, rect.width - 14f, rect.height),
-                cachedSnapshot == null ? "Waiting for field evidence" : "Live evidence view");
-            GUI.color = Color.white;
-        }
+        public static void OpenFieldLog(Map map, int focusedTick = -1) =>
+            Open(map, WildlifeJournalPage.FieldLog, null, null, focusedTick);
 
         public static bool SignalsVisible() => HerdsMod.Settings?.enableWildlifeSignalCulture == true;
 
-        internal static IReadOnlyList<WildlifeJournalPage> TopLevelPagesForTesting() =>
-            new[]
-            {
-                WildlifeJournalPage.FieldLog,
-                WildlifeJournalPage.Knowledge,
-                WildlifeJournalPage.Region,
-                WildlifeJournalPage.Chronicle
-            };
+        internal static IReadOnlyList<WildlifeJournalPage> TopLevelPagesForTesting()
+        {
+            Map map = Find.CurrentMap;
+            List<WildlifeJournalPage> pages = new List<WildlifeJournalPage> { WildlifeJournalPage.FieldLog };
+            WildlifeEcologySnapshot ecology = WildlifeEcologySnapshots.For(map);
+            bool species = ecology?.species?.Any(value =>
+                WildlifeInsightDisclosure.For(map, value).Visible) == true;
+            bool knowledge = ecology?.species?.Any(value =>
+                WildlifeInsightDisclosure.For(map, value).KnowledgeVisible) == true;
+            bool region = ecology?.species?.Any(value =>
+                WildlifeInsightDisclosure.For(map, value).RegionalPopulation.Available) == true;
+            if (knowledge) pages.Add(WildlifeJournalPage.Knowledge);
+            if (region) pages.Add(WildlifeJournalPage.Region);
+            if (ecology?.activeMysteries > 0 || ecology?.activeExpeditions > 0) pages.Add(WildlifeJournalPage.Chronicle);
+            if (ecology?.species?.Any(value =>
+                    WildlifeInsightDisclosure.For(map, value).FieldGuideVisible) == true)
+                pages.Add(WildlifeJournalPage.FieldGuide);
+            if (region) pages.Add(WildlifeJournalPage.LivingAtlas);
+            if (SignalsVisible() && ecology?.signals?.Count > 0) pages.Add(WildlifeJournalPage.Signals);
+            if (ecology?.activeMysteries > 0) pages.Add(WildlifeJournalPage.Investigations);
+            if (ExpeditionsVisible()) pages.Add(WildlifeJournalPage.Expeditions);
+            if (ecology?.activeMysteries > 0) pages.Add(WildlifeJournalPage.Stories);
+            return pages.Distinct().ToList();
+        }
 
         public static bool ExpeditionsVisible() => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
             WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition);
 
-        private void DrawSignals(Rect rect, Map activeMap)
-        {
-            if (!SignalsVisible())
-            {
-                page = WildlifeJournalPage.FieldLog;
-                Widgets.Label(rect, "Signal culture is disabled in Wildlife settings.");
-                return;
-            }
-            if (signalPanel == null)
-            {
-                signalPanel = new WildlifeSignalJournalPanel(activeMap, signalObserver, selectedSpecies,
-                    initialSignalSpeciesScroll, initialSignalDetailScroll);
-                initialSignalSpeciesScroll = null;
-                initialSignalDetailScroll = null;
-            }
-            signalPanel.DrawJournalPanel(rect);
-            selectedSpecies = signalPanel.SelectedSpecies;
-            signalObserver = signalPanel.Observer;
-        }
-
-        private void DrawFieldLog(Rect rect, Map activeMap)
-        {
-            const float headerHeight = 78f;
-            const float rowHeight = 100f;
-            List<FieldLogItem> attention = cachedFieldLog.Where(item => item.urgent).Take(6).ToList();
-            List<FieldLogItem> recent = cachedFieldLog.Where(item => !item.urgent).Take(20).ToList();
-            if (attention.Count == 0 && recent.Count == 0)
-            {
-                Widgets.DrawMenuSection(new Rect(rect.x, rect.y, rect.width, headerHeight + 132f));
-                Text.Font = GameFont.Medium;
-                Widgets.Label(new Rect(rect.x + 12f, rect.y + 12f, rect.width - 24f, 28f), "Field Log");
-                Text.Font = GameFont.Small;
-                Widgets.Label(new Rect(rect.x + 12f, rect.y + 48f, rect.width - 24f, 74f),
-                    "The Field Log is empty. Records will appear after the colony sees wildlife, hears a call, follows a sign, responds to a moment, or receives a field report.\n\n" +
-                    "Keep a colonist near wildlife, study a sign, or survey the region to begin reading the living world.");
-                return;
-            }
-
-            float contentHeight = headerHeight +
-                (attention.Count > 0 ? 38f + attention.Count * rowHeight : 0f) +
-                (recent.Count > 0 ? 48f + recent.Count * rowHeight : 0f);
-            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
-                Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, view.width, 28f), "Field Log");
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(0f, 32f, view.width, 38f),
-                "Recent observations, interpretations, and decisions. Each note points back to the existing record or action that produced it.");
-            float y = headerHeight;
-            if (attention.Count > 0)
-            {
-                Text.Font = GameFont.Medium;
-                Widgets.Label(new Rect(0f, y, view.width, 28f), "Needs attention");
-                Text.Font = GameFont.Small;
-                y += 38f;
-                for (int i = 0; i < attention.Count; i++)
-                {
-                    DrawFieldLogRow(new Rect(0f, y, view.width, rowHeight - 6f), attention[i], activeMap);
-                    y += rowHeight;
-                }
-            }
-            if (recent.Count > 0)
-            {
-                Text.Font = GameFont.Medium;
-                Widgets.Label(new Rect(0f, y, view.width, 28f), "Recent notes");
-                Text.Font = GameFont.Small;
-                y += 42f;
-                for (int i = 0; i < recent.Count; i++)
-                {
-                    DrawFieldLogRow(new Rect(0f, y, view.width, rowHeight - 6f), recent[i], activeMap);
-                    y += rowHeight;
-                }
-            }
-            Widgets.EndScrollView();
-        }
-
-        private void DrawFieldLogRow(Rect rect, FieldLogItem item, Map activeMap)
-        {
-            bool focused = focusedFieldLogTick >= 0 && item.tick == focusedFieldLogTick;
-            Widgets.DrawMenuSection(rect);
-            if (focused) Widgets.DrawBoxSolid(rect, new Color(0.22f, 0.36f, 0.23f, 0.9f));
-            Color accent = item.urgent ? new Color(0.88f, 0.34f, 0.25f) : item.kind == FieldLogItemKind.Signal
-                ? new Color(0.45f, 0.38f, 0.72f) : item.kind == FieldLogItemKind.Trail
-                    ? new Color(0.35f, 0.68f, 0.78f) : new Color(0.42f, 0.68f, 0.47f);
-            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, 5f, rect.height), accent);
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(0.68f, 0.78f, 0.70f);
-            Widgets.Label(new Rect(rect.x + 14f, rect.y + 7f, rect.width * 0.28f, 18f),
-                FieldLogKindLabel(item.kind));
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            float buttonWidth = FieldLogHasAction(item) ? 104f : 0f;
-            float textWidth = Mathf.Max(100f, rect.width - 30f - buttonWidth);
-            Widgets.Label(new Rect(rect.x + 14f, rect.y + 25f, textWidth, 22f), item.title);
-            Widgets.Label(new Rect(rect.x + 14f, rect.y + 48f, textWidth, 30f),
-                (item.detail ?? "A field record was preserved.") + "\n" +
-                (item.meaning ?? "The colony is still interpreting this record."));
-            Text.Anchor = TextAnchor.MiddleRight;
-            GUI.color = new Color(0.62f, 0.73f, 0.66f);
-            string time = item.tick <= 0 ? "Recently" :
-                Mathf.Max(0, (Find.TickManager?.TicksGame ?? item.tick) - item.tick).ToStringTicksToPeriod() + " ago";
-            Widgets.Label(new Rect(rect.x + 14f, rect.y + 76f, textWidth - 4f, 16f),
-                (item.location ?? "Field record") + "  |  " + item.certainty + "  |  " +
-                FreshnessLabel(item.tick) + "  |  " + time);
-            GUI.color = Color.white;
-            Text.Anchor = TextAnchor.UpperLeft;
-            if (FieldLogHasAction(item) && Widgets.ButtonText(
-                new Rect(rect.xMax - buttonWidth - 10f, rect.y + 27f, buttonWidth, 30f), FieldLogActionLabel(item)))
-                OpenFieldLogItem(item, activeMap);
-            TooltipHandler.TipRegion(rect, item.detail + "\n" + item.meaning + "\n" +
-                (item.location ?? "Field record") + "\n" + item.certainty + ".");
-        }
-
-        private void DrawKnowledgeHub(Rect rect, Map activeMap)
-        {
-            List<WildlifeSpeciesSnapshot> records = cachedSnapshot?.species
-                ?.Where(value => value?.species != null && cachedSpecies.Contains(value.species))
-                .OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId))
-                .ThenBy(value => value.species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase)
-                .Take(8).ToList() ?? new List<WildlifeSpeciesSnapshot>();
-            float contentHeight = 74f + 84f + 82f + 58f + Mathf.Max(104f, records.Count * 74f);
-            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
-                Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            DrawHubHeader(new Rect(0f, 0f, view.width, 74f), "Knowledge",
-                "What the colony understands: species, behavior, interpreted signals, and the evidence behind each working conclusion.");
-            bool hasSignals = SignalsVisible();
-            WildlifeSignalCultureMapComponent signalCulture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
-            bool hasWarningTraces = signalCulture != null && records.Any(value =>
-                signalCulture.HasWarningSignals(value.species));
-            WildlifeWarningKnowledgeState warningKnowledge = records.Select(value =>
-                signalCulture?.ColonyWarningKnowledge(value.species)).FirstOrDefault(value => value?.hasEvidence == true);
-            bool hasEvidence = records.Any(value => value.evidence?.Count > 0 || value.signals?.Count > 0 ||
-                value.trails?.Count > 0 || value.migrations?.Count > 0);
-            string recordState = records.Count == 0 ? "No field record yet" : records.Any(value =>
-                WildlifeKnowledgeAdapter.StageOrder(value.stageId) >= 5) ? "Some records are documented" : "Records are growing";
-            string behaviorState = records.Any(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId) >= 3)
-                ? "Behavior patterns are emerging" : records.Count == 0 ? "No behavior pattern yet" : "Behavior remains a working hypothesis";
-            string signalState = !hasSignals ? "Signal culture is unavailable" :
-                warningKnowledge != null ? warningKnowledge.PlayerLabel :
-                hasWarningTraces ? "Warning calls are being compared" :
-                cachedSnapshot?.signals?.Count > 0 ? "Recent interpretations are available" : "No interpreted calls yet";
-            float statusWidth = Mathf.Max(80f, (view.width - 16f) / 3f);
-            DrawHubStatus(new Rect(0f, 82f, statusWidth, 72f), "Species records", recordState,
-                new Color(0.34f, 0.64f, 0.48f),
-                "The Knowledge page only lists species the colony has encountered or learned about.");
-            DrawHubStatus(new Rect(statusWidth + 8f, 82f, statusWidth, 72f), "Learned behavior", behaviorState,
-                new Color(0.43f, 0.57f, 0.76f),
-                "Repeated observations turn unfamiliar behavior into a usable pattern.");
-            DrawHubStatus(new Rect((statusWidth + 8f) * 2f, 82f, statusWidth, 72f), "Interpreted signals", signalState,
-                new Color(0.60f, 0.43f, 0.72f),
-                "Signal detail remains available without treating internal thresholds as player knowledge.");
-
-            float actionY = 164f;
-            float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
-            DrawHubAction(new Rect(0f, actionY, actionWidth, HubActionHeight), "Field Guide",
-                "Read species records, provenance, and the next useful observation.", "Open Field Guide", true,
-                () =>
-                {
-                    page = WildlifeJournalPage.FieldGuide;
-                    bodyScroll = Vector2.zero;
-                });
-            DrawHubAction(new Rect(actionWidth + 8f, actionY, actionWidth, HubActionHeight), "Signals",
-                hasSignals ? "Review interpreted calls and compare observers." : "Enable signal culture to study animal calls.",
-                hasSignals ? "Review Signals" : "Unavailable", hasSignals,
-                () =>
-                {
-                    page = WildlifeJournalPage.Signals;
-                    bodyScroll = Vector2.zero;
-                });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, actionY, actionWidth, HubActionHeight), "Colony knowledge",
-                "Open the existing colony-wide knowledge detail window.", "Open details", true,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge());
-                });
-
-            float y = actionY + HubActionRowStep + 8f;
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, y, view.width, 28f), "Working records");
-            Text.Font = GameFont.Small;
-            y += 34f;
-            if (records.Count == 0)
-            {
-                DrawHubEmpty(new Rect(0f, y, view.width, 94f),
-                    "No wildlife knowledge has been preserved yet.",
-                    "Observe an animal, study a sign, follow a trail, or review a signal to begin a record.");
-            }
-            else
-            {
-                for (int i = 0; i < records.Count; i++)
-                {
-                    DrawKnowledgeRecord(new Rect(0f, y + i * 74f, view.width, 68f), records[i], activeMap);
-                }
-            }
-            if (hasEvidence)
-            {
-                GUI.color = new Color(0.66f, 0.76f, 0.68f);
-                Widgets.Label(new Rect(0f, y + Mathf.Max(94f, records.Count * 74f) + 8f, view.width, 24f),
-                    "The colony's conclusions remain provisional until repeated evidence agrees.");
-                GUI.color = Color.white;
-            }
-            Widgets.EndScrollView();
-        }
-
-        private void DrawKnowledgeRecord(Rect rect, WildlifeSpeciesSnapshot value, Map activeMap)
-        {
-            Widgets.DrawMenuSection(rect);
-            if (value?.species != null) Widgets.ThingIcon(new Rect(rect.x + 8f, rect.y + 9f, 48f, 48f), value.species);
-            string stage = WildlifeKnowledgeAdapter.StageLabel(value?.stageId);
-            string source = KnowledgeSourceLabel(value);
-            string detail = stage + "  |  " + ConfidenceLabel(value?.confidence ?? 0f) + "  |  " +
-                FreshnessLabel(AtlasLatestTick(value)) + "\n" + source + ". " + KnowledgeMeaning(value);
-            WildlifeSignalCultureMapComponent signalCulture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
-            if (signalCulture?.HasWarningSignals(value?.species) == true)
-            {
-                WildlifeWarningKnowledgeState warning = signalCulture.ColonyWarningKnowledge(value.species);
-                detail += "\nWarning calls: " + warning.PlayerLabel + ".";
-            }
-            WildlifePredatorPressureKnowledgeState predatorPressure = signalCulture?.ColonyPredatorPressure(value?.species);
-            if (predatorPressure?.hasEvidence == true)
-                detail += "\nEcological pattern: " + predatorPressure.PlayerLabel + ".";
-            Widgets.Label(new Rect(rect.x + 66f, rect.y + 8f, rect.width - 178f, 52f),
-                (value?.species?.LabelCap ?? "Unknown wildlife") + "\n" + detail);
-            if (Widgets.ButtonText(new Rect(rect.xMax - 102f, rect.y + 18f, 92f, 30f), "Field Guide"))
-            {
-                selectedSpecies = value.species;
-                page = WildlifeJournalPage.FieldGuide;
-                bodyScroll = Vector2.zero;
-            }
-        }
-
-        private static string KnowledgeSourceLabel(WildlifeSpeciesSnapshot value)
-        {
-            if (value == null) return "No source has been preserved";
-            if (value.evidence?.Any(item => item != null &&
-                (item.observerCount > 0 || !item.observerName.NullOrEmpty())) == true)
-                return "Direct field observation";
-            if (value.signals?.Count > 0) return "Interpreted animal signals";
-            if (value.trails?.Count > 0) return "Signs and tracking evidence";
-            if (value.migrations?.Count > 0) return "Regional movement";
-            return "A working field record";
-        }
-
-        private static string KnowledgeMeaning(WildlifeSpeciesSnapshot value)
-        {
-            int order = WildlifeKnowledgeAdapter.StageOrder(value?.stageId);
-            return order >= 5 ? "The colony can make a cautious prediction from it." :
-                order >= 3 ? "Repeated observation is turning it into a pattern." :
-                "More observation is needed before acting on it.";
-        }
-
-        private static WildlifePredatorPressureKnowledgeState BestPredatorPressure(Map activeMap,
-            WildlifeEcologySnapshot snapshot, RegionalWildlifeMapComponent regional)
-        {
-            WildlifeSignalCultureMapComponent signalCulture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
-            if (signalCulture == null) return null;
-            HashSet<ThingDef> species = new HashSet<ThingDef>();
-            if (snapshot?.species != null)
-                for (int i = 0; i < snapshot.species.Count; i++)
-                    if (snapshot.species[i]?.species != null) species.Add(snapshot.species[i].species);
-            if (regional?.Records != null)
-                for (int i = 0; i < regional.Records.Count; i++)
-                    if (regional.Records[i]?.species != null) species.Add(regional.Records[i].species);
-            return species.Select(signalCulture.ColonyPredatorPressure)
-                .Where(state => state?.hasEvidence == true)
-                .OrderByDescending(state => state.claimSupported)
-                .ThenByDescending(state => state.meaningInterpreted)
-                .ThenByDescending(state => state.patternRecognized)
-                .ThenByDescending(state => state.claimObservationCount)
-                .FirstOrDefault();
-        }
-
-        private static Thing ExistingPredatorDeterrent(Map map)
-        {
-            ThingDef deterrent = HerdsDefOf.Herds_PredatorDeterrent;
-            return map?.listerThings != null && deterrent != null
-                ? map.listerThings.ThingsOfDef(deterrent).FirstOrDefault(thing => thing?.Spawned == true)
-                : null;
-        }
-
         internal static bool OpenPredatorDeterrent(Map map)
         {
             if (map == null) return false;
-            Thing existing = ExistingPredatorDeterrent(map);
+            ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
+            Thing existing = deterrentDef == null ? null : map.listerThings?.ThingsOfDef(deterrentDef)
+                ?.FirstOrDefault(thing => thing?.Spawned == true);
             if (existing != null)
             {
                 WildlifeUI.Focus(existing);
                 return true;
             }
-
             if (HerdsMod.Settings?.enablePredatorDeterrents != true)
             {
-                Messages.Message("Predator Deterrent is disabled in Wildlife settings.",
+                Messages.Message(JournalText.Get("Wildlife.UI.Journal.Deterrent.Disabled"),
                     MessageTypeDefOf.RejectInput, false);
                 return false;
             }
-
-            ThingDef deterrentDef = HerdsDefOf.Herds_PredatorDeterrent;
             if (deterrentDef == null || deterrentDef.designationCategory == null)
             {
-                Messages.Message("Predator Deterrent is unavailable as a player construction in this scenario.",
+                Messages.Message(JournalText.Get("Wildlife.UI.Journal.Deterrent.Unavailable"),
                     MessageTypeDefOf.RejectInput, false);
                 return false;
             }
-
             ResearchProjectDef pendingResearch = deterrentDef.researchPrerequisites?.FirstOrDefault(project =>
                 project != null && !project.IsFinished);
             if (pendingResearch != null)
             {
-                Messages.Message("Predator Deterrent requires further research.", MessageTypeDefOf.RejectInput, false);
+                Messages.Message(JournalText.Get("Wildlife.UI.Journal.Deterrent.Research"),
+                    MessageTypeDefOf.RejectInput, false);
                 return false;
             }
-
             WildlifeUI.CloseMenus();
             Find.DesignatorManager.Select(new Designator_Build(deterrentDef));
             return Find.DesignatorManager.SelectedDesignator is Designator_Build;
         }
 
-        private void DrawRegionHub(Rect rect, Map activeMap)
-        {
-            WildlifeEcologySnapshot snapshot = cachedSnapshot;
-            RegionalWildlifeMapComponent regional = activeMap?.GetComponent<RegionalWildlifeMapComponent>();
-            WildlifeLandscapeMapComponent landscape = activeMap?.GetComponent<WildlifeLandscapeMapComponent>();
-            WildlifeTrailMapComponent trails = activeMap?.GetComponent<WildlifeTrailMapComponent>();
-            HuntingExpeditionMapComponent expeditions = activeMap?.GetComponent<HuntingExpeditionMapComponent>();
-            float contentHeight = 74f + 84f + 82f + 42f + 162f;
-            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
-                Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            DrawHubHeader(new Rect(0f, 0f, view.width, 74f), "Region",
-                "What is happening around the colony: habitat, populations, movement, groups, trails, and expeditions.");
-            string habitat = snapshot == null ? "Unknown baseline" :
-                snapshot.habitatQuality >= 0.70f ? "Habitat is stable" :
-                snapshot.habitatQuality >= 0.40f ? "Habitat is under observation" : "Habitat is under pressure";
-            bool hasMovement = snapshot?.migrations?.Count > 0 || snapshot?.trails?.Count > 0;
-            string movement = hasMovement ? "Movement is active" : snapshot == null ? "No movement baseline" : "Movement is quiet";
-            WildlifePredatorPressureKnowledgeState predatorPressure = BestPredatorPressure(activeMap, snapshot, regional);
-            string pressure = predatorPressure == null ? "No repeated local predator-encounter pattern" : predatorPressure.PlayerLabel;
-            bool activeExpedition = expeditions?.ActiveExpeditions?.Any() == true;
-            string population = regional?.Records?.Any(record => record?.population < record.previousPopulation * 0.98f) == true
-                ? "Some populations are declining" : regional?.Records?.Any(record =>
-                    record?.population > record.previousPopulation * 1.02f) == true ? "Some populations are increasing" :
-                    regional == null ? "Population outlook unavailable" : "Population trend is mixed or stable";
-            float statusWidth = Mathf.Max(80f, (view.width - 16f) / 3f);
-            DrawHubStatus(new Rect(0f, 82f, statusWidth, 72f), "Habitat", habitat,
-                new Color(0.34f, 0.64f, 0.40f),
-                "Habitat reflects seasonal, landscape, water, shelter, and disturbance evidence.");
-            DrawHubStatus(new Rect(statusWidth + 8f, 82f, statusWidth, 72f), "Population pressure", population,
-                new Color(0.72f, 0.49f, 0.30f),
-                "Population changes are presented as trends until the colony has enough evidence to act with confidence.");
-            DrawHubStatus(new Rect((statusWidth + 8f) * 2f, 82f, statusWidth, 72f), "Movement and pressure",
-                movement + ".\n" + pressure,
-                new Color(0.34f, 0.62f, 0.74f),
-                "Trails, migration, and repeated defensive responses show where attention may be useful next.");
+    }
 
-            float y = 164f;
-            float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
-            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Living Atlas",
-                "Review activity sectors, habitat, and population patterns.", "Open Atlas", true,
-                () =>
-                {
-                    page = WildlifeJournalPage.LivingAtlas;
-                    bodyScroll = Vector2.zero;
-                });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Local wildlife",
-                regional == null ? "Local population information is unavailable." :
-                    "Open detailed local populations, groups, and management actions.",
-                regional == null ? "Unavailable" : "Open local wildlife", regional != null,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
-                });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight), "Landscape",
-                landscape == null ? "Landscape information is unavailable." :
-                    "Review persistent habitat features and developing places.",
-                landscape == null ? "Unavailable" : "Open landscape", landscape != null,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_WildlifeLandscape(activeMap));
-                });
-            y += HubActionRowStep;
-            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Trail leads",
-                trails == null ? "Tracking information is unavailable." :
-                    "Inspect physical signs and decide whether to follow them.",
-                trails == null ? "Unavailable" : "Open trail leads", trails != null,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_WildlifeTrailBoard(activeMap));
-                });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Expeditions",
-                !ExpeditionsVisible() ? "Expeditions are unavailable until their research and settings are ready." :
-                    activeExpedition ? "An expedition is in the field. Review its course or plan another investigation." :
-                    "Review active parties or plan an investigation beyond the local map.",
-                !ExpeditionsVisible() ? "Unavailable" : "Open expeditions", ExpeditionsVisible(),
-                () =>
-                {
-                    page = WildlifeJournalPage.Expeditions;
-                    bodyScroll = Vector2.zero;
-                });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight),
-                predatorPressure?.claimSupported == true ? "Predator Deterrent" : "Groups and behavior",
-                predatorPressure?.claimSupported == true
-                    ? "Repeated local predator encounters support defensive herd behavior. A Predator Deterrent is the existing response for discouraging ordinary predators."
-                    : "Select an animal from Local Wildlife or the Living Atlas to inspect its group context.",
-                predatorPressure?.claimSupported == true
-                    ? ExistingPredatorDeterrent(activeMap) != null ? "Locate Predator Deterrent" : "Build Predator Deterrent"
-                    : "Use regional detail",
-                predatorPressure?.claimSupported == true ? activeMap != null : regional != null,
-                () =>
-                {
-                    if (predatorPressure?.claimSupported == true)
-                        OpenPredatorDeterrent(activeMap);
-                    else
-                    {
-                        WildlifeUI.CloseMenus();
-                        Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
-                    }
-                });
-            Widgets.EndScrollView();
+    internal static class JournalText
+    {
+        internal static string Get(string key) => key.Translate();
+
+        internal static string Format(string key, params object[] values) =>
+            string.Format(Get(key), values ?? new object[0]);
+
+        internal static string PageLabel(WildlifeJournalPage page) => Get("Wildlife.UI.Journal.Page." + page);
+
+        internal static string PageDescription(WildlifeJournalPage page) =>
+            Get("Wildlife.UI.Journal.Page." + page + ".Description");
+
+        internal static string State(string value) => Get("Wildlife.UI.Journal.State." + value);
+
+        internal static string SignalKind(WildlifeSignalKind value) =>
+            Get("Wildlife.UI.Journal.SignalKind." + value);
+
+        internal static string EventKind(WildlifeEventKind value) =>
+            Get("Wildlife.UI.Journal.EventKind." + value);
+
+        internal static string TrailState(WildlifeTrailState value) =>
+            Get("Wildlife.UI.Journal.TrailState." + value);
+
+        internal static string StageLabel(string value)
+        {
+            if (value == WildlifeKnowledgeAdapter.StageSighted) return Get("Wildlife.UI.Journal.Stage.Sighted");
+            if (value == WildlifeKnowledgeAdapter.StageIdentified) return Get("Wildlife.UI.Journal.Stage.Identified");
+            if (value == WildlifeKnowledgeAdapter.StageStudied) return Get("Wildlife.UI.Journal.Stage.Studied");
+            if (value == WildlifeKnowledgeAdapter.StageUnderstood) return Get("Wildlife.UI.Journal.Stage.Understood");
+            if (value == WildlifeKnowledgeAdapter.StageDocumented) return Get("Wildlife.UI.Journal.Stage.Documented");
+            return Get("Wildlife.UI.Journal.Stage.Unknown");
         }
 
-        private void DrawChronicleHub(Rect rect, Map activeMap)
+        internal static string FacetLabel(string value)
         {
-            WildlifeNarrativeDirector director = WildlifeNarrativeUtility.For(activeMap);
-            WildlifeMemoryMapComponent memory = activeMap?.GetComponent<WildlifeMemoryMapComponent>();
-            NotableWildlifeMapComponent notables = activeMap?.GetComponent<NotableWildlifeMapComponent>();
-            WildlifeMysteryMapComponent mysteries = activeMap?.GetComponent<WildlifeMysteryMapComponent>();
-            List<WildlifeExperienceEvent> outcomes = Current.Game?.GetComponent<WildlifeExperienceGameComponent>()?.Events
-                ?.Where(IsChronicleOutcome).Take(8).ToList() ?? new List<WildlifeExperienceEvent>();
-            bool hasStories = director?.Stories?.Any() == true;
-            bool hasMemory = memory?.Memories?.Any() == true || memory?.SocialMemories?.Any() == true;
-            bool hasFolklore = memory?.Folklore?.Any() == true;
-            bool hasNotables = notables?.Records?.Any() == true;
-            bool hasMysteryHistory = mysteries?.Mysteries?.Any(value => value?.Solved == true || value?.Resolved == true) == true;
-            float contentHeight = Mathf.Max(464f, 364f + outcomes.Count * 58f);
-            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f),
-                Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            DrawHubHeader(new Rect(0f, 0f, view.width, 74f), "Chronicle",
-                "What has become part of the colony's history: survivors, memories, stories, mysteries, and consequences.");
-            DrawHubStatus(new Rect(0f, 82f, (view.width - 16f) / 3f, 72f), "Notable animals",
-                hasNotables ? "Individual histories are taking shape" : "No notable history yet",
-                new Color(0.75f, 0.57f, 0.28f),
-                "Notable animals emerge from actual encounters, survival, and recognition.");
-            DrawHubStatus(new Rect((view.width - 16f) / 3f + 8f, 82f, (view.width - 16f) / 3f, 72f), "Memory and folklore",
-                hasFolklore ? "Encounters are being retold" : hasMemory ? "Encounters are being remembered" :
-                    "No memory has been preserved yet",
-                new Color(0.63f, 0.42f, 0.70f),
-                "Memories, traditions, ceremonies, and folklore remain owned by the memory systems.");
-            DrawHubStatus(new Rect(((view.width - 16f) / 3f + 8f) * 2f, 82f,
-                (view.width - 16f) / 3f, 72f), "Consequences",
-                hasMysteryHistory || outcomes.Count > 0 || hasStories ? "History is accumulating" : "No resolved consequence yet",
-                new Color(0.43f, 0.65f, 0.54f),
-                "Resolved mysteries and persisted outcomes become part of the colony's account of wildlife.");
+            if (value == WildlifeKnowledgeAdapter.FacetIdentity) return Get("Wildlife.UI.Journal.Facet.Identity");
+            if (value == WildlifeKnowledgeAdapter.FacetHabitat) return Get("Wildlife.UI.Journal.Facet.Habitat");
+            if (value == WildlifeKnowledgeAdapter.FacetMovement) return Get("Wildlife.UI.Journal.Facet.Movement");
+            if (value == WildlifeKnowledgeAdapter.FacetSocial) return Get("Wildlife.UI.Journal.Facet.Social");
+            if (value == WildlifeKnowledgeAdapter.FacetSignals) return Get("Wildlife.UI.Journal.Facet.Signals");
+            if (value == WildlifeKnowledgeAdapter.FacetDanger) return Get("Wildlife.UI.Journal.Facet.Danger");
+            if (value == WildlifeKnowledgeAdapter.FacetPopulation) return Get("Wildlife.UI.Journal.Facet.Population");
+            return Get("Wildlife.UI.Journal.Meta.Facet");
+        }
 
-            float y = 164f;
-            float actionWidth = Mathf.Max(120f, (view.width - 16f) / 3f);
-            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Stories",
-                "Read narrative interpretations, folklore, and recognized animals.", "Open stories", true,
-                () =>
-                {
-                    page = WildlifeJournalPage.Stories;
-                    bodyScroll = Vector2.zero;
-                });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Theories and resolutions",
-                "Review hypotheses, evidence, and resolved investigations.", "Open investigations", true,
-                () =>
-                {
-                    page = WildlifeJournalPage.Investigations;
-                    bodyScroll = Vector2.zero;
-                });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight), "Notable animals",
-                hasNotables ? "Open the existing individual animal story detail." : "No notable animal story is available yet.",
-                hasNotables ? "Open stories" : "Unavailable", hasNotables,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 4));
-                });
-            y += HubActionRowStep;
-            bool memoryAnimal = TryFindMemoryAnimal(activeMap, memory, out Pawn animal);
-            DrawHubAction(new Rect(0f, y, actionWidth, HubActionHeight), "Folklore and traditions",
-                hasFolklore ? "Review retellings and hold ceremonies through the retained detail window." :
-                    "No folklore is available yet, but future encounters will appear here.",
-                hasFolklore ? "Open folklore" : "Unavailable", hasFolklore,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 5));
-                });
-            DrawHubAction(new Rect(actionWidth + 8f, y, actionWidth, HubActionHeight), "Animal memory",
-                memoryAnimal ? "Open the timeline and social web for a remembered animal." :
-                    "No remembered animal is currently available on this map.",
-                memoryAnimal ? "Open memory" : "Unavailable", memoryAnimal,
-                () =>
-                {
-                    WildlifeUI.CloseMenus();
-                    Find.WindowStack.Add(new Window_AnimalMemoryTimeline(animal));
-                });
-            DrawHubAction(new Rect((actionWidth + 8f) * 2f, y, actionWidth, HubActionHeight), "Field Log",
-                "Return to recent observations, evidence, and actionable records.", "Open Field Log", true,
-                () =>
-                {
-                    page = WildlifeJournalPage.FieldLog;
-                    bodyScroll = Vector2.zero;
-                });
-            y += 90f;
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, y, view.width, 28f), "Persisted consequences");
-            Text.Font = GameFont.Small;
-            y += 34f;
-            if (outcomes.Count == 0)
+        internal static string ClaimLabel(string value)
+        {
+            if (value == "population-estimate") return Get("Wildlife.UI.Journal.Claim.PopulationEstimate");
+            if (value == "movement-direction") return Get("Wildlife.UI.Journal.Claim.MovementDirection");
+            if (value == "habitat-quality") return Get("Wildlife.UI.Journal.Claim.HabitatQuality");
+            if (value == "signal-meaning") return Get("Wildlife.UI.Journal.Claim.SignalMeaning");
+            if (value == "predator-pressure") return Get("Wildlife.UI.Journal.Claim.PredatorPressure");
+            if (value == "danger-level") return Get("Wildlife.UI.Journal.Claim.DangerLevel");
+            if (value == "diet-preference") return Get("Wildlife.UI.Journal.Claim.DietPreference");
+            if (value == "den-location") return Get("Wildlife.UI.Journal.Claim.DenLocation");
+            if (value == "social-pattern") return Get("Wildlife.UI.Journal.Claim.SocialPattern");
+            if (value == "policy-outcome") return Get("Wildlife.UI.Journal.Claim.PolicyOutcome");
+            return Get("Wildlife.UI.Journal.Knowledge.Claim");
+        }
+
+        internal static string Certainty(float confidence, bool success = true) =>
+            confidence >= 0.75f ? Get("Wildlife.UI.Journal.Certainty.Confirmed") :
+            confidence >= 0.45f ? Get("Wildlife.UI.Journal.Certainty.Probable") :
+            success ? Get("Wildlife.UI.Journal.Certainty.Uncertain") : Get("Wildlife.UI.Journal.Certainty.Contradictory");
+
+        internal static string Age(int tick, int now)
+        {
+            if (tick <= 0) return Get("Wildlife.UI.Journal.Time.Recent");
+            return Mathf.Max(0, now - tick).ToStringTicksToPeriod() + " " + Get("Wildlife.UI.Journal.Time.Ago");
+        }
+
+        internal static string OutcomeTitle(string category) =>
+            category.NullOrEmpty() ? Get("Wildlife.UI.Journal.Outcome.Title") :
+            Get("Wildlife.UI.Journal.Outcome.Recorded");
+    }
+
+    internal sealed class WildlifeJournalPresentation
+    {
+        private static readonly WildlifeJournalPage[] PageOrder =
+        {
+            WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
+            WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle,
+            WildlifeJournalPage.FieldGuide, WildlifeJournalPage.LivingAtlas,
+            WildlifeJournalPage.Signals, WildlifeJournalPage.Investigations,
+            WildlifeJournalPage.Expeditions, WildlifeJournalPage.Stories
+        };
+
+        private static readonly string[] KnowledgeFacets =
+        {
+            WildlifeKnowledgeAdapter.FacetIdentity, WildlifeKnowledgeAdapter.FacetHabitat,
+            WildlifeKnowledgeAdapter.FacetMovement, WildlifeKnowledgeAdapter.FacetSocial,
+            WildlifeKnowledgeAdapter.FacetSignals, WildlifeKnowledgeAdapter.FacetDanger,
+            WildlifeKnowledgeAdapter.FacetPopulation
+        };
+
+        private readonly Map map;
+        private WildlifeJournalPage page;
+        private ThingDef selectedSpecies;
+        private Pawn signalObserver;
+        private readonly int focusedFieldLogTick;
+        private string search = string.Empty;
+        private string selectedLogId;
+        private string selectedSignalId;
+        private string selectedInvestigationId;
+        private string selectedStoryId;
+        private int fieldLogTypeFilter;
+        private int fieldLogUrgencyFilter;
+        private int snapshotBucket = -1;
+        private int snapshotKnowledgeRevision = -1;
+        private int snapshotObserverId = -1;
+        private WildlifeJournalPresentationSnapshot snapshot;
+
+        internal WildlifeJournalPresentation(Map map, WildlifeJournalPage page = WildlifeJournalPage.FieldLog,
+            ThingDef selectedSpecies = null, Pawn signalObserver = null, int focusedFieldLogTick = -1)
+        {
+            this.map = map ?? Find.CurrentMap;
+            this.page = page;
+            this.selectedSpecies = selectedSpecies;
+            this.signalObserver = signalObserver;
+            this.focusedFieldLogTick = focusedFieldLogTick;
+            Document = new InsightUiDocument("wildlife-journal", InsightUi.Empty("wildlife-journal-root"));
+            WildlifeUiTheme.Configure(Document, false, false);
+            Host = new InsightUiHost(Document);
+            Window = new InsightUiWindow(JournalText.Get("Wildlife.UI.Journal.Title"), Document);
+            Document.Root = BuildRoot();
+        }
+
+        internal InsightUiDocument Document { get; private set; }
+        internal InsightUiHost Host { get; private set; }
+        internal InsightUiWindow Window { get; private set; }
+
+        internal InsightUiElement BuildRoot()
+        {
+            EnsureSnapshot(false);
+            IReadOnlyList<WildlifeJournalPage> pages = AvailablePages();
+            bool usedFallback = !pages.Contains(page);
+            if (usedFallback) page = FallbackPage(pages);
+            string pageId = PageId(page);
+            InsightUiElement header = InsightUi.Column("journal.header",
+                InsightUi.Breadcrumbs("journal.breadcrumbs", JournalText.Get("Wildlife.UI.Journal.Breadcrumb"), JournalText.PageLabel(page)),
+                InsightUi.SectionHeader("journal.title", JournalText.Get("Wildlife.UI.Journal.Title"),
+                    JournalText.Get("Wildlife.UI.Journal.Subtitle"), null, HeaderActions(), true),
+                InsightUi.SearchField("journal.search", search, JournalText.Get("Wildlife.UI.Journal.SearchPlaceholder"),
+                    _ => Rebuild()).Bind(() => search, value => search = value ?? string.Empty)
+            ).SetGap(6f);
+
+            InsightUiNavigation navigation = InsightUi.Navigation("journal.navigation", 720f)
+                .Bind(() => PageId(page), value => SelectPage(value));
+            for (int i = 0; i < pages.Count; i++)
             {
-                DrawHubEmpty(new Rect(0f, y, view.width, 94f),
-                    "No durable wildlife outcome has entered the chronicle yet.",
-                    "Expedition results, discoveries, mysteries, and remarkable encounters will appear after their owning system records them.");
+                WildlifeJournalPage value = pages[i];
+                navigation.Add(PageId(value), JournalText.PageLabel(value), BuildPage(value));
+            }
+            InsightUiElement root = InsightUi.Column("journal.root", header, navigation)
+                .SetGap(10f).SetPadding(8f);
+            if (usedFallback)
+            {
+                Document.Focus.ClearFocus();
+                Document.Focus.RequestFocus("journal.navigation.page." + pageId);
+            }
+            return root;
+        }
+
+        private IReadOnlyList<WildlifeJournalPage> AvailablePages()
+        {
+            List<WildlifeJournalPage> pages = new List<WildlifeJournalPage> { WildlifeJournalPage.FieldLog };
+            bool knowledge = snapshot?.Species?.Any(value => value.KnowledgeVisible) == true;
+            bool region = snapshot?.Regions?.Count > 0;
+            if (knowledge) pages.Add(WildlifeJournalPage.Knowledge);
+            if (region) pages.Add(WildlifeJournalPage.Region);
+            if (snapshot?.Investigations?.Count > 0 || snapshot?.Expeditions?.Count > 0)
+                pages.Add(WildlifeJournalPage.Chronicle);
+            if (snapshot?.Species?.Any(value => value.FieldGuideObserved) == true)
+                pages.Add(WildlifeJournalPage.FieldGuide);
+            if (region) pages.Add(WildlifeJournalPage.LivingAtlas);
+            if (WildlifeJournal.SignalsVisible() && snapshot?.Signals?.Count > 0)
+                pages.Add(WildlifeJournalPage.Signals);
+            if (snapshot?.Investigations?.Count > 0) pages.Add(WildlifeJournalPage.Investigations);
+            if (WildlifeJournal.ExpeditionsVisible()) pages.Add(WildlifeJournalPage.Expeditions);
+            if (snapshot?.Stories?.Count > 0) pages.Add(WildlifeJournalPage.Stories);
+            return pages.Distinct().ToList();
+        }
+
+        private WildlifeJournalPage FallbackPage(IReadOnlyList<WildlifeJournalPage> pages)
+        {
+            if (pages == null || pages.Count == 0) return WildlifeJournalPage.FieldLog;
+            if (pages.Contains(WildlifeJournalPage.FieldLog)) return WildlifeJournalPage.FieldLog;
+            return pages[0];
+        }
+
+        private InsightUiElement HeaderActions()
+        {
+            return InsightUi.Row("journal.header-actions").SetGap(5f)
+                .Add(InsightUi.Badge("journal.snapshot-status", snapshot == null
+                    ? JournalText.Get("Wildlife.UI.Journal.Snapshot.Waiting")
+                    : JournalText.Get("Wildlife.UI.Journal.Snapshot.Live")),
+                    InsightUi.Button("journal.refresh", JournalText.Get("Wildlife.UI.Journal.Action.Refresh"),
+                        () =>
+                        {
+                            snapshotBucket = -1;
+                            Rebuild();
+                        }));
+        }
+
+        private InsightUiElement BuildPage(WildlifeJournalPage value)
+        {
+            InsightUiElement content;
+            switch (value)
+            {
+                case WildlifeJournalPage.FieldLog: content = BuildFieldLog(); break;
+                case WildlifeJournalPage.Knowledge: content = BuildSpeciesPage(value, true); break;
+                case WildlifeJournalPage.FieldGuide: content = BuildSpeciesPage(value, false); break;
+                case WildlifeJournalPage.LivingAtlas: content = BuildRegionPage(true); break;
+                case WildlifeJournalPage.Region: content = BuildRegionPage(false); break;
+                case WildlifeJournalPage.Signals: content = BuildSignals(); break;
+                case WildlifeJournalPage.Investigations: content = BuildInvestigations(); break;
+                case WildlifeJournalPage.Expeditions: content = BuildExpeditions(); break;
+                case WildlifeJournalPage.Stories: content = BuildStories(); break;
+                default: content = BuildChronicle(); break;
+            }
+            InsightUiElement header = InsightUi.SectionHeader("journal.page." + PageId(value) + ".header",
+                JournalText.PageLabel(value), JournalText.PageDescription(value));
+            return InsightUi.Scroll("journal.page." + PageId(value) + ".scroll",
+                InsightUi.Column("journal.page." + PageId(value) + ".content", header, content)
+                    .SetGap(8f).SetPadding(2f));
+        }
+
+        private InsightUiElement BuildFieldLog()
+        {
+            List<JournalLogRecord> records = snapshot.FieldLog.Where(Matches)
+                .Where(FieldLogTypeMatches).Where(FieldLogUrgencyMatches).ToList();
+            JournalLogRecord selected = records.FirstOrDefault(value => value.Id == selectedLogId) ?? records.FirstOrDefault();
+            selectedLogId = selected?.Id;
+            InsightUiSelect typeFilter = InsightUi.Select("journal-field-log.type-filter",
+                JournalText.Get("Wildlife.UI.Journal.FieldLog.Filter.Type"), FieldLogTypeOptions(), fieldLogTypeFilter)
+                .Bind(() => fieldLogTypeFilter, value =>
+                {
+                    if (fieldLogTypeFilter == value) return;
+                    fieldLogTypeFilter = value;
+                    Rebuild();
+                });
+            InsightUiSelect urgencyFilter = InsightUi.Select("journal-field-log.urgency-filter",
+                JournalText.Get("Wildlife.UI.Journal.FieldLog.Filter.Urgency"), FieldLogUrgencyOptions(), fieldLogUrgencyFilter)
+                .Bind(() => fieldLogUrgencyFilter, value =>
+                {
+                    if (fieldLogUrgencyFilter == value) return;
+                    fieldLogUrgencyFilter = value;
+                    Rebuild();
+                });
+            InsightUiElement filters = InsightUi.Surface("journal-field-log.filters",
+                InsightUi.Row("journal-field-log.filters.content").SetGap(6f).Add(typeFilter, urgencyFilter));
+            bool filtered = !search.NullOrEmpty() || fieldLogTypeFilter != 0 || fieldLogUrgencyFilter != 0;
+            InsightUiElement list = records.Count == 0
+                ? Empty(filtered ? "Wildlife.UI.Journal.FieldLog.NoResults" : "Wildlife.UI.Journal.FieldLog.Empty",
+                    filtered ? "Wildlife.UI.Journal.FieldLog.NoResults.Help" : "Wildlife.UI.Journal.FieldLog.Empty.Help")
+                : BuildVirtualList("journal-field-log-items", records, 96f, BuildLogRow);
+            InsightUiElement detail = selected == null ? Empty("Wildlife.UI.Journal.Selection.Empty", "Wildlife.UI.Journal.Selection.Empty.Help") : BuildLogDetail(selected);
+            return InsightUi.Column("journal.field-log.content", filters,
+                ResponsiveSplit("journal.field-log.split", list, detail, 0.56f)).SetGap(7f);
+        }
+
+        private string[] FieldLogTypeOptions() => new[]
+        {
+            JournalText.Get("Wildlife.UI.Journal.FieldLog.Filter.All"),
+            JournalText.Get("Wildlife.UI.Journal.Type.Moment"),
+            JournalText.Get("Wildlife.UI.Journal.Type.Signal"),
+            JournalText.Get("Wildlife.UI.Journal.Type.Trail"),
+            JournalText.Get("Wildlife.UI.Journal.Type.Investigation"),
+            JournalText.Get("Wildlife.UI.Journal.Type.Expedition"),
+            JournalText.Get("Wildlife.UI.Journal.Type.Outcome")
+        };
+
+        private string[] FieldLogUrgencyOptions() => new[]
+        {
+            JournalText.Get("Wildlife.UI.Journal.FieldLog.Filter.All"),
+            JournalText.Get("Wildlife.UI.Journal.Urgency.Urgent"),
+            JournalText.Get("Wildlife.UI.Journal.Urgency.Routine")
+        };
+
+        private bool FieldLogTypeMatches(JournalLogRecord value)
+        {
+            if (fieldLogTypeFilter <= 0) return true;
+            string[] values = { "Moment", "Signal", "Trail", "Investigation", "Expedition", "Outcome" };
+            return fieldLogTypeFilter <= values.Length && value.TypeKey.EndsWith("." + values[fieldLogTypeFilter - 1], StringComparison.Ordinal);
+        }
+
+        private bool FieldLogUrgencyMatches(JournalLogRecord value) => fieldLogUrgencyFilter == 0 ||
+            (fieldLogUrgencyFilter == 1 && value.Urgent) || (fieldLogUrgencyFilter == 2 && !value.Urgent);
+
+        private InsightUiElement BuildLogRow(JournalLogRecord value, int index)
+        {
+            InsightUiElement body = InsightUi.Column("journal.field-log.row." + value.Id,
+                InsightUi.Row("journal.field-log.row." + value.Id + ".heading").SetGap(6f)
+                    .Add(InsightUi.Badge("journal.field-log.row." + value.Id + ".type", JournalText.Get(value.TypeKey)),
+                        InsightUi.Label("journal.field-log.row." + value.Id + ".title", value.Title)),
+                InsightUi.Label("journal.field-log.row." + value.Id + ".detail", value.Detail, InsightUiTextStyle.Caption),
+                InsightUi.Row("journal.field-log.row." + value.Id + ".meta").SetGap(8f)
+                    .Add(InsightUi.StatRow("journal.field-log.row." + value.Id + ".species", JournalText.Get("Wildlife.UI.Journal.Meta.Species"), value.SpeciesName),
+                        InsightUi.StatRow("journal.field-log.row." + value.Id + ".certainty", JournalText.Get("Wildlife.UI.Journal.Meta.Certainty"), value.Certainty),
+                        InsightUi.StatRow("journal.field-log.row." + value.Id + ".urgency", JournalText.Get("Wildlife.UI.Journal.Meta.Urgency"),
+                            value.Urgent ? JournalText.Get("Wildlife.UI.Journal.Urgency.Urgent") : JournalText.Get("Wildlife.UI.Journal.Urgency.Routine")),
+                        InsightUi.StatRow("journal.field-log.row." + value.Id + ".age", JournalText.Get("Wildlife.UI.Journal.Meta.Time"), value.Age))
+            ).SetGap(5f);
+            if (value.Urgent) body = InsightUi.Column("journal.field-log.row." + value.Id + ".urgent",
+                InsightUi.Callout("journal.field-log.row." + value.Id + ".attention", InsightUiCalloutSeverity.Warning,
+                    JournalText.Get("Wildlife.UI.Journal.Attention")), body).SetGap(4f);
+            InsightUiButton select = InsightUi.Button("journal.field-log.row." + value.Id + ".select",
+                JournalText.Get("Wildlife.UI.Journal.Action.Inspect"), () =>
+                {
+                    selectedLogId = value.Id;
+                    Rebuild();
+                });
+            select.Selected = value.Id == selectedLogId;
+            return InsightUi.Surface("journal.field-log.card." + value.Id,
+                InsightUi.Column("journal.field-log.card." + value.Id + ".content", body, select).SetGap(6f));
+        }
+
+        private InsightUiElement BuildLogDetail(JournalLogRecord value)
+        {
+            List<InsightUiElement> elements = new List<InsightUiElement>
+            {
+                InsightUi.SectionHeader("journal.field-log.detail.header", value.Title, value.Detail),
+                InsightUi.StatRow("journal.field-log.detail.type", JournalText.Get("Wildlife.UI.Journal.Meta.Type"), JournalText.Get(value.TypeKey)),
+                InsightUi.StatRow("journal.field-log.detail.species", JournalText.Get("Wildlife.UI.Journal.Meta.Species"), value.SpeciesName),
+                InsightUi.StatRow("journal.field-log.detail.location", JournalText.Get("Wildlife.UI.Journal.Meta.Location"), value.Location),
+                InsightUi.StatRow("journal.field-log.detail.certainty", JournalText.Get("Wildlife.UI.Journal.Meta.Certainty"), value.Certainty),
+                InsightUi.StatRow("journal.field-log.detail.time", JournalText.Get("Wildlife.UI.Journal.Meta.Time"), value.Age),
+                InsightUi.Callout("journal.field-log.detail.evidence", value.Urgent ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.Evidence"), value.Evidence)
+            };
+            if (CanFocus(value.Species, value.Cell))
+                elements.Add(InsightUi.Button("journal.field-log.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                    () => Focus(value.Cell, value.Species)));
+            if (value.Action == JournalAction.Response)
+                elements.Add(InsightUi.Button("journal.field-log.detail.response", JournalText.Get("Wildlife.UI.Journal.Action.ChooseResponse"),
+                    () => ChooseMomentResponse()));
+            return InsightUi.Surface("journal.field-log.detail.surface",
+                InsightUi.Column("journal.field-log.detail.content", elements.ToArray()).SetGap(8f));
+        }
+
+        private InsightUiElement BuildSpeciesPage(WildlifeJournalPage value, bool knowledge)
+        {
+            List<JournalSpeciesRecord> records = snapshot.Species
+                .Where(item => !knowledge || item.KnowledgeVisible)
+                .Where(Matches).ToList();
+            JournalSpeciesRecord selected = records.FirstOrDefault(item => item.Species == selectedSpecies) ?? records.FirstOrDefault();
+            if (selected != null) selectedSpecies = selected.Species;
+            InsightUiElement list = records.Count == 0
+                ? Empty(knowledge ? "Wildlife.UI.Journal.Knowledge.Empty" : "Wildlife.UI.Journal.FieldGuide.Empty",
+                    knowledge ? "Wildlife.UI.Journal.Knowledge.Empty.Help" : "Wildlife.UI.Journal.FieldGuide.Empty.Help")
+                : BuildVirtualList("journal." + PageId(value) + "-species-items", records, 78f,
+                    (item, index) => BuildSpeciesRow(value, item, index));
+            InsightUiElement detail = selected == null ? Empty("Wildlife.UI.Journal.Selection.Empty", "Wildlife.UI.Journal.Selection.Empty.Help") :
+                BuildSpeciesDetail(value, selected, knowledge);
+            return ResponsiveSplit("journal." + PageId(value) + ".split", list, detail, 0.38f);
+        }
+
+        private InsightUiElement BuildSpeciesRow(WildlifeJournalPage pageValue, JournalSpeciesRecord value, int index)
+        {
+            string id = "journal." + PageId(pageValue) + ".species." + value.Species.defName;
+            InsightUiButton select = InsightUi.Button(id + ".select", value.Species.LabelCap.ToString(), () =>
+            {
+                selectedSpecies = value.Species;
+                Rebuild();
+            });
+            select.Selected = value.Species == selectedSpecies;
+            return InsightUi.Surface(id, InsightUi.Column(id + ".content", select,
+                InsightUi.Row(id + ".meta").SetGap(6f)
+                    .Add(InsightUi.Badge(id + ".stage", pageValue == WildlifeJournalPage.FieldGuide ? value.FieldGuideStageLabel : value.StageLabel),
+                        InsightUi.Label(id + ".evidence", JournalText.Format("Wildlife.UI.Journal.Evidence.Count",
+                            pageValue == WildlifeJournalPage.FieldGuide ? value.FieldGuideEvidenceCount : value.EvidenceCount), InsightUiTextStyle.Caption)))
+                .SetGap(4f));
+        }
+
+        private InsightUiElement BuildSpeciesDetail(WildlifeJournalPage pageValue, JournalSpeciesRecord value, bool knowledge)
+        {
+            string prefix = "journal." + PageId(pageValue) + ".detail." + value.Species.defName;
+            List<InsightUiElement> overviewChildren = new List<InsightUiElement>
+            {
+                InsightUi.SectionHeader(prefix + ".identity", value.Species.LabelCap.ToString(),
+                    knowledge ? JournalText.Get("Wildlife.UI.Journal.Knowledge.IdentityHelp") :
+                    JournalText.Get("Wildlife.UI.Journal.FieldGuide.IdentityHelp")),
+                InsightUi.StatRow(prefix + ".stage", JournalText.Get("Wildlife.UI.Journal.Meta.Stage"),
+                    knowledge || value.FieldGuideObserved ? value.StageLabel : JournalText.StageLabel(WildlifeKnowledgeAdapter.StageUnknown)),
+                InsightUi.StatRow(prefix + ".confidence", JournalText.Get("Wildlife.UI.Journal.Meta.Confidence"),
+                    knowledge || value.FieldGuideObserved ? value.ConfidenceLabel : JournalText.Get("Wildlife.UI.Journal.Value.Unknown")),
+                InsightUi.StatRow(prefix + ".observations", JournalText.Get("Wildlife.UI.Journal.Meta.Evidence"),
+                    (knowledge || value.FieldGuideObserved ? value.EvidenceCount : 0).ToString()),
+                InsightUi.StatRow(prefix + ".facets", JournalText.Get("Wildlife.UI.Journal.Meta.Facets"),
+                    (knowledge || value.FieldGuideObserved ? value.KnownFacetCount : 0) + "/" + value.Facets.Count)
+            };
+            if (knowledge)
+            {
+                InsightUiTabs tabs = InsightUi.Tabs(prefix + ".tabs");
+                tabs.Add("claims", JournalText.Get("Wildlife.UI.Journal.Knowledge.Claims"), BuildClaims(prefix, value));
+                tabs.Add("facets", JournalText.Get("Wildlife.UI.Journal.Knowledge.Facets"), BuildFacets(prefix, value));
+                tabs.Add("evidence", JournalText.Get("Wildlife.UI.Journal.Knowledge.Evidence"), BuildEvidence(prefix, value));
+                overviewChildren.Add(tabs);
+            }
+            else if (!value.FieldGuideObserved)
+            {
+                overviewChildren.Add(InsightUi.Callout(prefix + ".observation-gated", InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.FieldGuide.ObservationGated"),
+                    JournalText.Get("Wildlife.UI.Journal.FieldGuide.ObservationGated.Help")));
+                overviewChildren.Add(BuildUnknownFacets(prefix, value));
             }
             else
             {
-                for (int i = 0; i < outcomes.Count; i++)
-                    DrawChronicleOutcome(new Rect(0f, y + i * 58f, view.width, 52f), outcomes[i]);
+                overviewChildren.Add(BuildFacets(prefix, value));
+                overviewChildren.Add(BuildEvidence(prefix, value));
             }
-            Widgets.EndScrollView();
+            overviewChildren.Add(InsightUi.Callout(prefix + ".next-evidence", InsightUiCalloutSeverity.Info,
+                JournalText.Get("Wildlife.UI.Journal.Knowledge.NextEvidence"), value.NextEvidence));
+            if (value.Disclosure?.Allows(WildlifeInsightDisclosure.ActionFocus) == true)
+                overviewChildren.Add(InsightUi.Button(prefix + ".focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                    () => Focus(value.Disclosure.CurrentFocusCell, value.Species)));
+            InsightUiElement overview = InsightUi.Column(prefix + ".overview", overviewChildren.ToArray()).SetGap(7f);
+            return InsightUi.Surface(prefix + ".surface", overview);
         }
 
-        private static bool IsChronicleOutcome(WildlifeExperienceEvent value)
+        private InsightUiElement BuildClaims(string prefix, JournalSpeciesRecord value)
         {
-            if (value == null || value.text.NullOrEmpty() || value.category.NullOrEmpty()) return false;
-            return value.category.IndexOf("Expedition", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                value.category.IndexOf("Notable", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                value.category.IndexOf("Mystery", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                value.category.IndexOf("Folklore", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                value.category.IndexOf("Roaming", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                value.category.IndexOf("Story", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (value.Claims.Count == 0)
+                return Empty(prefix + ".claims.empty", "Wildlife.UI.Journal.Knowledge.Claims.Empty",
+                    "Wildlife.UI.Journal.Knowledge.Claims.Empty");
+            return InsightUi.Column(prefix + ".claims", value.Claims.Select((claim, index) =>
+                InsightUi.Callout(prefix + ".claim." + index, claim.Contradictory ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
+                    claim.Label, claim.Detail)).ToArray()).SetGap(5f);
         }
 
-        private static bool TryFindMemoryAnimal(Map activeMap, WildlifeMemoryMapComponent memory, out Pawn animal)
+        private InsightUiElement BuildFacets(string prefix, JournalSpeciesRecord value)
         {
-            animal = activeMap?.mapPawns?.AllPawnsSpawned?.FirstOrDefault(pawn => pawn?.RaceProps?.Animal == true &&
-                (memory?.Memories?.Any(value => value?.animal == pawn) == true ||
-                 memory?.SocialMemories?.Any(value => value?.animal == pawn) == true));
-            return animal != null;
+            return InsightUi.Column(prefix + ".facets", value.Facets.Select((facet, index) =>
+                InsightUi.Surface(prefix + ".facet." + index, InsightUi.Column(prefix + ".facet." + index + ".content",
+                    InsightUi.StatRow(prefix + ".facet." + index + ".name", JournalText.Get("Wildlife.UI.Journal.Meta.Facet"), facet.Label),
+                    InsightUi.StatRow(prefix + ".facet." + index + ".state", JournalText.Get("Wildlife.UI.Journal.Meta.State"), facet.Known ?
+                        JournalText.Get("Wildlife.UI.Journal.Value.Known") : JournalText.Get("Wildlife.UI.Journal.Value.Unknown")),
+                    InsightUi.StatRow(prefix + ".facet." + index + ".confidence", JournalText.Get("Wildlife.UI.Journal.Meta.Confidence"), facet.ConfidenceLabel),
+                    InsightUi.StatRow(prefix + ".facet." + index + ".evidence", JournalText.Get("Wildlife.UI.Journal.Meta.Evidence"), facet.EvidenceCount.ToString()))
+                    .SetGap(4f))).ToArray()).SetGap(5f);
         }
 
-        private void DrawChronicleOutcome(Rect rect, WildlifeExperienceEvent outcome)
+        private InsightUiElement BuildUnknownFacets(string prefix, JournalSpeciesRecord value)
         {
-            Widgets.DrawMenuSection(rect);
-            GUI.color = WildlifeExperience.IsNegative(outcome)
-                ? new Color(0.88f, 0.48f, 0.38f) : new Color(0.55f, 0.78f, 0.60f);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width * 0.30f, 18f), outcome.category);
-            GUI.color = Color.white;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 25f, rect.width - 170f, 22f), outcome.text);
-            Text.Anchor = TextAnchor.MiddleRight;
-            GUI.color = new Color(0.64f, 0.73f, 0.66f);
-            Widgets.Label(new Rect(rect.x + rect.width - 154f, rect.y + 8f, 144f, 18f), FreshnessLabel(outcome.tick));
-            GUI.color = Color.white;
-            Text.Anchor = TextAnchor.UpperLeft;
-            if (outcome.thingId >= 0 && Widgets.ButtonText(new Rect(rect.xMax - 104f, rect.y + 25f, 94f, 22f), "Focus"))
+            return InsightUi.Column(prefix + ".unknown-facets", value.Facets.Select((facet, index) =>
+                InsightUi.StatRow(prefix + ".unknown-facet." + index,
+                    JournalText.Get("Wildlife.UI.Journal.Meta.Facet"), facet.Label + " • " +
+                    JournalText.Get("Wildlife.UI.Journal.Value.Unknown"))).ToArray()).SetGap(5f);
+        }
+
+        private InsightUiElement BuildEvidence(string prefix, JournalSpeciesRecord value)
+        {
+            if (value.Evidence.Count == 0)
+                return Empty(prefix + ".evidence.empty", "Wildlife.UI.Journal.Knowledge.Evidence.Empty",
+                    "Wildlife.UI.Journal.Knowledge.Evidence.Empty");
+            return BuildVirtualList(prefix + ".evidence-list", value.Evidence, 72f, (item, index) =>
+                InsightUi.Surface(prefix + ".evidence." + index, InsightUi.Column(prefix + ".evidence." + index + ".content",
+                    InsightUi.Label(prefix + ".evidence." + index + ".summary", item.Summary),
+                    InsightUi.Row(prefix + ".evidence." + index + ".meta").SetGap(7f)
+                        .Add(InsightUi.StatRow(prefix + ".evidence." + index + ".source", JournalText.Get("Wildlife.UI.Journal.Meta.Source"), item.Source),
+                            InsightUi.StatRow(prefix + ".evidence." + index + ".confidence", JournalText.Get("Wildlife.UI.Journal.Meta.Confidence"), item.ConfidenceLabel),
+                            InsightUi.StatRow(prefix + ".evidence." + index + ".observers", JournalText.Get("Wildlife.UI.Journal.Meta.Observers"), item.ObserverCount.ToString())))
+                    .SetGap(3f)));
+        }
+
+        private InsightUiElement BuildRegionPage(bool atlas)
+        {
+            List<JournalRegionRecord> records = snapshot.Regions.Where(Matches).ToList();
+            JournalRegionRecord selected = records.FirstOrDefault(item => item.Species == selectedSpecies) ?? records.FirstOrDefault();
+            if (selected != null) selectedSpecies = selected.Species;
+            string pageId = atlas ? "living-atlas" : "region";
+            string prefix = "journal." + pageId;
+            InsightUiElement list = records.Count == 0 ? Empty("Wildlife.UI.Journal.Region.Empty", "Wildlife.UI.Journal.Region.Empty.Help") :
+                BuildVirtualList(prefix + "-items", records, 82f, (item, index) => BuildRegionRow(prefix, item, index, atlas));
+            InsightUiElement detail = selected == null ? Empty("journal." + pageId + ".detail.empty",
+                "Wildlife.UI.Journal.Selection.Empty", "Wildlife.UI.Journal.Region.Empty.Help") :
+                BuildRegionDetail(prefix, selected, atlas);
+            return ResponsiveSplit(prefix + ".split", list, detail, 0.46f);
+        }
+
+        private InsightUiElement BuildRegionDetail(string prefix, JournalRegionRecord selected, bool atlas)
+        {
+            List<InsightUiElement> details = new List<InsightUiElement>
             {
-                Thing thing = WildlifeExperience.ResolveThing(outcome.thingId);
-                if (thing != null) WildlifeUI.Focus(thing);
+                InsightUi.SectionHeader(prefix + ".detail.header", selected.Species.LabelCap.ToString(),
+                    atlas ? selected.AtlasSummary : selected.Summary),
+                InsightUi.StatRow(prefix + ".detail.local", JournalText.Get("Wildlife.UI.Journal.Region.Local"), selected.LocalPopulation),
+                InsightUi.StatRow(prefix + ".detail.regional", JournalText.Get("Wildlife.UI.Journal.Region.Regional"), selected.RegionalPopulation),
+                InsightUi.StatRow(prefix + ".detail.trend", JournalText.Get("Wildlife.UI.Journal.Region.Trend"), selected.Trend),
+                InsightUi.StatRow(prefix + ".detail.pressure", JournalText.Get("Wildlife.UI.Journal.Region.Pressure"), selected.Pressure),
+                InsightUi.StatRow(prefix + ".detail.habitat", JournalText.Get("Wildlife.UI.Journal.Region.Habitat"), selected.Habitat),
+                InsightUi.StatRow(prefix + ".detail.movement", JournalText.Get("Wildlife.UI.Journal.Region.Movement"), selected.Movement)
+            };
+            if (atlas)
+            {
+                details.Add(InsightUi.StatRow(prefix + ".detail.evidence", JournalText.Get("Wildlife.UI.Journal.Meta.Evidence"),
+                    selected.KnownEvidenceCount.ToString()));
+                details.Add(InsightUi.StatRow(prefix + ".detail.trails", JournalText.Get("Wildlife.UI.Journal.Region.Trails"),
+                    selected.TrailCount.ToString()));
+                details.Add(InsightUi.StatRow(prefix + ".detail.migrations", JournalText.Get("Wildlife.UI.Journal.Region.Migrations"),
+                    selected.MigrationCount.ToString()));
+                details.Add(InsightUi.StatRow(prefix + ".detail.notable", JournalText.Get("Wildlife.UI.Journal.Region.Notable"),
+                    selected.NotableCount.ToString()));
+                details.Add(InsightUi.Callout(prefix + ".detail.events", InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.LivingAtlas.Evidence"), selected.AtlasSummary));
             }
-            TooltipHandler.TipRegion(rect, outcome.text + "\n" + FreshnessLabel(outcome.tick));
-        }
-
-        private static void DrawHubHeader(Rect rect, string title, string description)
-        {
-            Widgets.DrawMenuSection(rect);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 26f), title);
-            Text.Font = GameFont.Small;
-            GUI.color = new Color(0.70f, 0.78f, 0.71f);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 36f, rect.width - 20f, 38f), description);
-            GUI.color = Color.white;
-        }
-
-        private static void DrawHubStatus(Rect rect, string label, string value, Color accent, string tooltip)
-        {
-            Widgets.DrawBoxSolid(rect, new Color(0.09f, 0.14f, 0.15f, 0.94f));
-            Widgets.DrawBoxSolid(new Rect(rect.x, rect.y, 5f, rect.height), accent);
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(0.66f, 0.78f, 0.72f);
-            Widgets.Label(new Rect(rect.x + 12f, rect.y + 7f, rect.width - 20f, 17f), label);
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(rect.x + 12f, rect.y + 26f, rect.width - 20f, rect.height - 30f), value);
-            TooltipHandler.TipRegion(rect, tooltip);
-        }
-
-        private static void DrawHubAction(Rect rect, string title, string detail, string button,
-            bool enabled, Action action)
-        {
-            Widgets.DrawMenuSection(rect);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width - 126f, 23f), title);
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 31f, rect.width - 126f, rect.height - 37f), detail);
-            if (Widgets.ButtonText(new Rect(rect.xMax - 116f, rect.y + (rect.height - 30f) * 0.5f, 106f, 30f), "Open", active: enabled) &&
-                enabled) action?.Invoke();
-            TooltipHandler.TipRegion(rect, detail);
-        }
-
-        private static void DrawHubEmpty(Rect rect, string title, string detail)
-        {
-            Widgets.DrawMenuSection(rect);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x + 12f, rect.y + 10f, rect.width - 24f, 26f), title);
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(rect.x + 12f, rect.y + 42f, rect.width - 24f, rect.height - 50f), detail);
-        }
-
-        private static string FieldLogKindLabel(FieldLogItemKind kind) => kind == FieldLogItemKind.Moment
-            ? "WILDLIFE MOMENT" : kind == FieldLogItemKind.Signal ? "SIGNAL" :
-            kind == FieldLogItemKind.Trail ? "TRAIL" : kind == FieldLogItemKind.Investigation
-                ? "INVESTIGATION" : kind == FieldLogItemKind.Expedition ? "EXPEDITION" : "OUTCOME";
-
-        private static string FieldLogActionLabel(FieldLogItem item) => item.kind == FieldLogItemKind.Moment
-            ? "Respond" : item.kind == FieldLogItemKind.Signal ? "Review signal" :
-            item.kind == FieldLogItemKind.Trail ? "Inspect trail" : item.kind == FieldLogItemKind.Investigation
-                ? "Review evidence" : item.kind == FieldLogItemKind.Expedition ? "Open details" : "Focus";
-
-        private static bool FieldLogHasAction(FieldLogItem item) => item?.kind != FieldLogItemKind.Outcome ||
-            (item.outcome != null && item.outcome.thingId >= 0);
-
-        private void OpenFieldLogItem(FieldLogItem item, Map activeMap)
-        {
-            if (item == null || activeMap == null) return;
-            if (item.kind == FieldLogItemKind.Signal)
+            else
             {
-                OpenSignals(activeMap, signalObserver, item.species);
-                return;
+                details.Add(InsightUi.StatRow(prefix + ".detail.variations", JournalText.Get("Wildlife.UI.Journal.Region.Variations"),
+                    selected.VariationCount.ToString()));
+                details.Add(InsightUi.Callout(prefix + ".detail.summary", InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.Region.SummaryLabel"), selected.Summary));
             }
-            if (item.kind == FieldLogItemKind.Trail && item.trail != null)
-            {
-                WildlifeUI.CloseMenus();
-                Find.WindowStack.Add(new Window_WildlifeTrail(activeMap, item.trail));
-                return;
-            }
-            if (item.kind == FieldLogItemKind.Moment)
-            {
-                WildlifeUI.CloseMenus();
-                Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 2));
-                return;
-            }
-            if (item.kind == FieldLogItemKind.Investigation)
-            {
-                WildlifeUI.CloseMenus();
-                Find.WindowStack.Add(new Window_WildlifeFieldJournal(activeMap, 1));
-                return;
-            }
-            if (item.kind == FieldLogItemKind.Expedition)
-            {
-                WildlifeUI.CloseMenus();
-                Find.WindowStack.Add(new Window_WildlifeExpeditions(activeMap));
-                return;
-            }
-            Thing thing = WildlifeExperience.ResolveThing(item.outcome?.thingId ?? -1);
-            if (thing != null) WildlifeUI.Focus(thing);
+            if (selected.Disclosure?.Allows(WildlifeInsightDisclosure.ActionFocus) == true)
+                details.Add(InsightUi.Button(prefix + ".detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                    () => Focus(selected.Disclosure.CurrentFocusCell, selected.Species)));
+            return InsightUi.Surface(prefix + ".detail", InsightUi.Column(prefix + ".detail.content", details.ToArray()).SetGap(7f));
         }
 
-        private List<FieldLogItem> BuildFieldLog(Map activeMap, int now)
+        private InsightUiElement BuildRegionRow(string prefix, JournalRegionRecord value, int index, bool atlas)
         {
-            List<FieldLogItem> items = new List<FieldLogItem>();
-            if (activeMap == null) return items;
-            WildlifeFieldJournalMapComponent fieldJournal = activeMap.GetComponent<WildlifeFieldJournalMapComponent>();
-            WildlifeOpportunityRecord opportunity = fieldJournal?.Opportunity;
-            if (opportunity != null)
+            string id = prefix + ".row." + value.Species.defName;
+            InsightUiButton select = InsightUi.Button(id + ".select", value.Species.LabelCap.ToString(), () =>
             {
-                items.Add(new FieldLogItem
+                selectedSpecies = value.Species;
+                Rebuild();
+            });
+            select.Selected = selectedSpecies == value.Species;
+            return InsightUi.Surface(id, InsightUi.Column(id + ".content", select,
+                InsightUi.Label(id + ".summary", atlas ? value.AtlasSummary : value.Summary, InsightUiTextStyle.Caption),
+                atlas ? InsightUi.StatRow(id + ".movement", JournalText.Get("Wildlife.UI.Journal.Region.Movement"), value.Movement) :
+                    InsightUi.StatRow(id + ".population", JournalText.Get("Wildlife.UI.Journal.Region.Local"), value.LocalPopulation),
+                InsightUi.StatRow(id + ".pressure", JournalText.Get("Wildlife.UI.Journal.Region.Pressure"), value.Pressure)).SetGap(4f));
+        }
+
+        private InsightUiElement BuildSignals()
+        {
+            if (!WildlifeJournal.SignalsVisible())
+                return InsightUi.Callout("journal.signals.disabled", InsightUiCalloutSeverity.Warning,
+                    JournalText.Get("Wildlife.UI.Journal.Signals.Disabled"), JournalText.Get("Wildlife.UI.Journal.Signals.Disabled.Help"));
+            List<JournalSignalRecord> records = snapshot.Signals.Where(Matches).ToList();
+            JournalSignalRecord selected = records.FirstOrDefault(item => item.Id == selectedSignalId) ?? records.FirstOrDefault();
+            selectedSignalId = selected?.Id;
+            InsightUiElement list = records.Count == 0 ? Empty("Wildlife.UI.Journal.Signals.Empty", "Wildlife.UI.Journal.Signals.Empty.Help") :
+                BuildVirtualList("journal-signals-items", records, 86f, BuildSignalRow);
+            InsightUiElement detail = selected == null ? Empty("journal.signals.detail.empty",
+                "Wildlife.UI.Journal.Selection.Empty", "Wildlife.UI.Journal.Selection.Empty.Help") :
+                InsightUi.Surface("journal.signals.detail", InsightUi.Column("journal.signals.detail.content",
+                    InsightUi.SectionHeader("journal.signals.detail.header", selected.SpeciesName, selected.Description),
+                    InsightUi.StatRow("journal.signals.detail.family", JournalText.Get("Wildlife.UI.Journal.Signals.Family"), selected.Family),
+                    InsightUi.StatRow("journal.signals.detail.observer", JournalText.Get("Wildlife.UI.Journal.Signals.Observer"), selected.ObserverName),
+                    InsightUi.StatRow("journal.signals.detail.interpretation", JournalText.Get("Wildlife.UI.Journal.Signals.Interpretation"), selected.Interpretation),
+                    InsightUi.StatRow("journal.signals.detail.confidence", JournalText.Get("Wildlife.UI.Journal.Meta.Confidence"), selected.ConfidenceLabel),
+                    InsightUi.StatRow("journal.signals.detail.contradiction", JournalText.Get("Wildlife.UI.Journal.Signals.Contradictions"), selected.Contradictory ?
+                        JournalText.Get("Wildlife.UI.Journal.Value.Present") : JournalText.Get("Wildlife.UI.Journal.Value.None")),
+                    InsightUi.Callout("journal.signals.detail.evidence", selected.Contradictory ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
+                        JournalText.Get("Wildlife.UI.Journal.Evidence"), selected.Evidence),
+                    CanFocus(selected.Species, selected.Cell)
+                        ? InsightUi.Button("journal.signals.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                            () => Focus(selected.Cell, selected.Species))
+                        : InsightUi.Empty("journal.signals.detail.focus.unavailable")).SetGap(7f));
+            return ResponsiveSplit("journal.signals.split", list, detail, 0.45f);
+        }
+
+        private InsightUiElement BuildSignalRow(JournalSignalRecord value, int index)
+        {
+            string id = "journal.signals.row." + value.Id;
+            InsightUiButton select = InsightUi.Button(id + ".select", value.SpeciesName, () =>
+            {
+                selectedSignalId = value.Id;
+                Rebuild();
+            });
+            select.Selected = selectedSignalId == value.Id;
+            return InsightUi.Surface(id, InsightUi.Column(id + ".content", InsightUi.Row(id + ".heading").SetGap(6f)
+                    .Add(InsightUi.Badge(id + ".kind", value.Family), select),
+                InsightUi.Label(id + ".description", value.Description, InsightUiTextStyle.Caption),
+                InsightUi.StatRow(id + ".certainty", JournalText.Get("Wildlife.UI.Journal.Meta.Certainty"), value.ConfidenceLabel)).SetGap(4f));
+        }
+
+        private InsightUiElement BuildInvestigations()
+        {
+            List<JournalInvestigationRecord> records = snapshot.Investigations.Where(Matches).ToList();
+            JournalInvestigationRecord selected = records.FirstOrDefault(item => item.Id == selectedInvestigationId) ?? records.FirstOrDefault();
+            selectedInvestigationId = selected?.Id;
+            InsightUiElement list = records.Count == 0 ? Empty("Wildlife.UI.Journal.Investigations.Empty", "Wildlife.UI.Journal.Investigations.Empty.Help") :
+                BuildVirtualList("journal-investigation-items", records, 92f, BuildInvestigationRow);
+            InsightUiElement detail = selected == null ? Empty("journal.investigations.detail.empty",
+                "Wildlife.UI.Journal.Selection.Empty", "Wildlife.UI.Journal.Selection.Empty.Help") :
+                InsightUi.Surface("journal.investigations.detail", InsightUi.Column("journal.investigations.detail.content",
+                    InsightUi.SectionHeader("journal.investigations.detail.header", selected.Title, selected.Hypothesis),
+                    InsightUi.Meter("journal.investigations.detail.progress", selected.Progress, 1f),
+                    InsightUi.StatRow("journal.investigations.detail.state", JournalText.Get("Wildlife.UI.Journal.Meta.State"), selected.State),
+                    InsightUi.StatRow("journal.investigations.detail.uncertainty", JournalText.Get("Wildlife.UI.Journal.Investigations.Uncertainty"), selected.Uncertainty),
+                    InsightUi.Callout("journal.investigations.detail.evidence", selected.Contradictory ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
+                        JournalText.Get("Wildlife.UI.Journal.Evidence"), selected.Evidence),
+                    InsightUi.StatRow("journal.investigations.detail.next", JournalText.Get("Wildlife.UI.Journal.Investigations.Next"), selected.NextAction),
+                    CanFocus(selected.Species, selected.Cell)
+                        ? InsightUi.Button("journal.investigations.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                            () => Focus(selected.Cell, selected.Species))
+                        : InsightUi.Empty("journal.investigations.detail.focus.unavailable")).SetGap(7f));
+            return ResponsiveSplit("journal.investigations.split", list, detail, 0.48f);
+        }
+
+        private InsightUiElement BuildInvestigationRow(JournalInvestigationRecord value, int index)
+        {
+            string id = "journal.investigations.row." + value.Id;
+            InsightUiButton select = InsightUi.Button(id + ".select", value.Title, () =>
+            {
+                selectedInvestigationId = value.Id;
+                Rebuild();
+            });
+            select.Selected = selectedInvestigationId == value.Id;
+            return InsightUi.Surface(id, InsightUi.Column(id + ".content", select,
+                InsightUi.Label(id + ".hypothesis", value.Hypothesis, InsightUiTextStyle.Caption),
+                InsightUi.Meter(id + ".progress", value.Progress, 1f),
+                InsightUi.Badge(id + ".state", value.State)).SetGap(4f));
+        }
+
+        private InsightUiElement BuildExpeditions()
+        {
+            if (!WildlifeJournal.ExpeditionsVisible())
+                return InsightUi.Callout("journal.expeditions.disabled", InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.Expeditions.Disabled"), JournalText.Get("Wildlife.UI.Journal.Expeditions.Disabled.Help"));
+            List<JournalExpeditionRecord> records = snapshot.Expeditions.Where(Matches).ToList();
+            InsightUiElement list = records.Count == 0 ? Empty("Wildlife.UI.Journal.Expeditions.Empty", "Wildlife.UI.Journal.Expeditions.Empty.Help") :
+                BuildVirtualList("journal-expedition-items", records, 88f, (item, index) =>
+                    InsightUi.Surface("journal.expedition." + item.Id, InsightUi.Column("journal.expedition." + item.Id + ".content",
+                        InsightUi.SectionHeader("journal.expedition." + item.Id + ".header", item.Title, item.Detail),
+                        InsightUi.Row("journal.expedition." + item.Id + ".meta").SetGap(8f)
+                            .Add(InsightUi.StatRow("journal.expedition." + item.Id + ".stage", JournalText.Get("Wildlife.UI.Journal.Meta.State"), item.Stage),
+                                InsightUi.StatRow("journal.expedition." + item.Id + ".return", JournalText.Get("Wildlife.UI.Journal.Expeditions.Return"), item.ReturnTime)),
+                        InsightUi.Button("journal.expedition." + item.Id + ".open", JournalText.Get("Wildlife.UI.Journal.Action.OpenExpedition"),
+                            () => OpenExpeditions())).SetGap(5f)));
+            InsightUiElement action = InsightUi.Button("journal.expeditions.plan", JournalText.Get("Wildlife.UI.Journal.Action.PlanExpedition"), OpenExpeditions);
+            return InsightUi.Column("journal.expeditions.content", action, list).SetGap(8f);
+        }
+
+        private InsightUiElement BuildChronicle()
+        {
+            List<JournalStoryRecord> stories = snapshot.Stories.Where(Matches).Take(12).ToList();
+            List<JournalInvestigationRecord> investigations = snapshot.Investigations.Where(Matches).Take(12).ToList();
+            return InsightUi.Column("journal.chronicle.content",
+                InsightUi.Callout("journal.chronicle.help", InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.Chronicle.Help")),
+                InsightUi.SectionHeader("journal.chronicle.stories.header",
+                    JournalText.Get("Wildlife.UI.Journal.Page.Stories"), JournalText.Get("Wildlife.UI.Journal.Chronicle.StoriesHelp")),
+                stories.Count == 0 ? Empty("journal.chronicle.stories.empty", "Wildlife.UI.Journal.Stories.Empty",
+                    "Wildlife.UI.Journal.Stories.Empty.Help") :
+                    BuildVirtualList("journal.chronicle.story-items", stories, 82f, BuildChronicleStoryRow),
+                InsightUi.SectionHeader("journal.chronicle.investigations.header",
+                    JournalText.Get("Wildlife.UI.Journal.Page.Investigations"), JournalText.Get("Wildlife.UI.Journal.Chronicle.InvestigationsHelp")),
+                investigations.Count == 0 ? Empty("journal.chronicle.investigations.empty", "Wildlife.UI.Journal.Investigations.Empty",
+                    "Wildlife.UI.Journal.Investigations.Empty.Help") :
+                    BuildVirtualList("journal.chronicle.investigation-items", investigations, 88f, BuildChronicleInvestigationRow)).SetGap(8f);
+        }
+
+        private InsightUiElement BuildChronicleStoryRow(JournalStoryRecord value, int index)
+        {
+            string id = "journal.chronicle.story." + value.Id;
+            return InsightUi.Surface(id, InsightUi.Column(id + ".content",
+                InsightUi.SectionHeader(id + ".header", value.Title, value.Summary),
+                InsightUi.Callout(id + ".consequence", InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.Stories.Interpretation"), value.Interpretation),
+                InsightUi.StatRow(id + ".time", JournalText.Get("Wildlife.UI.Journal.Meta.Time"), value.Age)).SetGap(5f));
+        }
+
+        private InsightUiElement BuildChronicleInvestigationRow(JournalInvestigationRecord value, int index)
+        {
+            string id = "journal.chronicle.investigation." + value.Id;
+            return InsightUi.Surface(id, InsightUi.Column(id + ".content",
+                InsightUi.SectionHeader(id + ".header", value.Title, value.Hypothesis),
+                InsightUi.Meter(id + ".progress", value.Progress, 1f),
+                InsightUi.StatRow(id + ".state", JournalText.Get("Wildlife.UI.Journal.Meta.State"), value.State),
+                InsightUi.Callout(id + ".next", value.Contradictory ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
+                    JournalText.Get("Wildlife.UI.Journal.Investigations.Next"), value.NextAction)).SetGap(5f));
+        }
+
+        private InsightUiElement BuildStories()
+        {
+            List<JournalStoryRecord> records = snapshot.Stories.Where(Matches).ToList();
+            JournalStoryRecord selected = records.FirstOrDefault(value => value.Id == selectedStoryId) ?? records.FirstOrDefault();
+            selectedStoryId = selected?.Id;
+            InsightUiElement list = records.Count == 0 ? Empty("Wildlife.UI.Journal.Stories.Empty", "Wildlife.UI.Journal.Stories.Empty.Help") :
+                BuildVirtualList("journal-story-items", records, 86f, (item, index) =>
+                    InsightUi.Surface("journal.story." + item.Id, InsightUi.Column("journal.story." + item.Id + ".content",
+                        InsightUi.Button("journal.story." + item.Id + ".select", item.Title, () =>
+                        {
+                            selectedStoryId = item.Id;
+                            Rebuild();
+                        }), InsightUi.Label("journal.story." + item.Id + ".summary", item.Summary, InsightUiTextStyle.Caption),
+                        InsightUi.StatRow("journal.story." + item.Id + ".time", JournalText.Get("Wildlife.UI.Journal.Meta.Time"), item.Age)).SetGap(4f)));
+            InsightUiElement detail = selected == null ? Empty("journal.stories.detail.empty",
+                "Wildlife.UI.Journal.Selection.Empty", "Wildlife.UI.Journal.Selection.Empty.Help") :
+                InsightUi.Surface("journal.stories.detail", InsightUi.Column("journal.stories.detail.content",
+                    InsightUi.SectionHeader("journal.stories.detail.header", selected.Title, selected.Summary),
+                    InsightUi.Callout("journal.stories.detail.interpretation", InsightUiCalloutSeverity.Info,
+                        JournalText.Get("Wildlife.UI.Journal.Stories.Interpretation"), selected.Interpretation),
+                    InsightUi.StatRow("journal.stories.detail.species", JournalText.Get("Wildlife.UI.Journal.Meta.Species"), selected.SpeciesName),
+                    InsightUi.StatRow("journal.stories.detail.time", JournalText.Get("Wildlife.UI.Journal.Meta.Time"), selected.Age)).SetGap(7f));
+            return ResponsiveSplit("journal.stories.split", list, detail, 0.50f);
+        }
+
+        private InsightUiElement Empty(string titleKey, string helpKey)
+        {
+            return Empty("journal.empty." + titleKey.Replace('.', '-'), titleKey, helpKey);
+        }
+
+        private InsightUiElement Empty(string id, string titleKey, string helpKey)
+        {
+            return InsightUi.Callout(id, InsightUiCalloutSeverity.Info,
+                JournalText.Get(titleKey), JournalText.Get(helpKey));
+        }
+
+        private InsightUiElement BuildVirtualList<T>(string id, IReadOnlyList<T> values, float height,
+            Func<T, int, InsightUiElement> factory)
+        {
+            InsightUiVirtualList list = InsightUi.VirtualList(id, values.Count, height, index => factory(values[index], index));
+            list.CacheLimit = 96;
+            list.Overscan = 2;
+            return list.SetMinSize(0f, 180f);
+        }
+
+        private WildlifeResponsiveJournalSplit ResponsiveSplit(string id, InsightUiElement first,
+            InsightUiElement second, float ratio) => new WildlifeResponsiveJournalSplit(id, first, second, ratio);
+
+        private void EnsureSnapshot(bool force)
+        {
+            Map activeMap = map ?? Find.CurrentMap;
+            int now = Find.TickManager?.TicksGame ?? 0;
+            int knowledgeRevision = KnowledgeQuery.Revision;
+            int observerId = signalObserver?.thingIDNumber ?? 0;
+            if (!force && snapshot != null && snapshot.Map == activeMap && snapshotBucket == now / 30 &&
+                snapshotKnowledgeRevision == knowledgeRevision && snapshotObserverId == observerId) return;
+            snapshot = BuildSnapshot(activeMap, now, knowledgeRevision);
+            snapshotBucket = now / 30;
+            snapshotKnowledgeRevision = knowledgeRevision;
+            snapshotObserverId = observerId;
+            if (selectedSpecies != null && !snapshot.Species.Any(value => value.Species == selectedSpecies)) selectedSpecies = null;
+        }
+
+        private WildlifeJournalPresentationSnapshot BuildSnapshot(Map activeMap, int now, int knowledgeRevision)
+        {
+            WildlifeEcologySnapshot ecology = WildlifeEcologySnapshots.For(activeMap);
+            List<JournalSpeciesRecord> species = new List<JournalSpeciesRecord>();
+            foreach (WildlifeSpeciesSnapshot value in ecology?.species ?? Array.Empty<WildlifeSpeciesSnapshot>())
+            {
+                if (value?.species == null || HerdsMod.Settings?.enableWildlifeKnowledge != true) continue;
+                WildlifeInsightSpeciesDisclosure disclosure = WildlifeInsightDisclosure.For(activeMap, value);
+                if (!disclosure.Visible) continue;
+                species.Add(BuildSpecies(value, activeMap, now, disclosure.KnowledgeVisible));
+            }
+            species = species.OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.StageId))
+                .ThenBy(value => value.Species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase).Take(96).ToList();
+            List<JournalSignalRecord> signals = BuildSignalsSnapshot(ecology, activeMap, now);
+            List<JournalLogRecord> fieldLog = BuildFieldLogSnapshot(ecology, activeMap, now, signals);
+            List<JournalRegionRecord> regions = species.Where(value => value.Disclosure?.RegionalPopulation.Available == true)
+                .Select(value => BuildRegion(value, ecology, activeMap)).Take(96).ToList();
+            List<JournalInvestigationRecord> investigations = BuildInvestigationsSnapshot(activeMap, now);
+            List<JournalExpeditionRecord> expeditions = BuildExpeditionsSnapshot(activeMap, now);
+            List<JournalStoryRecord> stories = BuildStoriesSnapshot(activeMap, now);
+            return new WildlifeJournalPresentationSnapshot(activeMap, now, knowledgeRevision, species, fieldLog,
+                signals, regions, investigations, expeditions, stories);
+        }
+
+        private JournalSpeciesRecord BuildSpecies(WildlifeSpeciesSnapshot value, Map activeMap, int now,
+            bool knowledgeVisible)
+        {
+            WildlifeInsightSpeciesDisclosure disclosure = WildlifeInsightDisclosure.For(activeMap, value);
+            List<JournalFacetRecord> facets = new List<JournalFacetRecord>();
+            List<JournalClaimRecord> claims = new List<JournalClaimRecord>();
+            foreach (string facetId in KnowledgeFacets)
+            {
+                KnowledgeFacetSnapshotV2 facet = WildlifeKnowledgeAdapter.Facet(null, value.species, facetId, activeMap, true);
+                if (facet == null) continue;
+                facets.Add(new JournalFacetRecord(facetId, facet.amount, facet.completeness, facet.confidence,
+                    facet.evidenceCount, facet.provisional));
+                if (facetId == WildlifeKnowledgeAdapter.FacetIdentity)
                 {
-                    kind = FieldLogItemKind.Moment,
-                    key = "moment:" + opportunity.eventKey,
-                    title = WildlifeFieldJournalMapComponent.OpportunityLabel(opportunity.kind),
-                    detail = opportunity.description,
-                    meaning = opportunity.response == WildlifeMomentResponse.None
-                        ? "The colony has not chosen a response." : "The response is underway: " + opportunity.response + ".",
-                    location = SectorName(activeMap, opportunity.focusCell),
-                    certainty = "Direct observation",
-                    tick = opportunity.startedTick,
-                    species = opportunity.species,
-                    urgent = opportunity.response == WildlifeMomentResponse.None
-                });
+                    foreach (KnowledgeClaimSnapshot claim in KnowledgeQuery.Claims(WildlifeKnowledgeAdapter.DomainId,
+                        value.subjectId, facetId, null, KnowledgeScope.Colony, WildlifeKnowledgeAdapter.MapContext(activeMap),
+                        KnowledgeContextFallbackMode.ParentThenGlobal).Take(4))
+                    {
+                        if (claim == null) continue;
+                        claims.Add(new JournalClaimRecord(claim.claimId, claim.value?.textValue,
+                            claim.effectiveConfidence, claim.contradictory, claim.observationCount,
+                            claim.bestQualitySource));
+                    }
+                }
             }
-            foreach (WildlifeMomentOutcomeRecord outcome in fieldJournal?.MomentHistory?.Take(8) ??
-                Enumerable.Empty<WildlifeMomentOutcomeRecord>())
-            {
-                if (outcome == null) continue;
-                items.Add(new FieldLogItem
-                {
-                    kind = FieldLogItemKind.Moment,
-                    key = "moment-outcome:" + (outcome.species?.defName ?? "wildlife") + ":" + outcome.tick,
-                    title = WildlifeFieldJournalMapComponent.OpportunityLabel(outcome.kind) + " resolved",
-                    detail = outcome.text,
-                    meaning = outcome.success ? "The colony learned from the encounter." : "The encounter left an unresolved lesson.",
-                    location = "Field record",
-                    certainty = "Recorded",
-                    tick = outcome.tick,
-                    species = outcome.species,
-                    urgent = false
-                });
-            }
+            string stage = WildlifeKnowledgeAdapter.ColonyStage(value.species);
+            int evidenceCount = value.evidence.Count + value.signals.Count + value.trails.Count + value.migrations.Count;
+            bool fieldGuideObserved = disclosure.FieldGuideVisible;
+            string nextEvidence = NextEvidence(stage, facets);
+            List<JournalEvidenceRecord> evidence = value.evidence.Take(8).Select(item => new JournalEvidenceRecord(
+                JournalText.EventKind(item.kind), item.summary, item.source, item.confidence, item.observerCount,
+                item.tick, JournalText.Age(item.tick, now))).ToList();
+            return new JournalSpeciesRecord(value.species, value.subjectId, stage, value.confidence, evidenceCount,
+                facets, claims, evidence, fieldGuideObserved, knowledgeVisible, nextEvidence, disclosure);
+        }
 
-            foreach (WildlifeSignalSnapshot signal in cachedSnapshot?.signals?.OrderByDescending(value => value.tick).Take(8) ??
+        private static bool FieldGuideObserved(WildlifeSpeciesSnapshot value, Map activeMap)
+        {
+            return WildlifeInsightDisclosure.For(activeMap, value).FieldGuideVisible;
+        }
+
+        private static string NextEvidence(string stage, IReadOnlyList<JournalFacetRecord> facets)
+        {
+            JournalFacetRecord unknown = facets?.FirstOrDefault(value => !value.Known);
+            return unknown != null
+                ? JournalText.Format("Wildlife.UI.Journal.Knowledge.NextEvidence.Facet", unknown.Label)
+                : WildlifeKnowledgeAdapter.StageOrder(stage) < WildlifeKnowledgeAdapter.StageOrder(WildlifeKnowledgeAdapter.StageDocumented)
+                    ? JournalText.Get("Wildlife.UI.Journal.Knowledge.NextEvidence.Document")
+                    : JournalText.Get("Wildlife.UI.Journal.Knowledge.NextEvidence.None");
+        }
+
+        private List<JournalSignalRecord> BuildSignalsSnapshot(WildlifeEcologySnapshot ecology, Map activeMap, int now)
+        {
+            List<JournalSignalRecord> output = new List<JournalSignalRecord>();
+            foreach (WildlifeSignalSnapshot value in ecology?.signals?.OrderByDescending(item => item.tick).Take(64) ??
                 Enumerable.Empty<WildlifeSignalSnapshot>())
             {
-                if (signal?.species == null) continue;
-                WildlifeSignalCultureMapComponent signalCulture = activeMap.GetComponent<WildlifeSignalCultureMapComponent>();
-                bool warningSignal = WildlifeSignalCultureMapComponent.IsWarningCall(signal.kind);
-                WildlifeWarningKnowledgeState warning = warningSignal
-                    ? signalCulture?.ColonyWarningKnowledge(signal.species) : null;
-                WildlifePredatorPressureKnowledgeState predatorPressure = signal.predatorPressureEligible
-                        ? signalCulture?.ColonyPredatorPressure(signal.species) : null;
-                items.Add(new FieldLogItem
-                {
-                    kind = FieldLogItemKind.Signal,
-                    key = "signal:" + signal.species.defName + ":" + signal.tick + ":" + signal.cell,
-                    title = signal.species.LabelCap + " signal",
-                    detail = signal.historicalDescription.NullOrEmpty()
-                        ? "A wildlife signal was recorded." : signal.historicalDescription,
-                    meaning = predatorPressure?.hasEvidence == true ? predatorPressure.PlayerDescription :
-                        warningSignal ? warning?.PlayerDescription ?? "A warning call was recorded, but its meaning remains uncertain." :
-                        signal.verified ? "The colony currently treats this interpretation as confirmed." :
-                            signal.behaviorConsistent ? "The pattern is becoming familiar, but remains incomplete." :
-                            "The colony is still deciding what this signal means.",
-                    location = SectorName(activeMap, signal.cell),
-                    certainty = predatorPressure?.claimSupported == true ? "Supported pattern" :
-                        predatorPressure?.patternRecognized == true ? "Developing pattern" :
-                        warningSignal ? warning?.claimSupported == true ? "Supported interpretation" :
-                            warning?.meaningInterpreted == true ? "Interpreted" :
-                            warning?.familyRecognized == true ? "Family recognized" : "Uncertain" :
-                        signal.verified ? "Confirmed" : signal.behaviorConsistent ? "Probable" : "Uncertain",
-                    tick = signal.tick,
-                    species = signal.species,
-                    urgent = false
-                });
+                if (value?.species == null) continue;
+                WildlifeSignalCultureMapComponent culture = activeMap?.GetComponent<WildlifeSignalCultureMapComponent>();
+                WildlifeWarningKnowledgeState warning = WildlifeSignalCultureMapComponent.IsWarningCall(value.kind)
+                    ? (signalObserver == null ? culture?.ColonyWarningKnowledge(value.species) : culture?.WarningKnowledge(signalObserver, value.species)) : null;
+                WildlifePredatorPressureKnowledgeState pressure = value.predatorPressureEligible
+                    ? culture?.ColonyPredatorPressure(value.species) : null;
+                bool contradictory = warning?.contradictory == true || pressure?.contradictory == true;
+                float confidence = pressure?.confidence ?? warning?.confidence ?? (value.verified ? 0.85f : value.behaviorConsistent ? 0.55f : 0.2f);
+                output.Add(new JournalSignalRecord("signal:" + value.species.defName + ":" + value.tick + ":" + value.cell,
+                    value.species, value.kind, value.cell, value.tick, JournalText.SignalKind(value.kind),
+                    value.historicalDescription, signalObserver?.LabelShortCap.ToString() ?? JournalText.Get("Wildlife.UI.Journal.Signals.Colony"),
+                    contradictory, confidence, JournalText.Certainty(confidence, !contradictory),
+                    pressure?.PlayerLabel ?? warning?.PlayerLabel ?? JournalText.Get("Wildlife.UI.Journal.Signals.Unresolved"),
+                    value.historicalDescription, JournalText.Age(value.tick, now)));
             }
+            return output;
+        }
 
-            foreach (WildlifeTrailLead trail in activeMap.GetComponent<WildlifeTrailMapComponent>()?.TrailLeads
-                ?.Where(value => value?.species != null && value.expiresTick > now)
-                .OrderByDescending(value => value.createdTick).Take(8) ?? Enumerable.Empty<WildlifeTrailLead>())
+        private List<JournalLogRecord> BuildFieldLogSnapshot(WildlifeEcologySnapshot ecology, Map activeMap, int now,
+            IReadOnlyList<JournalSignalRecord> signals)
+        {
+            List<JournalLogRecord> values = new List<JournalLogRecord>();
+            WildlifeFieldJournalMapComponent journal = activeMap?.GetComponent<WildlifeFieldJournalMapComponent>();
+            WildlifeOpportunityRecord opportunity = journal?.Opportunity;
+            if (opportunity != null)
+                values.Add(new JournalLogRecord("moment:" + opportunity.eventKey, "Wildlife.UI.Journal.Type.Moment",
+                    WildlifeFieldJournalMapComponent.OpportunityLabel(opportunity.kind), opportunity.description,
+                    opportunity.response == WildlifeMomentResponse.None ? JournalText.Get("Wildlife.UI.Journal.Moment.Waiting") :
+                    JournalText.Get("Wildlife.UI.Journal.Moment.Underway"), JournalText.Get("Wildlife.UI.Journal.Meta.Direct"),
+                    Sector(activeMap, opportunity.focusCell), JournalText.Age(opportunity.startedTick, now), opportunity.species,
+                    opportunity.focusCell, opportunity.startedTick, opportunity.response == WildlifeMomentResponse.None,
+                    opportunity.response == WildlifeMomentResponse.None ? JournalAction.Response : JournalAction.Focus));
+            foreach (WildlifeMomentOutcomeRecord outcome in journal?.MomentHistory?.Take(8) ?? Enumerable.Empty<WildlifeMomentOutcomeRecord>())
+                if (outcome != null) values.Add(new JournalLogRecord("moment-outcome:" + outcome.tick + ":" + outcome.species?.defName,
+                    "Wildlife.UI.Journal.Type.Moment", WildlifeFieldJournalMapComponent.OpportunityLabel(outcome.kind), outcome.text,
+                    outcome.success ? JournalText.Get("Wildlife.UI.Journal.Moment.Learned") : JournalText.Get("Wildlife.UI.Journal.Moment.Unresolved"),
+                    JournalText.Get("Wildlife.UI.Journal.Meta.Recorded"), JournalText.Get("Wildlife.UI.Journal.Meta.FieldRecord"),
+                    JournalText.Age(outcome.tick, now), outcome.species, IntVec3.Invalid, outcome.tick, false, JournalAction.Focus));
+            foreach (JournalSignalRecord signal in signals.Take(24))
+                values.Add(new JournalLogRecord(signal.Id, "Wildlife.UI.Journal.Type.Signal", signal.SpeciesName,
+                    signal.Description, signal.Interpretation, signal.ConfidenceLabel, Sector(activeMap, signal.Cell), signal.Age,
+                    signal.Species, signal.Cell, signal.Tick, signal.Contradictory, JournalAction.Focus));
+            foreach (WildlifeTrailLead trail in activeMap?.GetComponent<WildlifeTrailMapComponent>()?.TrailLeads
+                ?.Where(value => value?.species != null && value.expiresTick > now).OrderByDescending(value => value.createdTick).Take(16) ??
+                Enumerable.Empty<WildlifeTrailLead>())
             {
                 IntVec3 cell = trail.predictedCell.IsValid ? trail.predictedCell : trail.departureCell;
-                items.Add(new FieldLogItem
-                {
-                    kind = FieldLogItemKind.Trail,
-                    key = "trail:" + trail.species.defName + ":" + trail.createdTick + ":" + trail.departureCell,
-                    title = trail.species.LabelCap + " trail",
-                    detail = trail.lastOutcome.NullOrEmpty() ?
-                        "Signs point toward " + SectorName(activeMap, cell) + "." : trail.lastOutcome,
-                    meaning = trail.state == WildlifeTrailState.BeyondMap
-                        ? "The trail continues beyond the local map." : trail.viableLead
-                            ? "This lead can support a tracking response." : "The direction remains uncertain.",
-                    location = SectorName(activeMap, cell),
-                    certainty = ConfidenceLabel(trail.confidence),
-                    tick = trail.createdTick,
-                    species = trail.species,
-                    urgent = trail.state == WildlifeTrailState.LiveQuarry || trail.state == WildlifeTrailState.Pursuit,
-                    trail = trail
-                });
+                values.Add(new JournalLogRecord("trail:" + trail.species.defName + ":" + trail.createdTick + ":" + trail.departureCell,
+                    "Wildlife.UI.Journal.Type.Trail", trail.species.LabelCap.ToString(),
+                    trail.lastOutcome.NullOrEmpty() ? JournalText.Format("Wildlife.UI.Journal.Trail.Direction", Sector(activeMap, cell)) : trail.lastOutcome,
+                    trail.viableLead ? JournalText.Get("Wildlife.UI.Journal.Trail.Actionable") : JournalText.Get("Wildlife.UI.Journal.Trail.Uncertain"),
+                    JournalText.TrailState(trail.state), Sector(activeMap, cell), JournalText.Age(trail.createdTick, now), trail.species,
+                    cell, trail.createdTick, trail.state == WildlifeTrailState.LiveQuarry || trail.state == WildlifeTrailState.Pursuit,
+                    JournalAction.Focus));
             }
-
-            foreach (WildlifeMysteryRecord mystery in activeMap.GetComponent<WildlifeMysteryMapComponent>()?.Mysteries
-                ?.Where(value => value != null && !value.Resolved)
-                .OrderByDescending(value => value.startedTick).Take(4) ?? Enumerable.Empty<WildlifeMysteryRecord>())
+            foreach (WildlifeMysteryRecord mystery in activeMap?.GetComponent<WildlifeMysteryMapComponent>()?.Mysteries
+                ?.Where(value => value != null && !value.Resolved).OrderByDescending(value => value.startedTick).Take(16) ??
+                Enumerable.Empty<WildlifeMysteryRecord>())
             {
-                IntVec3 cell = mystery.animal?.Spawned == true ? mystery.animal.Position : IntVec3.Invalid;
-                items.Add(new FieldLogItem
-                {
-                    kind = FieldLogItemKind.Investigation,
-                    key = "mystery:" + mystery.id,
-                    title = mystery.title,
-                    detail = mystery.Solved ? mystery.explanation : mystery.anomaly,
-                    meaning = mystery.Solved ? "A cause has been identified; the colony must choose a response." :
-                        "The colony is comparing evidence before acting.",
-                    location = SectorName(activeMap, cell),
-                    certainty = mystery.Solved ? "Confirmed" : "Uncertain",
-                    tick = mystery.Solved && mystery.solvedTick > 0 ? mystery.solvedTick : mystery.startedTick,
-                    species = mystery.species,
-                    urgent = mystery == activeMap.GetComponent<WildlifeMysteryMapComponent>()?.Active
-                });
+                IntVec3 cell = IntVec3.Invalid;
+                values.Add(new JournalLogRecord("mystery:" + mystery.id, "Wildlife.UI.Journal.Type.Investigation", mystery.title,
+                    mystery.Solved ? mystery.explanation : mystery.anomaly,
+                    mystery.Solved ? JournalText.Get("Wildlife.UI.Journal.Investigation.Confirmed") : JournalText.Get("Wildlife.UI.Journal.Investigation.Working"),
+                    mystery.Solved ? JournalText.Get("Wildlife.UI.Journal.Certainty.Confirmed") : JournalText.Get("Wildlife.UI.Journal.Certainty.Uncertain"),
+                    Sector(activeMap, cell), JournalText.Age(mystery.Solved && mystery.solvedTick > 0 ? mystery.solvedTick : mystery.startedTick, now),
+                    mystery.species, cell, mystery.Solved && mystery.solvedTick > 0 ? mystery.solvedTick : mystery.startedTick,
+                    mystery == activeMap.GetComponent<WildlifeMysteryMapComponent>()?.Active, JournalAction.Focus));
             }
-
-            foreach (HuntingExpeditionRecord expedition in activeMap.GetComponent<HuntingExpeditionMapComponent>()?.ActiveExpeditions
-                ?.Where(value => value != null).Take(4) ?? Enumerable.Empty<HuntingExpeditionRecord>())
-            {
-                items.Add(new FieldLogItem
-                {
-                    kind = FieldLogItemKind.Expedition,
-                    key = "expedition:" + expedition.id,
-                    title = "Wildlife expedition in progress",
-                    detail = "Objective: " + expedition.objective + "." +
-                        (expedition.targetSpecies == null ? string.Empty : " Target: " + expedition.targetSpecies.LabelCap + "."),
-                    meaning = expedition.needsRescue ? "The field party needs assistance." :
-                        "The colony is waiting for the next report from beyond the local map.",
-                    location = "Beyond the local map",
-                    certainty = expedition.needsRescue ? "Urgent report" : "Tracked",
-                    tick = expedition.stageStartedTick > 0 ? expedition.stageStartedTick : expedition.departureTick,
-                    species = expedition.targetSpecies,
-                    urgent = expedition.needsRescue
-                });
-            }
-
+            foreach (HuntingExpeditionRecord expedition in activeMap?.GetComponent<HuntingExpeditionMapComponent>()?.ActiveExpeditions
+                ?.Take(8) ?? Enumerable.Empty<HuntingExpeditionRecord>())
+                if (expedition != null) values.Add(new JournalLogRecord("expedition:" + expedition.id,
+                    "Wildlife.UI.Journal.Type.Expedition", JournalText.Get("Wildlife.UI.Journal.Expeditions.Active"),
+                    JournalText.Format("Wildlife.UI.Journal.Expeditions.Objective", expedition.objective,
+                        expedition.targetSpecies?.LabelCap.ToString() ?? JournalText.Get("Wildlife.UI.Journal.Value.Unknown")),
+                    expedition.needsRescue ? JournalText.Get("Wildlife.UI.Journal.Expeditions.Rescue") : JournalText.Get("Wildlife.UI.Journal.Expeditions.Tracked"),
+                    expedition.needsRescue ? JournalText.Get("Wildlife.UI.Journal.Certainty.Urgent") : JournalText.Get("Wildlife.UI.Journal.Certainty.Probable"),
+                    JournalText.Get("Wildlife.UI.Journal.Meta.BeyondMap"), JournalText.Age(expedition.departureTick, now), expedition.targetSpecies,
+                    IntVec3.Invalid, expedition.departureTick, expedition.needsRescue, JournalAction.OpenExpedition));
             foreach (WildlifeExperienceEvent outcome in Current.Game?.GetComponent<WildlifeExperienceGameComponent>()?.Events
-                ?.Where(value => value != null && !value.text.NullOrEmpty()).Take(30) ??
+                ?.Take(30) ?? Enumerable.Empty<WildlifeExperienceEvent>())
+                if (outcome != null && !outcome.text.NullOrEmpty()) values.Add(new JournalLogRecord(
+                    "outcome:" + outcome.category + ":" + outcome.tick + ":" + outcome.thingId,
+                    "Wildlife.UI.Journal.Type.Outcome", JournalText.OutcomeTitle(outcome.category),
+                    outcome.text, WildlifeExperience.IsNegative(outcome) ? JournalText.Get("Wildlife.UI.Journal.Outcome.Setback") :
+                    JournalText.Get("Wildlife.UI.Journal.Outcome.Recorded"), JournalText.Get("Wildlife.UI.Journal.Meta.Recorded"),
+                    JournalText.Get("Wildlife.UI.Journal.Meta.ColonyRecord"), JournalText.Age(outcome.tick, now), null, IntVec3.Invalid,
+                    outcome.tick, WildlifeExperience.IsNegative(outcome), JournalAction.Focus));
+            return values.GroupBy(value => value.Id).Select(group => group.First()).OrderByDescending(value => value.Tick)
+                .ThenByDescending(value => value.Urgent).Take(128).ToList();
+        }
+
+        private List<JournalRegionRecord> BuildRegionsFromSpecies(IEnumerable<JournalSpeciesRecord> species,
+            WildlifeEcologySnapshot ecology, Map activeMap)
+        {
+            return species.Select(value => BuildRegion(value, ecology, activeMap)).ToList();
+        }
+
+        private JournalRegionRecord BuildRegion(JournalSpeciesRecord value, WildlifeEcologySnapshot ecology, Map activeMap)
+        {
+            WildlifeSpeciesSnapshot source = ecology?.For(value.Species);
+            WildlifeInsightSpeciesDisclosure disclosure = value.Disclosure ??
+                WildlifeInsightDisclosure.For(activeMap, source);
+            int evidence = source?.evidence?.Count ?? 0;
+            int trails = source?.trails?.Count ?? 0;
+            int migrations = source?.migrations?.Count ?? 0;
+            int variations = source?.variations?.Count ?? 0;
+            int notable = activeMap?.GetComponent<NotableWildlifeMapComponent>()?.Records?.Count(item =>
+                item?.species == value.Species && item.deathRecorded == false) ?? 0;
+            string trend = disclosure.Trend.Available ? disclosure.Trend.Text :
+                migrations > 0 ? JournalText.Get("Wildlife.UI.Journal.Region.Moving") : JournalText.Get("Wildlife.UI.Journal.Region.Unseen");
+            string movement = migrations > 0 ? JournalText.Format("Wildlife.UI.Journal.Region.MigrationCount", migrations) :
+                trails > 0 ? JournalText.Format("Wildlife.UI.Journal.Region.TrailCount", trails) : JournalText.Get("Wildlife.UI.Journal.Region.NoMovement");
+            string local = disclosure.LocalPopulation.Text;
+            string regional = disclosure.RegionalPopulation.Text;
+            string summary = JournalText.Format("Wildlife.UI.Journal.Region.Summary", local, regional);
+            string atlasSummary = JournalText.Format("Wildlife.UI.Journal.LivingAtlas.Summary", evidence, trails,
+                migrations, notable, ecology?.activeExpeditions ?? 0);
+            return new JournalRegionRecord(value.Species, local, regional, trend, disclosure.Pressure.HasNumeric ?
+                disclosure.Pressure.Numeric : 0f, disclosure.Pressure.Text, disclosure.Habitat.Text, movement,
+                summary, atlasSummary, evidence, trails, migrations, notable, variations, disclosure);
+        }
+
+        private List<JournalInvestigationRecord> BuildInvestigationsSnapshot(Map activeMap, int now)
+        {
+            List<JournalInvestigationRecord> output = new List<JournalInvestigationRecord>();
+            WildlifeMysteryMapComponent mysteries = activeMap?.GetComponent<WildlifeMysteryMapComponent>();
+            foreach (WildlifeMysteryRecord value in mysteries?.Mysteries?.Where(item => item != null && !item.Resolved).Take(24) ??
+                Enumerable.Empty<WildlifeMysteryRecord>())
+                output.Add(new JournalInvestigationRecord("mystery:" + value.id, value.title, value.species,
+                    value.Solved ? value.explanation : value.anomaly, value.Solved ? JournalText.State("Confirmed") : JournalText.State("Working"),
+                    Mathf.Clamp01(value.progress), value.progress >= 0.75f ? JournalText.Get("Wildlife.UI.Journal.Uncertainty.Narrow") : JournalText.Get("Wildlife.UI.Journal.Uncertainty.Open"),
+                    string.Join("\n", value.evidence.Take(6).Select(item => item.source + ": " + item.clue)), value.evidence.Any(item => item.value < 0f),
+                    value.Solved ? JournalText.Get("Wildlife.UI.Journal.Investigation.Response") : JournalText.Get("Wildlife.UI.Journal.Investigation.Review"),
+                    IntVec3.Invalid));
+            foreach (WildlifeHypothesisRecord value in WildlifeNarrativeUtility.For(activeMap)?.OpenHypotheses?.Take(24) ??
+                Enumerable.Empty<WildlifeHypothesisRecord>())
+                if (value != null) output.Add(new JournalInvestigationRecord("hypothesis:" + value.id, value.title, value.species,
+                    value.candidates?.FirstOrDefault()?.explanation ?? JournalText.Get("Wildlife.UI.Journal.Investigation.NoHypothesis"),
+                    JournalText.State(value.state.ToString()), Mathf.Clamp01(value.confidence),
+                    value.candidates?.Count > 1 ? JournalText.Get("Wildlife.UI.Journal.Uncertainty.Competing") : JournalText.Get("Wildlife.UI.Journal.Uncertainty.Open"),
+                    string.Join("\n", value.evidence.Take(6).Select(item => item.source + ": " + item.text)),
+                    value.evidence.Any(item => item.contradicts), value.bestNextObservation, IntVec3.Invalid));
+            return output.OrderByDescending(value => value.Progress).Take(48).ToList();
+        }
+
+        private List<JournalExpeditionRecord> BuildExpeditionsSnapshot(Map activeMap, int now)
+        {
+            HuntingExpeditionMapComponent component = activeMap?.GetComponent<HuntingExpeditionMapComponent>();
+            return (component?.ActiveExpeditions ?? Array.Empty<HuntingExpeditionRecord>()).Where(value => value != null).Take(32)
+                .Select(value => new JournalExpeditionRecord(value.id,
+                    JournalText.Format("Wildlife.UI.Journal.Expeditions.Title", value.id),
+                    JournalText.Format("Wildlife.UI.Journal.Expeditions.Objective", value.objective,
+                        value.targetSpecies?.LabelCap.ToString() ?? JournalText.Get("Wildlife.UI.Journal.Value.Unknown")),
+                    JournalText.State(value.stage.ToString()),
+                    Mathf.Clamp01(value.expectedReturnTick <= value.departureTick ? 0.5f :
+                        1f - (float)Mathf.Max(0, value.expectedReturnTick - now) / Mathf.Max(1, value.expectedReturnTick - value.departureTick)),
+                    value.expectedReturnTick <= now ? JournalText.Get("Wildlife.UI.Journal.Expeditions.ReturnSoon") :
+                    JournalText.Age(value.expectedReturnTick, now), value.needsRescue)).ToList();
+        }
+
+        private List<JournalStoryRecord> BuildStoriesSnapshot(Map activeMap, int now)
+        {
+            List<JournalStoryRecord> output = new List<JournalStoryRecord>();
+            foreach (WildlifeNarrativeRecord value in WildlifeNarrativeUtility.For(activeMap)?.Stories?.Take(40) ??
+                Enumerable.Empty<WildlifeNarrativeRecord>())
+                if (value != null) output.Add(new JournalStoryRecord("story:" + value.tick + ":" + value.title,
+                    value.title, value.summary, value.interpretation, value.species, value.tick, JournalText.Age(value.tick, now)));
+            foreach (WildlifeExperienceEvent value in Current.Game?.GetComponent<WildlifeExperienceGameComponent>()?.Events?.Take(30) ??
                 Enumerable.Empty<WildlifeExperienceEvent>())
+                if (value != null && !value.text.NullOrEmpty()) output.Add(new JournalStoryRecord(
+                    "experience:" + value.tick + ":" + value.category, JournalText.OutcomeTitle(value.category),
+                    value.text, WildlifeExperience.IsNegative(value) ? JournalText.Get("Wildlife.UI.Journal.Outcome.Setback") :
+                    JournalText.Get("Wildlife.UI.Journal.Outcome.Recorded"), null, value.tick, JournalText.Age(value.tick, now)));
+            return output.GroupBy(value => value.Id).Select(group => group.First()).OrderByDescending(value => value.Tick).Take(64).ToList();
+        }
+
+        private void SelectPage(string id)
+        {
+            IReadOnlyList<WildlifeJournalPage> pages = AvailablePages();
+            WildlifeJournalPage next = PageOrder.FirstOrDefault(value =>
+                pages.Contains(value) && PageId(value) == id);
+            if (!pages.Contains(next)) next = FallbackPage(pages);
+            if (page == next) return;
+            page = next;
+            Rebuild();
+        }
+
+        private void Rebuild()
+        {
+            EnsureSnapshot(false);
+            Document.Root = BuildRoot();
+            Document.Invalidate();
+        }
+
+        private bool Matches(JournalLogRecord value) => Matches(value.Title, value.Detail, value.SpeciesName, value.Certainty, value.Location);
+        private bool Matches(JournalSpeciesRecord value) => Matches(value.Species.LabelCap.ToString(), value.StageLabel, value.SubjectId);
+        private bool Matches(JournalRegionRecord value) => Matches(value.Species.LabelCap.ToString(), value.Summary, value.Trend, value.Movement);
+        private bool Matches(JournalSignalRecord value) => Matches(value.SpeciesName, value.Family, value.Description, value.Interpretation, value.ObserverName);
+        private bool Matches(JournalInvestigationRecord value) => Matches(value.Title, value.Hypothesis, value.State, value.Evidence, value.NextAction);
+        private bool Matches(JournalStoryRecord value) => Matches(value.Title, value.Summary, value.Interpretation, value.SpeciesName);
+        private bool Matches(JournalExpeditionRecord value) => Matches(value.Title, value.Detail, value.Stage, value.ReturnTime);
+        private bool Matches(params string[] values)
+        {
+            if (search.NullOrEmpty()) return true;
+            string query = search.Trim();
+            return values.Any(value => !value.NullOrEmpty() && value.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private void Focus(IntVec3 cell, ThingDef species)
+        {
+            Host.RunWithOverlayOwnership(() =>
             {
-                if (items.Any(item => item.tick == outcome.tick &&
-                    string.Equals(item.detail, outcome.text, StringComparison.Ordinal))) continue;
-                items.Add(new FieldLogItem
+                WildlifeUI.CloseMenus();
+                WildlifeSpeciesSnapshot source = WildlifeEcologySnapshots.For(map)?.For(species);
+                WildlifeInsightSpeciesDisclosure disclosure = WildlifeInsightDisclosure.For(map, source);
+                if (species != null && !disclosure.Allows(WildlifeInsightDisclosure.ActionFocus))
                 {
-                    kind = FieldLogItemKind.Outcome,
-                    key = "outcome:" + outcome.category + ":" + outcome.tick + ":" + outcome.thingId,
-                    title = outcome.category.NullOrEmpty() ? "Wildlife outcome" : outcome.category,
-                    detail = outcome.text,
-                    meaning = WildlifeExperience.IsNegative(outcome)
-                        ? "The colony recorded a setback or warning." : "The colony recorded what happened for later understanding.",
-                    location = "Colony record",
-                    certainty = "Recorded",
-                    tick = outcome.tick,
-                    urgent = false,
-                    outcome = outcome
-                });
-            }
-
-            Dictionary<string, FieldLogItem> unique = new Dictionary<string, FieldLogItem>(StringComparer.Ordinal);
-            foreach (FieldLogItem item in items.Where(value => value != null))
-            {
-                if (item.key.NullOrEmpty()) item.key = item.kind + ":" + item.tick + ":" + item.title;
-                if (!unique.ContainsKey(item.key)) unique.Add(item.key, item);
-            }
-            return unique.Values.OrderByDescending(value => value.urgent)
-                .ThenByDescending(value => value.tick).Take(28).ToList();
-        }
-
-        private void ShowSignals(Pawn observer, ThingDef species)
-        {
-            page = WildlifeJournalPage.Signals;
-            signalObserver = observer;
-            if (species != null) selectedSpecies = species;
-            if (signalPanel != null) signalPanel.SetContext(observer, species);
-        }
-
-        private void DrawFieldGuide(Rect rect, Map activeMap)
-        {
-            bool stacked = rect.width < 720f;
-            float leftWidth = stacked ? rect.width : Mathf.Clamp(rect.width * 0.29f, 220f, 330f);
-            Rect left = new Rect(rect.x, rect.y, leftWidth, stacked ? Mathf.Min(190f, rect.height * 0.34f) : rect.height);
-            Rect detail = stacked
-                ? new Rect(rect.x, left.yMax + 8f, rect.width, rect.yMax - left.yMax - 8f)
-                : new Rect(left.xMax + 10f, rect.y, rect.width - left.width - 10f, rect.height);
-            DrawSpeciesList(left, activeMap);
-            DrawDossier(detail, activeMap);
-        }
-
-        private void DrawSpeciesList(Rect rect, Map activeMap)
-        {
-            Widgets.DrawMenuSection(rect);
-            Rect inner = rect.ContractedBy(8f);
-            search = Widgets.TextField(new Rect(inner.x, inner.y, inner.width, 28f), search ?? string.Empty);
-            List<ThingDef> filtered = cachedSpecies.Where(value => search.NullOrEmpty() ||
-                value.LabelCap.ToString().IndexOf(search.Trim(), StringComparison.OrdinalIgnoreCase) >= 0).ToList();
-            Rect outer = new Rect(inner.x, inner.y + 36f, inner.width, inner.height - 36f);
-            Rect view = new Rect(0f, 0f, outer.width - 16f, Mathf.Max(outer.height, filtered.Count * 48f));
-            Widgets.BeginScrollView(outer, ref leftScroll, view);
-            try
-            {
-                for (int i = 0; i < filtered.Count; i++)
-                {
-                    ThingDef species = filtered[i];
-                    WildlifeSpeciesSnapshot value = cachedSnapshot?.For(species);
-                    string stage = WildlifeKnowledgeAdapter.StageLabel(value?.stageId);
-                    Rect row = new Rect(0f, i * 48f, view.width, 46f);
-                    if (species == selectedSpecies) Widgets.DrawHighlightSelected(row); else Widgets.DrawHighlightIfMouseover(row);
-                    DrawStageShape(new Rect(row.x + 4f, row.y + 5f, 32f, 32f), value?.stageId);
-                    Widgets.Label(new Rect(row.x + 44f, row.y + 2f, row.width - 48f, 20f), species.LabelCap);
-                    GUI.color = Color.gray;
-                    Widgets.Label(new Rect(row.x + 44f, row.y + 21f, row.width - 48f, 22f), stage +
-                        (value == null ? string.Empty : "  " + value.confidence.ToStringPercent()));
-                    GUI.color = Color.white;
-                    if (Widgets.ButtonInvisible(row))
-                    {
-                        selectedSpecies = species;
-                        bodyScroll = Vector2.zero;
-                    }
-                    TooltipHandler.TipRegion(row, "Unknown is an empty outline. Rumored evidence is dashed. Observed evidence is muted. Verified knowledge is full color. Documented knowledge bears an archive seal.");
+                    if (cell.IsValid) WildlifeUI.Focus(cell, map);
+                    return;
                 }
-            }
-            finally { Widgets.EndScrollView(); }
-            if (filtered.Count == 0) Widgets.Label(outer.ContractedBy(8f), "No species match the current search.");
+                HerdMapComponent herds = map?.GetComponent<HerdMapComponent>();
+                Pawn pawn = map?.mapPawns?.AllPawnsSpawned?.FirstOrDefault(value => value?.def == species &&
+                    value.Faction == null && !value.Dead && herds?.IsObserved(value) == true);
+                if (pawn != null) WildlifeUI.Focus(pawn);
+                else if (cell.IsValid) WildlifeUI.Focus(cell, map);
+            });
         }
 
-        private void DrawDossier(Rect rect, Map activeMap)
+        private bool CanFocus(ThingDef species, IntVec3 cell)
         {
-            Widgets.DrawMenuSection(rect);
-            Rect inner = rect.ContractedBy(12f);
-            WildlifeSpeciesSnapshot value = cachedSnapshot?.For(selectedSpecies);
-            if (selectedSpecies == null || value == null)
-            {
-                Widgets.Label(inner, "Select a species to read its field record.");
-                return;
-            }
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(inner.x, inner.y, inner.width - 170f, 32f), selectedSpecies.LabelCap);
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(inner.x, inner.y + 31f, inner.width - 170f, 24f),
-                WildlifeKnowledgeAdapter.StageLabel(value.stageId) + "  |  confidence " + value.confidence.ToStringPercent());
-            if (Widgets.ButtonText(new Rect(inner.xMax - 158f, inner.y, 158f, 30f), "Focus nearest", activeMap != null))
-                FocusSpecies(activeMap, selectedSpecies);
-            if (SignalsVisible() &&
-                Widgets.ButtonText(new Rect(inner.xMax - 318f, inner.y, 150f, 30f), "Signals"))
-                ShowSignals(null, selectedSpecies);
-            Rect portrait = new Rect(inner.x, inner.y + 84f, 148f, 148f);
-            DrawProgressivePortrait(portrait, selectedSpecies, value.stageId);
-            DrawFacetRing(new Rect(portrait.x + 8f, portrait.y + 8f, portrait.width - 16f, portrait.height - 16f), selectedSpecies, activeMap);
-            Rect facts = new Rect(portrait.xMax + 14f, portrait.y, inner.width - portrait.width - 14f, 148f);
-            Widgets.DrawMenuSection(facts);
-            Widgets.Label(facts.ContractedBy(9f),
-                "Local count: " + value.localCount + "\n" +
-                "Nearby estimate: " + Approximate(value.nearbyPopulation, value.confidence) + "\n" +
-                "Regional estimate: " + Approximate(value.regionalPopulation, value.confidence) + "\n" +
-                "Habitat pressure: " + value.pressure.ToStringPercent() + "\n" +
-                "Forecast: " + value.forecast + "\n" +
-                "Policy: " + value.policy +
-                (value.variations.Count == 0 ? string.Empty : "\nVariation: " + string.Join(", ", value.variations.Take(3))));
-            HuntingKnowledgeMapComponent knowledge = activeMap.GetComponent<HuntingKnowledgeMapComponent>();
-            PassiveObservationFamiliarity familiarity = knowledge?.FamiliarityFor(selectedSpecies, Find.TickManager?.TicksGame ?? 0);
-            Widgets.Label(new Rect(inner.x, inner.y + 54f, inner.width, 20f), familiarity == null || familiarity.observerCount == 0
-                ? "Routine observations: none today"
-                : "Routine observation today: " + familiarity.dailyFraction.ToStringPercent() + " of daily learning cap  |  " + familiarity.observedHours.ToString("0.0") + " hours");
-            float y = portrait.yMax + 12f;
-            string next = NextStudy(value, activeMap);
-            Widgets.DrawMenuSection(new Rect(inner.x, y, inner.width, 54f));
-            GUI.color = new Color(0.67f, 0.82f, 0.68f);
-            Widgets.Label(new Rect(inner.x + 10f, y + 7f, inner.width - 150f, 40f), "Next useful observation\n" + next);
-            GUI.color = Color.white;
-            if (Widgets.ButtonText(new Rect(inner.xMax - 132f, y + 11f, 120f, 32f), "Investigate"))
-                InvestigateSpecies(activeMap, value);
-            y += 64f;
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(inner.x, y, inner.width, 28f), "Meaningful discoveries");
-            Text.Font = GameFont.Small;
-            Rect evidenceOuter = new Rect(inner.x, y + 32f, inner.width, inner.yMax - y - 32f);
-            List<WildlifeEvidenceSnapshot> evidence = value.evidence.ToList();
-            const float evidenceRowHeight = 62f;
-            Rect evidenceView = new Rect(0f, 0f, evidenceOuter.width - 16f, Mathf.Max(evidenceOuter.height, evidence.Count * evidenceRowHeight));
-            Widgets.BeginScrollView(evidenceOuter, ref bodyScroll, evidenceView);
-            for (int i = 0; i < evidence.Count; i++)
-            {
-                WildlifeEvidenceSnapshot item = evidence[i];
-                Rect row = new Rect(0f, i * evidenceRowHeight, evidenceView.width, evidenceRowHeight - 4f);
-                Widgets.DrawHighlightIfMouseover(row);
-                GUI.color = item.success ? new Color(0.66f, 0.84f, 0.68f) : new Color(0.92f, 0.55f, 0.45f);
-                Widgets.Label(new Rect(row.x + 6f, row.y + 3f, row.width * 0.26f, 20f),
-                    item.kind == WildlifeEventKind.Signal ? "Signal" : item.kind.ToString());
-                GUI.color = Color.white;
-                float textX = row.x + row.width * 0.27f;
-                float textWidth = row.width * 0.57f;
-                Widgets.Label(new Rect(textX, row.y + 3f, textWidth, 27f), item.summary ?? "Evidence recorded.");
-                GUI.color = new Color(0.58f, 0.76f, 0.63f);
-                Widgets.Label(new Rect(textX, row.y + 30f, textWidth, 24f), EvidenceResult(item));
-                if (item.kind == WildlifeEventKind.Signal && SignalsVisible() &&
-                    Widgets.ButtonText(new Rect(row.xMax - 96f, row.y + 30f, 88f, 26f), "Review Signal"))
-                    ShowSignals(item.observer?.Dead == true ? null : item.observer, selectedSpecies);
-                Text.Anchor = TextAnchor.MiddleRight;
-                GUI.color = Color.gray;
-                Widgets.Label(new Rect(row.x + row.width * 0.76f, row.y + 3f, row.width * 0.12f, 30f),
-                    (Find.TickManager.TicksGame - item.tick).ToStringTicksToPeriod() + " ago");
-                GUI.color = Color.white;
-                Text.Anchor = TextAnchor.UpperLeft;
-                TooltipHandler.TipRegion(row, "Quality " + item.quality.ToString("0.00") + "  Confidence " + item.confidence.ToStringPercent() +
-                    (item.observerCount > 1 ? "\nObservers: " + item.observerCount : string.Empty) +
-                    (item.observerName.NullOrEmpty() ? string.Empty : "\nObserver: " + item.observerName) +
-                    (item.contextLabel.NullOrEmpty() ? string.Empty : "\nContext: " + item.contextLabel));
-            }
-            Widgets.EndScrollView();
-            if (evidence.Count == 0) Widgets.Label(evidenceOuter.ContractedBy(8f), "No direct evidence has been preserved yet.");
+            if (cell.IsValid) return true;
+            if (species == null) return false;
+            WildlifeSpeciesSnapshot source = WildlifeEcologySnapshots.For(map)?.For(species);
+            return WildlifeInsightDisclosure.For(map, source).Allows(WildlifeInsightDisclosure.ActionFocus);
         }
 
-        private void DrawLivingAtlas(Rect rect, Map activeMap)
+        private void ChooseMomentResponse()
         {
-            Rect header = new Rect(rect.x, rect.y, rect.width, 82f);
-            Widgets.DrawMenuSection(header);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(header.x + 10f, header.y + 7f, header.width - 20f, 24f), "Living Atlas");
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(header.x + 10f, header.y + 32f, header.width - 20f, 30f),
-                "The Living Atlas shows where wildlife is active, how populations are changing, and what the colony can investigate or influence.");
-            Rect overview = new Rect(rect.x, header.yMax + 8f, rect.width, 94f);
-            DrawAtlasOverview(overview, activeMap, cachedSnapshot);
-            Rect legend = new Rect(rect.x, overview.yMax + 8f, rect.width, 30f);
-            Widgets.DrawMenuSection(legend);
-            Widgets.Label(legend.ContractedBy(7f), "Evidence strength: Confirmed  |  Probable  |  Uncertain  |  Stale     " +
-                "Cards describe decisions, not a precise map of every animal.");
-            Rect outer = new Rect(rect.x, legend.yMax + 8f, rect.width, Mathf.Max(1f, rect.yMax - legend.yMax - 8f));
-            if (cachedSnapshot == null)
-            {
-                Widgets.Label(outer.ContractedBy(8f), "The atlas is still gathering its first ecological snapshot.");
-                return;
-            }
-            List<WildlifeSpeciesSnapshot> visibleSpecies = OrderByKnowledge(cachedSnapshot.species
-                .Where(HasAtlasEvidence)).ToList();
-            if (visibleSpecies.Count == 0 && atlasActivities.Count == 0)
-            {
-                Widgets.DrawMenuSection(outer.ContractedBy(8f));
-                Widgets.Label(outer.ContractedBy(20f),
-                    "The atlas has no current activity to place. Keep a colonist near wildlife, survey the region, or follow a trail to create the first useful ecological snapshot.");
-                return;
-            }
-            const float activityHeight = 92f;
-            const float speciesHeight = 112f;
-            float contentHeight = 42f + atlasActivities.Count * activityHeight +
-                (visibleSpecies.Count == 0 ? 0f : 34f + visibleSpecies.Count * speciesHeight);
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f), Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, view.width, 30f), "Activity sectors");
-            Text.Font = GameFont.Small;
-            for (int i = 0; i < atlasActivities.Count; i++)
-                DrawAtlasActivity(new Rect(0f, 34f + i * activityHeight, view.width, activityHeight - 6f), atlasActivities[i], activeMap);
-            float speciesY = 34f + atlasActivities.Count * activityHeight;
-            if (visibleSpecies.Count > 0)
-            {
-                Text.Font = GameFont.Medium;
-                Widgets.Label(new Rect(0f, speciesY, view.width, 30f), "Species decisions");
-                Text.Font = GameFont.Small;
-                speciesY += 34f;
-                int first = Mathf.Min(visibleSpecies.Count, Mathf.Max(0, Mathf.FloorToInt((bodyScroll.y - speciesY) / speciesHeight) - 1));
-                int last = Mathf.Min(visibleSpecies.Count,
-                    Mathf.CeilToInt((bodyScroll.y + outer.height - speciesY) / speciesHeight) + 1);
-                for (int i = first; i < last; i++)
-                    DrawAtlasSpecies(new Rect(0f, speciesY + i * speciesHeight, view.width, speciesHeight - 6f), visibleSpecies[i], activeMap);
-            }
-            Widgets.EndScrollView();
+            WildlifeFieldJournalMapComponent component = map?.GetComponent<WildlifeFieldJournalMapComponent>();
+            WildlifeOpportunityRecord opportunity = component?.Opportunity;
+            if (component == null || opportunity == null) return;
+            List<WildlifeMomentResponse> responses = new List<WildlifeMomentResponse> { WildlifeMomentResponse.Observe };
+            if (WildlifeFieldJournalMapComponent.ResearchAllowsResponse(WildlifeMomentResponse.Track)) responses.Add(WildlifeMomentResponse.Track);
+            if (HerdsMod.Settings?.enableNotableAnimals == true && !opportunity.protectionDeclared) responses.Add(WildlifeMomentResponse.Protect);
+            if (WildlifeFieldJournalMapComponent.ResearchAllowsResponse(WildlifeMomentResponse.Hunt)) responses.Add(WildlifeMomentResponse.Hunt);
+            responses.Add(WildlifeMomentResponse.Ignore);
+            Find.WindowStack.Add(new FloatMenu(responses.Select(response => new FloatMenuOption(
+                response == WildlifeMomentResponse.Ignore ? JournalText.Get("Wildlife.UI.Journal.Action.LeaveAlone") :
+                    JournalText.Get("Wildlife.UI.Journal.Response." + response), () => component.ChooseMomentResponse(response))).ToList()));
         }
 
-        private static void DrawAtlasOverview(Rect rect, Map activeMap, WildlifeEcologySnapshot snapshot)
+        private void OpenExpeditions()
         {
-            Widgets.DrawMenuSection(rect);
-            if (snapshot == null)
+            page = WildlifeJournalPage.Expeditions;
+            Rebuild();
+        }
+
+        private static bool Observed(WildlifeSpeciesSnapshot value, Map activeMap)
+        {
+            return value != null && HerdsMod.Settings?.enableWildlifeKnowledge == true &&
+                WildlifeInsightDisclosure.For(activeMap, value).KnowledgeVisible;
+        }
+
+        private static string PageId(WildlifeJournalPage value)
+        {
+            switch (value)
             {
-                Widgets.Label(rect.ContractedBy(8f), "Evidence is limited. Observe wildlife, study signs, or survey the region to establish a baseline.");
-                return;
-            }
-            int signalCount = SignalsVisible() ? snapshot.signals.Count : 0;
-            RegionalWildlifeMapComponent regional = activeMap?.GetComponent<RegionalWildlifeMapComponent>();
-            int localSpecies = 0;
-            int increasing = 0;
-            int declining = 0;
-            float pressure = 0f;
-            int pressureCount = 0;
-            for (int i = 0; i < snapshot.species.Count; i++)
-            {
-                WildlifeSpeciesSnapshot value = snapshot.species[i];
-                if (value.localCount > 0) localSpecies++;
-                pressure += value.pressure;
-                pressureCount++;
-                RegionalSpeciesRecord record = regional?.Records?.FirstOrDefault(item => item?.species == value.species);
-                if (record != null)
-                {
-                    if (record.population > record.previousPopulation * 1.02f) increasing++;
-                    else if (record.population < record.previousPopulation * 0.98f) declining++;
-                }
-            }
-            float averagePressure = pressureCount == 0 ? 0f : pressure / pressureCount;
-            string habitat = snapshot.habitatQuality >= 0.7f ? "Stable" :
-                snapshot.habitatQuality >= 0.4f ? "Evidence is limited" : "Habitat under pressure";
-            string population = increasing > declining ? "Population increasing" :
-                declining > increasing ? "Population declining" :
-                increasing == 0 && declining == 0 ? "Stable" : "Mixed population trend";
-            string movement = snapshot.migrations.Count > 0 ? "Unusual movement detected" :
-                snapshot.trails.Count > 0 ? "Fresh trails are active" :
-                signalCount > 0 ? "Recent calls recorded" : "Movement is quiet";
-            string unusual = snapshot.activeMysteries > 0 ? "Unusual activity requires investigation" :
-                signalCount > 0 ? "Recent calls are available for review" : "No unusual activity flagged";
-            string pressureState = averagePressure >= 0.7f ? "High ecological pressure" :
-                averagePressure >= 0.4f ? "Moderate ecological pressure" : "Pressure is low";
-            Season season = activeMap == null ? Season.Spring : GenLocalDate.Season(activeMap);
-            string seasonEffect = regional?.ActiveSeasonalEvent;
-            if (seasonEffect.NullOrEmpty())
-                seasonEffect = season == Season.Spring ? "Spring supports breeding and new growth." :
-                    season == Season.Summer ? "Summer changes forage and water access." :
-                    season == Season.Fall ? "Autumn encourages movement and preparation." :
-                    "Winter concentrates wildlife around shelter and forage.";
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width - 20f, 22f),
-                "Regional overview  |  " + season + "  |  " + seasonEffect);
-            float width = Mathf.Max(80f, (rect.width - 28f) / 3f);
-            DrawAtlasMetric(new Rect(rect.x + 10f, rect.y + 34f, width, 50f), "Habitat", habitat,
-                "Measures current habitat condition from the ecological habitat score. " +
-                "It is " + ConfidenceLabel(snapshot.habitatQuality) + " and updates as seasonal and landscape evidence changes.");
-            DrawAtlasMetric(new Rect(rect.x + 14f + width, rect.y + 34f, width, 50f), "Populations",
-                population + "  |  " + localSpecies + " species local",
-                "Compares authoritative regional population estimates with their previous estimates. " +
-                "Survey wildlife or review Local Wildlife to improve an uncertain trend.");
-            DrawAtlasMetric(new Rect(rect.x + 18f + width * 2f, rect.y + 34f, width, 50f), "Activity",
-                movement + "  |  " + snapshot.trails.Count + " trails, " + snapshot.migrations.Count +
-                " migrations, " + signalCount + " calls",
-                "Summarizes fresh trail and regional migration records. " +
-                "Inspect a trail, focus an activity sector, or wait for new evidence.");
-            TooltipHandler.TipRegion(rect, "The Living Atlas is a command map: use it to decide where to investigate or intervene.\n" +
-                "Habitat: " + habitat + "\nTrend: " + population + "\n" + pressureState +
-                "\n" + unusual + "\nSeason: " + seasonEffect + "\nFreshness follows the underlying record age.");
-        }
-
-        private static void DrawAtlasMetric(Rect rect, string label, string value, string tooltip)
-        {
-            Widgets.DrawBoxSolid(rect, new Color(0.09f, 0.14f, 0.15f, 0.92f));
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(0.65f, 0.78f, 0.73f);
-            Widgets.Label(new Rect(rect.x + 6f, rect.y + 4f, rect.width - 12f, 16f), label);
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(rect.x + 6f, rect.y + 20f, rect.width - 12f, rect.height - 22f), value);
-            TooltipHandler.TipRegion(rect, tooltip);
-        }
-
-        private List<AtlasActivity> BuildAtlasActivities(Map activeMap, WildlifeEcologySnapshot snapshot, int now)
-        {
-            List<AtlasActivity> result = new List<AtlasActivity>();
-            if (activeMap == null || snapshot == null) return result;
-            for (int i = 0; i < snapshot.species.Count; i++)
-            {
-                WildlifeSpeciesSnapshot species = snapshot.species[i];
-                if (species?.species == null) continue;
-                Pawn local = activeMap.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn => pawn?.def == species.species &&
-                    pawn.Faction == null);
-                if (local != null)
-                    result.Add(new AtlasActivity
-                    {
-                        kind = AtlasActivityKind.Presence,
-                        species = species.species,
-                        cell = local.Position,
-                        title = "Local presence",
-                        detail = species.localCount + " present; habitat pressure " + species.pressure.ToStringPercent() + ".",
-                        confidence = Mathf.Clamp01(Mathf.Max(species.confidence, 0.68f)),
-                        tick = now
-                    });
-                if (Mathf.Abs(species.regionalPopulation - species.nearbyPopulation) >= 0.5f ||
-                    !species.forecast.NullOrEmpty())
-                    result.Add(new AtlasActivity
-                    {
-                        kind = AtlasActivityKind.Trend,
-                        species = species.species,
-                        cell = activeMap.Center,
-                        title = "Population trend",
-                        detail = Approximate(species.nearbyPopulation, species.confidence) + " nearby; " + species.forecast + ".",
-                        confidence = species.confidence,
-                        tick = snapshot.tick
-                    });
-                for (int j = 0; j < species.trails.Count && result.Count < 24; j++)
-                {
-                    WildlifeTrailSnapshot trail = species.trails[j];
-                    IntVec3 cell = trail.predictedCell.IsValid ? trail.predictedCell : trail.departureCell;
-                    result.Add(new AtlasActivity
-                    {
-                        kind = AtlasActivityKind.Trail,
-                        species = species.species,
-                        cell = cell,
-                        title = "Trail lead",
-                        detail = (trail.viable ? "A viable trail" : "An uncertain trail") + " points toward " + SectorName(activeMap, cell) + ".",
-                        confidence = trail.confidence,
-                        tick = snapshot.tick
-                    });
-                }
-                for (int j = 0; j < species.migrations.Count && result.Count < 24; j++)
-                {
-                    WildlifeMigrationSnapshot migration = species.migrations[j];
-                    result.Add(new AtlasActivity
-                    {
-                        kind = AtlasActivityKind.Migration,
-                        species = species.species,
-                        cell = migration.animal?.Spawned == true ? migration.animal.Position : activeMap.Center,
-                        title = "Movement and return",
-                        detail = (migration.direction.NullOrEmpty() ? "Wildlife is moving" : "Movement toward " + migration.direction) +
-                            (migration.expectedReturnTick > now ? "; expected return " + (migration.expectedReturnTick - now).ToStringTicksToPeriod() + "." : "."),
-                        confidence = migration.animal?.Spawned == true ? 0.82f : 0.48f,
-                        tick = snapshot.tick
-                    });
-                }
-                for (int j = 0; SignalsVisible() &&
-                    j < species.signals.Count && result.Count < 24; j++)
-                {
-                    WildlifeSignalSnapshot signal = species.signals[j];
-                    result.Add(new AtlasActivity
-                    {
-                        kind = AtlasActivityKind.Signal,
-                        species = species.species,
-                        cell = signal.cell,
-                        title = "Signal activity",
-                        detail = signal.historicalDescription.NullOrEmpty()
-                            ? WildlifeSignalPresentation.Description(signal.kind, 0f, signal.truthful,
-                                signal.verified, signal.behaviorConsistent, null, species.species, signal.radius, null, null, activeMap)
-                            : signal.historicalDescription,
-                        confidence = signal.verified ? 0.86f : 0.42f,
-                        tick = signal.tick
-                    });
-                }
-            }
-            result.Sort((left, right) => right.tick.CompareTo(left.tick));
-            if (result.Count > 24) result.RemoveRange(24, result.Count - 24);
-            return result;
-        }
-
-        private static bool HasAtlasEvidence(WildlifeSpeciesSnapshot value) => value != null &&
-            (value.evidence.Count > 0 || value.trails.Count > 0 || value.migrations.Count > 0 ||
-             value.signals.Count > 0 || value.knowledge > 0f || value.localCount > 0 ||
-             value.nearbyPopulation > 0f);
-
-        private static IEnumerable<WildlifeSpeciesSnapshot> OrderByKnowledge(IEnumerable<WildlifeSpeciesSnapshot> values) =>
-            values.Where(value => value?.species != null)
-                .OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.stageId))
-                .ThenByDescending(value => value.knowledge)
-                .ThenByDescending(value => value.confidence)
-                .ThenBy(value => value.species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase)
-                .ThenBy(value => value.species.defName, StringComparer.Ordinal);
-
-        private void DrawAtlasActivity(Rect rect, AtlasActivity activity, Map activeMap)
-        {
-            Widgets.DrawMenuSection(rect);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 7f, rect.width * 0.38f, 22f),
-                activity.species.LabelCap + "  |  " + activity.title);
-            Text.Font = GameFont.Small;
-            string freshness = FreshnessLabel(activity.tick);
-            string certainty = ConfidenceLabel(activity.confidence);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 31f, rect.width * 0.58f, 43f),
-                activity.detail + "\n" + SectorName(activeMap, activity.cell) + "  |  " + certainty + "  |  " + freshness);
-            float buttonWidth = 92f;
-            float buttonX = rect.xMax - buttonWidth - 10f;
-            string action = activity.kind == AtlasActivityKind.Signal ? "Signals" :
-                activity.kind == AtlasActivityKind.Trail ? "Inspect Trail" :
-                activity.kind == AtlasActivityKind.Presence ? "Focus Area" : "Review";
-            if (Widgets.ButtonText(new Rect(buttonX, rect.y + 15f, buttonWidth, 30f), action))
-            {
-                if (activity.kind == AtlasActivityKind.Signal)
-                    ShowSignals(signalObserver, activity.species);
-                else if (activity.kind == AtlasActivityKind.Trail && activity.cell.IsValid)
-                {
-                    selectedSpecies = activity.species;
-                    FocusCell(activeMap, activity.cell, WildlifeJournalPage.Investigations);
-                }
-                else if (activity.kind == AtlasActivityKind.Presence && activity.cell.IsValid)
-                {
-                    selectedSpecies = activity.species;
-                    FocusCell(activeMap, activity.cell, WildlifeJournalPage.LivingAtlas);
-                }
-                else if (HerdsMod.Settings?.enableRegionalPopulations == true)
-                    Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
-                else
-                {
-                    selectedSpecies = activity.species;
-                    page = WildlifeJournalPage.FieldGuide;
-                }
-            }
-            TooltipHandler.TipRegion(rect, activity.detail + "\n\n" + certainty + " means " +
-                ConfidenceExplanation(activity.confidence) + "\n" + freshness + ".");
-        }
-
-        private void DrawAtlasSpecies(Rect rect, WildlifeSpeciesSnapshot value, Map activeMap)
-        {
-            Widgets.DrawMenuSection(rect);
-            float alpha = Mathf.Lerp(0.18f, 0.56f, value.confidence);
-            Color field = value.pressure > 0.72f ? new Color(0.84f, 0.36f, 0.25f, alpha) : new Color(0.30f, 0.67f, 0.47f, alpha);
-            Widgets.DrawBoxSolid(new Rect(rect.x + 6f, rect.y + 7f, rect.width * 0.55f, rect.height - 14f), field);
-            DrawDashedBorder(new Rect(rect.x + 6f, rect.y + 7f, rect.width * 0.55f, rect.height - 14f), field);
-            Widgets.ThingIcon(new Rect(rect.x + 16f, rect.y + 20f, 54f, 54f), value.species);
-            Widgets.Label(new Rect(rect.x + 80f, rect.y + 14f, rect.width * 0.35f, 24f), value.species.LabelCap);
-            string trend = AtlasTrend(activeMap, value);
-            string pattern = value.trails.Count > 0 ? "Following fresh trail evidence" :
-                value.migrations.Count > 0 ? "Movement is changing locally" :
-                value.localCount > 0 ? "Present in the local landscape" : "No local presence confirmed";
-            string nextAction = AtlasRecommendation(value);
-            Widgets.Label(new Rect(rect.x + 80f, rect.y + 38f, rect.width * 0.43f, 54f),
-                "Local population: " + trend + "\n" +
-                "Landscape use: " + pattern + "\n" +
-                "Pressure: " + AtlasPressure(value.pressure) + "  |  " + ConfidenceLabel(value.confidence) +
-                "  |  " + FreshnessLabel(AtlasLatestTick(value)));
-            if (value.migrations.Count > 0)
-            {
-                Vector2 start = new Vector2(rect.x + rect.width * 0.63f, rect.center.y);
-                Vector2 end = start + new Vector2(Mathf.Min(95f, rect.width * 0.22f), 0f);
-                Widgets.DrawLine(start, end, new Color(0.80f, 0.72f, 0.35f), 2f);
-                Widgets.DrawLine(end, end + new Vector2(-8f, -5f), new Color(0.80f, 0.72f, 0.35f), 2f);
-                Widgets.DrawLine(end, end + new Vector2(-8f, 5f), new Color(0.80f, 0.72f, 0.35f), 2f);
-                Widgets.Label(new Rect(start.x, rect.y + 12f, rect.width * 0.30f, 20f), "migration evidence");
-            }
-            if (value.trails.Count > 0)
-            {
-                GUI.color = new Color(0.45f, 0.76f, 0.87f);
-                Widgets.Label(new Rect(rect.x + rect.width * 0.63f, rect.y + 56f, rect.width * 0.30f, 20f),
-                    value.trails.Count + " fresh trail lead" + (value.trails.Count == 1 ? string.Empty : "s"));
-                GUI.color = Color.white;
-            }
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(0.66f, 0.78f, 0.72f);
-            Widgets.Label(new Rect(rect.x + rect.width * 0.63f, rect.y + 32f, rect.width * 0.31f, 34f),
-                "Next step: " + nextAction);
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-            float buttonWidth = SignalsVisible() ? 76f : 88f;
-            float buttonY = rect.y + rect.height - 34f;
-            if (SignalsVisible() &&
-                Widgets.ButtonText(new Rect(rect.xMax - buttonWidth * 3f - 18f, buttonY, buttonWidth, 28f), "Signals"))
-                ShowSignals(signalObserver, value.species);
-            if (Widgets.ButtonText(new Rect(rect.xMax - buttonWidth * 2f - 12f, buttonY, buttonWidth, 28f), "Field Guide"))
-            {
-                selectedSpecies = value.species;
-                page = WildlifeJournalPage.FieldGuide;
-                bodyScroll = Vector2.zero;
-            }
-            if (HerdsMod.Settings?.enableRegionalPopulations == true &&
-                Widgets.ButtonText(new Rect(rect.xMax - buttonWidth - 8f, buttonY, buttonWidth, 28f), "Local Wildlife"))
-                Find.WindowStack.Add(new Window_RegionalWildlife(activeMap));
-            if (Widgets.ButtonInvisible(new Rect(rect.x, rect.y, rect.width * 0.58f, rect.height - 4f)))
-            {
-                selectedSpecies = value.species;
-                page = WildlifeJournalPage.FieldGuide;
-                bodyScroll = Vector2.zero;
-            }
-            TooltipHandler.TipRegion(rect, "Population: " + trend + "\nLandscape use: " + pattern +
-                "\nPressure: " + AtlasPressure(value.pressure) + "\nConfidence " + value.confidence.ToStringPercent() +
-                ": " + ConfidenceExplanation(value.confidence) + "\n" + FreshnessLabel(AtlasLatestTick(value)) +
-                ": new observations, trail work, or a regional survey can improve this card.");
-        }
-
-        private static string AtlasTrend(Map activeMap, WildlifeSpeciesSnapshot value)
-        {
-            RegionalSpeciesRecord record = activeMap?.GetComponent<RegionalWildlifeMapComponent>()?.Records
-                ?.FirstOrDefault(item => item?.species == value.species);
-            if (record == null) return value.localCount > 0 ? value.localCount + " present" : "uncertain";
-            if (record.population > record.previousPopulation * 1.02f) return "increasing";
-            if (record.population < record.previousPopulation * 0.98f) return "declining";
-            return "stable";
-        }
-
-        private static string AtlasPressure(float pressure) => pressure >= 0.7f ? "high" :
-            pressure >= 0.4f ? "moderate" : "low";
-
-        private static string AtlasRecommendation(WildlifeSpeciesSnapshot value)
-        {
-            if (value.trails.Count > 0) return "Inspect a trail";
-            if (value.confidence < 0.45f) return "Survey the area";
-            if (value.pressure >= 0.7f) return "Protect habitat";
-            if (value.migrations.Count > 0) return "Review movement";
-            return "Review the Field Guide";
-        }
-
-        private static int AtlasLatestTick(WildlifeSpeciesSnapshot value)
-        {
-            int latest = 0;
-            for (int i = 0; i < value.evidence.Count; i++) latest = Mathf.Max(latest, value.evidence[i].tick);
-            for (int i = 0; i < value.signals.Count; i++) latest = Mathf.Max(latest, value.signals[i].tick);
-            if (value.localCount > 0) latest = Mathf.Max(latest, Find.TickManager?.TicksGame ?? latest);
-            return latest;
-        }
-
-        private static string ConfidenceLabel(float confidence)
-        {
-            return confidence >= 0.75f ? "Confirmed" : confidence >= 0.45f ? "Probable" : "Uncertain";
-        }
-
-        private static string ConfidenceExplanation(float confidence)
-        {
-            return confidence >= 0.75f ? "multiple or direct observations agree" :
-                confidence >= 0.45f ? "the estimate is supported but incomplete" : "the location or estimate remains approximate";
-        }
-
-        private static string FreshnessLabel(int tick)
-        {
-            int age = Mathf.Max(0, (Find.TickManager?.TicksGame ?? tick) - tick);
-            return age > 15000 ? "Stale" : age > 5000 ? "Aging" : "Fresh";
-        }
-
-        private static string SectorName(Map activeMap, IntVec3 cell)
-        {
-            if (activeMap == null || !cell.IsValid) return "regional view";
-            int horizontal = cell.x < activeMap.Size.x / 3 ? -1 : cell.x > activeMap.Size.x * 2 / 3 ? 1 : 0;
-            int vertical = cell.z < activeMap.Size.z / 3 ? -1 : cell.z > activeMap.Size.z * 2 / 3 ? 1 : 0;
-            if (horizontal == 0 && vertical == 0) return "central sector";
-            string verticalLabel = vertical < 0 ? "south" : vertical > 0 ? "north" : string.Empty;
-            string horizontalLabel = horizontal < 0 ? "west" : horizontal > 0 ? "east" : string.Empty;
-            return (verticalLabel + (verticalLabel.NullOrEmpty() || horizontalLabel.NullOrEmpty() ? string.Empty : "-") + horizontalLabel).CapitalizeFirst() + " sector";
-        }
-
-        private void DrawInvestigations(Rect rect, Map activeMap)
-        {
-            WildlifeNarrativeDirector director = WildlifeNarrativeUtility.For(activeMap);
-            WildlifeHypothesisRecord[] hypotheses = director?.OpenHypotheses?.ToArray() ?? Array.Empty<WildlifeHypothesisRecord>();
-            WildlifeMysteryRecord mystery = activeMap.GetComponent<WildlifeMysteryMapComponent>()?.Active;
-            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
-            float contentWidth = Mathf.Max(80f, outer.width - 36f);
-            float[] hypothesisHeights = hypotheses.Select(value => HypothesisCardHeight(value, contentWidth)).ToArray();
-            float contentHeight = mystery == null ? 0f : 244f;
-            if (mystery != null) contentHeight += 12f;
-            contentHeight += hypothesisHeights.Sum(value => value + 12f) + 8f;
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f), Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            float y = 0f;
-            if (mystery != null)
-            {
-                DrawMysteryCard(new Rect(0f, y, view.width, 232f), activeMap, mystery);
-                y += 256f;
-            }
-            for (int i = 0; i < hypotheses.Length; i++)
-            {
-                DrawHypothesisCard(new Rect(0f, y, view.width, hypothesisHeights[i]), activeMap, hypotheses[i]);
-                y += hypothesisHeights[i] + 12f;
-            }
-            if (mystery == null && hypotheses.Length == 0)
-                Widgets.Label(new Rect(8f, 8f, view.width - 16f, 50f), "No open investigation. Strange movement, contradictory calls, population pressure, and fading trails will create bounded hypotheses from real evidence.");
-            Widgets.EndScrollView();
-        }
-
-        private void DrawMysteryCard(Rect rect, Map activeMap, WildlifeMysteryRecord mystery)
-        {
-            Widgets.DrawMenuSection(rect);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 26f), mystery.title + "  " + mystery.progress.ToStringPercent());
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 36f, rect.width - 20f, 48f), mystery.anomaly);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 90f, rect.width - 20f, 56f), "Observed evidence\n" +
-                (mystery.evidence.Count == 0 ? "No evidence yet." : string.Join("\n", mystery.evidence.Take(3).Select(value => "- " + value.clue + " [" + value.source + "]"))));
-            if (Widgets.ButtonText(new Rect(rect.x + 10f, rect.yMax - 44f, 128f, 32f), "Review evidence"))
-                activeMap.GetComponent<WildlifeMysteryMapComponent>()?.ReviewEvidence(mystery);
-            if (Widgets.ButtonText(new Rect(rect.x + 146f, rect.yMax - 44f, 112f, 32f), "Focus"))
-                activeMap.GetComponent<WildlifeMysteryMapComponent>()?.FocusEvidence(mystery);
-        }
-
-        private void DrawHypothesisCard(Rect rect, Map activeMap, WildlifeHypothesisRecord hypothesis)
-        {
-            Widgets.DrawMenuSection(rect);
-            GUI.color = hypothesis.state == WildlifeHypothesisState.Disputed ? new Color(0.92f, 0.57f, 0.32f) : new Color(0.62f, 0.81f, 0.67f);
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, 28f), hypothesis.title + "  " + hypothesis.state);
-            GUI.color = Color.white;
-            Widgets.Label(new Rect(rect.x + 10f, rect.y + 38f, rect.width - 20f, 22f), "Confidence band: " + hypothesis.confidence.ToStringPercent());
-            float y = rect.y + 66f;
-            float contentWidth = Mathf.Max(80f, rect.width - 20f);
-            for (int i = 0; i < (hypothesis.candidates?.Count ?? 0); i++)
-            {
-                WildlifeHypothesisCandidate candidate = hypothesis.candidates[i];
-                if (candidate == null) continue;
-                string candidateText = (i + 1) + ". " + candidate.explanation + "  +" + candidate.support.ToString("0.00") +
-                    " / -" + candidate.contradiction.ToString("0.00");
-                float rowHeight = HypothesisCandidateHeight(candidateText, contentWidth);
-                Rect row = new Rect(rect.x + 10f, y, contentWidth, rowHeight);
-                Widgets.DrawHighlightIfMouseover(row);
-                Widgets.Label(row.ContractedBy(4f), candidateText);
-                y += rowHeight + 4f;
-            }
-            string bestNext = "Best next observation: " + hypothesis.bestNextObservation;
-            float bestHeight = WrappedTextHeight(bestNext, contentWidth, 38f);
-            Widgets.Label(new Rect(rect.x + 10f, y, contentWidth, bestHeight), bestNext);
-            y += bestHeight + 6f;
-            string earlyRisk = "Risk of acting early: " + hypothesis.actingEarlyRisk;
-            float riskHeight = WrappedTextHeight(earlyRisk, contentWidth, 34f);
-            Widgets.Label(new Rect(rect.x + 10f, y, contentWidth, riskHeight), earlyRisk);
-            WildlifeHypothesisCandidate leading = hypothesis.LeadingCandidate;
-            if (leading != null && Widgets.ButtonText(new Rect(rect.x + 10f, rect.yMax - 42f, 148f, 30f), "Document theory"))
-                activeMap.GetComponent<WildlifeNarrativeDirector>()?.ResolveHypothesis(hypothesis, leading.explanation);
-            if (Widgets.ButtonText(new Rect(rect.x + 166f, rect.yMax - 42f, 100f, 30f), "Field Guide"))
-            {
-                selectedSpecies = hypothesis.species;
-                page = WildlifeJournalPage.FieldGuide;
+                case WildlifeJournalPage.FieldGuide: return "field-guide";
+                case WildlifeJournalPage.LivingAtlas: return "living-atlas";
+                case WildlifeJournalPage.FieldLog: return "field-log";
+                default: return value.ToString().ToLowerInvariant();
             }
         }
 
-        private static float HypothesisCardHeight(WildlifeHypothesisRecord hypothesis, float contentWidth)
+        private static string Sector(Map activeMap, IntVec3 cell)
         {
-            if (hypothesis == null) return 244f;
-            float y = 66f;
-            for (int i = 0; i < (hypothesis.candidates?.Count ?? 0); i++)
-            {
-                WildlifeHypothesisCandidate candidate = hypothesis.candidates[i];
-                if (candidate == null) continue;
-                string text = (i + 1) + ". " + candidate.explanation + "  +" + candidate.support.ToString("0.00") +
-                    " / -" + candidate.contradiction.ToString("0.00");
-                y += HypothesisCandidateHeight(text, contentWidth) + 4f;
-            }
-            y += WrappedTextHeight("Best next observation: " + hypothesis.bestNextObservation, contentWidth, 38f) + 6f;
-            y += WrappedTextHeight("Risk of acting early: " + hypothesis.actingEarlyRisk, contentWidth, 34f);
-            return Mathf.Max(244f, y + 50f);
-        }
-
-        private static float HypothesisCandidateHeight(string text, float contentWidth) =>
-            Mathf.Max(32f, Text.CalcHeight(text ?? string.Empty, Mathf.Max(80f, contentWidth - 8f)) + 8f);
-
-        private static float WrappedTextHeight(string text, float contentWidth, float minimum) =>
-            Mathf.Max(minimum, Text.CalcHeight(text ?? string.Empty, Mathf.Max(80f, contentWidth)));
-
-        private void DrawExpeditions(Rect rect, Map activeMap)
-        {
-            HuntingExpeditionMapComponent component = activeMap.GetComponent<HuntingExpeditionMapComponent>();
-            Rect header = new Rect(rect.x, rect.y, rect.width, 72f);
-            Widgets.DrawMenuSection(header);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(header.x + 10f, header.y + 7f, header.width - 220f, 24f), "Expeditions");
-            Text.Font = GameFont.Small;
-            Widgets.Label(new Rect(header.x + 10f, header.y + 32f, header.width - 220f, 32f),
-                (component?.ActiveExpeditions.Count ?? 0) + " active field parties. Reports become contextual evidence, not passive colony XP.");
-            if (Widgets.ButtonText(new Rect(header.xMax - 196f, header.y + 20f, 184f, 32f), "Plan expedition"))
-                Find.WindowStack.Add(new Window_HuntingExpeditionSetup(activeMap));
-            List<HuntingExpeditionRecord> active = component?.ActiveExpeditions?.ToList() ?? new List<HuntingExpeditionRecord>();
-            float historyWidth = Mathf.Max(80f, rect.width - 32f);
-            float historyHeight = component?.History?.Take(8).Sum(value => Mathf.Max(34f,
-                Text.CalcHeight(value ?? string.Empty, historyWidth) + 10f)) ?? 0f;
-            float contentHeight = 74f + active.Count * 84f + (active.Count == 0 ? 50f : 0f) +
-                (component?.History?.Count > 0 ? 42f + historyHeight : 0f);
-            Rect outer = new Rect(rect.x, header.yMax + 8f, rect.width, rect.yMax - header.yMax - 8f);
-            Rect view = new Rect(0f, 0f, Mathf.Max(1f, outer.width - 16f), Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            float y = 0f;
-            for (int i = 0; i < active.Count; i++)
-            {
-                HuntingExpeditionRecord expedition = active[i];
-                Rect row = new Rect(0f, y, view.width, 76f);
-                Widgets.DrawMenuSection(row);
-                Widgets.Label(new Rect(row.x + 10f, row.y + 8f, row.width * 0.43f, 24f), "Expedition " + expedition.id + "  " + expedition.stage);
-                Widgets.Label(new Rect(row.x + 10f, row.y + 34f, row.width * 0.48f, 30f),
-                    "Objective: " + expedition.objective + "\nTarget: " + (expedition.targetSpecies?.LabelCap ?? "survey"));
-                Text.Anchor = TextAnchor.MiddleRight;
-                Widgets.Label(new Rect(row.x + row.width * 0.62f, row.y + 14f, row.width * 0.33f, 24f),
-                    "Return " + Mathf.Max(0, expedition.expectedReturnTick - Find.TickManager.TicksGame).ToStringTicksToPeriod());
-                Text.Anchor = TextAnchor.UpperLeft;
-                y += 84f;
-            }
-            if (active.Count == 0)
-            {
-                Widgets.Label(new Rect(10f, y + 8f, view.width - 20f, 40f), "No active expedition. Choose a next observation in the Field Guide or send a survey party.");
-                y += 50f;
-            }
-            if (component?.History?.Count > 0)
-            {
-                Widgets.Label(new Rect(0f, y, view.width, 28f), "Historical reports");
-                y += 42f;
-                for (int i = 0; i < component.History.Count && i < 8; i++)
-                {
-                    float rowHeight = Mathf.Max(34f, Text.CalcHeight(component.History[i] ?? string.Empty, historyWidth) + 10f);
-                    Rect row = new Rect(0f, y, view.width, rowHeight);
-                    Widgets.DrawHighlightIfMouseover(row);
-                    Widgets.Label(row.ContractedBy(4f), component.History[i]);
-                    y += rowHeight + 2f;
-                }
-            }
-            Widgets.EndScrollView();
-        }
-
-        private void DrawStories(Rect rect, Map activeMap)
-        {
-            WildlifeNarrativeDirector director = WildlifeNarrativeUtility.For(activeMap);
-            List<WildlifeNarrativeRecord> stories = director?.Stories?.ToList() ?? new List<WildlifeNarrativeRecord>();
-            WildlifeMemoryMapComponent memory = activeMap.GetComponent<WildlifeMemoryMapComponent>();
-            List<WildlifeFolkloreRecord> folklore = memory?.Folklore?.ToList() ?? new List<WildlifeFolkloreRecord>();
-            NotableWildlifeMapComponent notables = activeMap.GetComponent<NotableWildlifeMapComponent>();
-            float contentHeight = stories.Count * 126f + folklore.Count * 94f + (notables?.Records.Count ?? 0) * 84f + 130f;
-            Rect outer = new Rect(rect.x, rect.y, rect.width, rect.height);
-            Rect view = new Rect(0f, 0f, outer.width - 16f, Mathf.Max(outer.height, contentHeight));
-            Widgets.BeginScrollView(outer, ref bodyScroll, view);
-            float y = 0f;
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, y, view.width, 30f), "Preserved stories");
-            Text.Font = GameFont.Small;
-            y += 36f;
-            for (int i = 0; i < stories.Count; i++)
-            {
-                WildlifeNarrativeRecord story = stories[i];
-                Rect card = new Rect(0f, y, view.width, 112f);
-                Widgets.DrawMenuSection(card);
-                Widgets.Label(new Rect(card.x + 10f, card.y + 8f, card.width - 20f, 22f), story.title);
-                Widgets.Label(new Rect(card.x + 10f, card.y + 32f, card.width - 20f, 36f), story.summary);
-                GUI.color = new Color(0.67f, 0.76f, 0.68f);
-                Widgets.Label(new Rect(card.x + 10f, card.y + 72f, card.width - 20f, 30f), "Interpretation: " + story.interpretation);
-                GUI.color = Color.white;
-                if (story.animal?.Spawned == true && Widgets.ButtonInvisible(card)) FocusThing(activeMap, story.animal, WildlifeJournalPage.Stories);
-                y += 120f;
-            }
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, y, view.width, 30f), "Folklore");
-            Text.Font = GameFont.Small;
-            y += 36f;
-            for (int i = 0; i < folklore.Count; i++)
-            {
-                WildlifeFolkloreRecord story = folklore[i];
-                Rect card = new Rect(0f, y, view.width, 80f);
-                Widgets.DrawMenuSection(card);
-                Widgets.Label(new Rect(card.x + 10f, card.y + 8f, card.width - 20f, 22f), story.title + "  " + story.retellings + " tellings");
-                Widgets.Label(new Rect(card.x + 10f, card.y + 32f, card.width - 20f, 40f), story.story);
-                y += 88f;
-            }
-            Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, y, view.width, 30f), "Notable animals");
-            Text.Font = GameFont.Small;
-            y += 36f;
-            foreach (NotableAnimalRecord record in notables?.Records ?? Array.Empty<NotableAnimalRecord>())
-            {
-                Rect card = new Rect(0f, y, view.width, 70f);
-                Widgets.DrawMenuSection(card);
-                if (record.animal?.def != null) Widgets.ThingIcon(new Rect(card.x + 8f, card.y + 8f, 52f, 52f), record.animal);
-                Widgets.Label(new Rect(card.x + 68f, card.y + 8f, card.width - 220f, 22f), record.title + " - " + record.species.LabelCap);
-                Widgets.Label(new Rect(card.x + 68f, card.y + 32f, card.width - 220f, 28f), record.distinction + "  |  " + record.culturalStatus);
-                if (record.animal?.Spawned == true && Widgets.ButtonText(new Rect(card.xMax - 126f, card.y + 19f, 112f, 30f), "Focus"))
-                    FocusThing(activeMap, record.animal, WildlifeJournalPage.Stories);
-                y += 78f;
-            }
-            Widgets.EndScrollView();
-        }
-
-        private IReadOnlyList<KnowledgeFacetSnapshotV2> Facets(ThingDef species, Map activeMap)
-        {
-            string key = species?.defName + ":" + (activeMap?.uniqueID ?? 0) + ":" + cachedKnowledgeRevision;
-            if (facetCache.TryGetValue(key, out IReadOnlyList<KnowledgeFacetSnapshotV2> cached)) return cached;
-            List<KnowledgeFacetSnapshotV2> values = WildlifeKnowledgeAdapter.FacetIds()
-                .Select(id => WildlifeKnowledgeAdapter.Facet(null, species, id, activeMap, true)).ToList();
-            facetCache[key] = values;
-            return values;
-        }
-
-        private void DrawFacetRing(Rect rect, ThingDef species, Map activeMap)
-        {
-            IReadOnlyList<KnowledgeFacetSnapshotV2> values = Facets(species, activeMap);
-            Vector2 center = rect.center;
-            float radius = Mathf.Min(rect.width, rect.height) * 0.46f;
-            for (int i = 0; i < values.Count; i++)
-            {
-                float a = -Mathf.PI * 0.5f + Mathf.PI * 2f * i / values.Count;
-                Vector2 start = center + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * (radius * 0.68f);
-                Vector2 end = center + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius;
-                KnowledgeFacetSnapshotV2 value = values[i];
-                Color color = value.confidence < 0.35f ? new Color(0.75f, 0.62f, 0.32f) :
-                    value.completeness >= 0.75f ? new Color(0.43f, 0.81f, 0.55f) : new Color(0.45f, 0.61f, 0.74f);
-                color.a = Mathf.Lerp(0.28f, 0.95f, value.completeness);
-                Widgets.DrawLine(start, end, color, 2f + value.completeness * 3f);
-            }
-            TooltipHandler.TipRegion(rect, string.Join("\n", values.Select((value, index) => WildlifeKnowledgeAdapter.FacetIds()[index] + ": " + value.completeness.ToStringPercent() + " / " + value.confidence.ToStringPercent())));
-        }
-
-        private static void DrawProgressivePortrait(Rect rect, ThingDef species, string stage)
-        {
-            int order = WildlifeKnowledgeAdapter.StageOrder(stage);
-            Widgets.DrawMenuSection(rect);
-            if (species?.uiIcon == null)
-            {
-                DrawStageShape(rect.ContractedBy(30f), stage);
-                return;
-            }
-            Color old = GUI.color;
-            if (order <= 0)
-            {
-                Widgets.DrawBoxSolid(rect.ContractedBy(23f), new Color(0.10f, 0.12f, 0.13f));
-                GUI.color = new Color(0.16f, 0.18f, 0.18f, 0.9f);
-                GUI.DrawTexture(rect.ContractedBy(26f), species.uiIcon, ScaleMode.ScaleToFit);
-            }
-            else
-            {
-                GUI.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.30f, 1f, Mathf.InverseLerp(1f, 5f, order)));
-                GUI.DrawTexture(rect.ContractedBy(18f), species.uiIcon, ScaleMode.ScaleToFit);
-            }
-            GUI.color = old;
-            if (order >= 5)
-            {
-                GUI.color = new Color(0.86f, 0.75f, 0.32f, 0.90f);
-                Widgets.DrawBox(rect.ContractedBy(5f), 2, Texture2D.whiteTexture);
-                Text.Anchor = TextAnchor.LowerRight;
-                Widgets.Label(rect.ContractedBy(8f), "ARCHIVE");
-                Text.Anchor = TextAnchor.UpperLeft;
-                GUI.color = Color.white;
-            }
-            else if (order == 1)
-                DrawDashedBorder(rect.ContractedBy(8f), new Color(0.76f, 0.65f, 0.36f));
-        }
-
-        private static void DrawStageShape(Rect rect, string stage)
-        {
-            int order = WildlifeKnowledgeAdapter.StageOrder(stage);
-            Color color = order <= 0 ? new Color(0.22f, 0.24f, 0.24f) : order == 1 ? new Color(0.72f, 0.62f, 0.34f) :
-                order >= 5 ? new Color(0.86f, 0.74f, 0.30f) : new Color(0.40f, 0.68f, 0.48f);
-            Widgets.DrawBoxSolid(rect, new Color(color.r, color.g, color.b, 0.26f));
-            Widgets.DrawBox(rect, order == 1 ? 1 : 2, Texture2D.whiteTexture);
-            if (order >= 5)
-            {
-                GUI.color = color;
-                Widgets.Label(rect.ContractedBy(3f), "*");
-                GUI.color = Color.white;
-            }
-        }
-
-        private static void DrawDashedBorder(Rect rect, Color color)
-        {
-            color.a = 0.75f;
-            float dash = 9f;
-            for (float x = rect.x; x < rect.xMax; x += dash * 2f)
-            {
-                Widgets.DrawLine(new Vector2(x, rect.y), new Vector2(Mathf.Min(x + dash, rect.xMax), rect.y), color, 1f);
-                Widgets.DrawLine(new Vector2(x, rect.yMax), new Vector2(Mathf.Min(x + dash, rect.xMax), rect.yMax), color, 1f);
-            }
-            for (float y = rect.y; y < rect.yMax; y += dash * 2f)
-            {
-                Widgets.DrawLine(new Vector2(rect.x, y), new Vector2(rect.x, Mathf.Min(y + dash, rect.yMax)), color, 1f);
-                Widgets.DrawLine(new Vector2(rect.xMax, y), new Vector2(rect.xMax, Mathf.Min(y + dash, rect.yMax)), color, 1f);
-            }
-        }
-
-        private void InvestigateSpecies(Map activeMap, WildlifeSpeciesSnapshot value)
-        {
-            WildlifeTrailSnapshot trail = value.trails.FirstOrDefault();
-            if (trail != null && trail.departureCell.IsValid)
-            {
-                FocusCell(activeMap, trail.departureCell, WildlifeJournalPage.Investigations);
-                return;
-            }
-            Pawn animal = activeMap.mapPawns.AllPawnsSpawned.FirstOrDefault(pawn => pawn?.def == value.species && pawn.Faction == null);
-            if (animal != null) FocusThing(activeMap, animal, WildlifeJournalPage.Investigations);
-            else page = WildlifeJournalPage.Investigations;
-        }
-
-        private void FocusSpecies(Map activeMap, ThingDef species)
-        {
-            Pawn target = activeMap.mapPawns.AllPawnsSpawned.FirstOrDefault(value => value?.def == species && value.Faction == null);
-            if (target != null) FocusThing(activeMap, target, WildlifeJournalPage.FieldGuide);
-            else page = WildlifeJournalPage.LivingAtlas;
-        }
-
-        private void FocusThing(Map activeMap, Thing thing, WildlifeJournalPage restorePage)
-        {
-            WildlifeUI.CloseMenus();
-            CameraJumper.TryJumpAndSelect(thing);
-            Find.WindowStack.Add(new Window_WildlifeJournal(activeMap, restorePage, thing as Pawn != null ? (thing as Pawn).def : thing.def));
-        }
-
-        private void FocusCell(Map activeMap, IntVec3 cell, WildlifeJournalPage restorePage)
-        {
-            WildlifeUI.CloseMenus();
-            CameraJumper.TryJump(cell, activeMap);
-            Find.WindowStack.Add(new Window_WildlifeJournal(activeMap, restorePage, selectedSpecies));
-        }
-
-        private static string Approximate(float value, float confidence)
-        {
-            float margin = Mathf.Max(1f, value * Mathf.Lerp(0.5f, 0.12f, confidence));
-            return Mathf.Max(0f, value - margin).ToString("0") + "-" + Mathf.Max(1f, value + margin).ToString("0");
-        }
-
-        private static string EvidenceResult(WildlifeEvidenceSnapshot value)
-        {
-            string result = string.Empty;
-            if (!value.previousStage.NullOrEmpty() && !value.newStage.NullOrEmpty() && value.previousStage != value.newStage)
-                result = "Stage " + WildlifeKnowledgeAdapter.StageLabel(value.previousStage) + " -> " + WildlifeKnowledgeAdapter.StageLabel(value.newStage);
-            else if (Mathf.Abs(value.confidenceDelta) >= 0.01f)
-                result = (value.facetId.NullOrEmpty() ? "Knowledge" : value.facetId.CapitalizeFirst()) + " confidence " + value.previousConfidence.ToStringPercent() + " -> " + value.newConfidence.ToStringPercent();
-            else if (Mathf.Abs(value.amountDelta) >= 0.01f)
-                result = (value.facetId.NullOrEmpty() ? "Knowledge" : value.facetId.CapitalizeFirst()) + " +" + value.amountDelta.ToString("0.##") + " evidence";
-            else result = "A distinct field discovery was preserved.";
-            if (value.observerCount > 1) result += "  " + value.observerCount + " observers";
-            if (value.observationHours > 0.05f) result += "  " + value.observationHours.ToString("0.0") + " h observed";
-            if (value.elapsedHours > 0.05f) result += " over " + value.elapsedHours.ToString("0.0") + " h";
-            return result;
-        }
-
-        private string NextStudy(WildlifeSpeciesSnapshot value, Map activeMap)
-        {
-            if (value.stageId == WildlifeKnowledgeAdapter.StageUnknown) return "Find a quiet sighting, fresh sign, or Study target.";
-            IReadOnlyList<KnowledgeFacetSnapshotV2> facets = Facets(value.species, activeMap);
-            if (WildlifeKnowledgeAdapter.StageOrder(value.stageId) < 2) return "Use Study or fresh tracks to confirm identity; routine proximity is already familiar.";
-            if (!FacetKnown(facets, WildlifeKnowledgeAdapter.FacetMovement)) return "Study movement in a different sector or time of day.";
-            if (!FacetKnown(facets, WildlifeKnowledgeAdapter.FacetSocial)) return "Observe a herd-size or behavior context; passive proximity will not add another entry.";
-            if (!FacetKnown(facets, WildlifeKnowledgeAdapter.FacetHabitat)) return "Survey a different biome or season to establish habitat.";
-            if (WildlifeKnowledgeAdapter.StageOrder(value.stageId) < 4) return "Compare a different sector, season, or behavior context.";
-            if (WildlifeKnowledgeAdapter.StageOrder(value.stageId) < 5) return "Write a report that preserves the evidence and uncertainty.";
-            return "The record is documented. Watch for contradictions and regional change.";
-        }
-
-        private static bool FacetKnown(IReadOnlyList<KnowledgeFacetSnapshotV2> facets, string facetId)
-        {
-            KnowledgeFacetSnapshotV2 value = facets?.FirstOrDefault(item => item != null && item.facetId == facetId);
-            return value != null && (value.amount > 0.01f || value.completeness > 0.01f);
+            if (activeMap == null || !cell.IsValid) return JournalText.Get("Wildlife.UI.Journal.Meta.Regional");
+            return JournalText.Format("Wildlife.UI.Journal.Meta.Sector", Mathf.Max(0, cell.x / 12), Mathf.Max(0, cell.z / 12));
         }
     }
+
+    internal sealed class WildlifeResponsiveJournalSplit : InsightUiElement
+    {
+        private readonly InsightUiElement first;
+        private readonly InsightUiElement second;
+        private readonly float ratio;
+
+        internal WildlifeResponsiveJournalSplit(string id, InsightUiElement first, InsightUiElement second, float ratio) : base(id)
+        {
+            this.first = first;
+            this.second = second;
+            this.ratio = Mathf.Clamp01(ratio);
+            Style.Gap = 8f;
+        }
+
+        public override IReadOnlyList<InsightUiElement> Children => new[] { first, second };
+
+        protected override InsightUiSize MeasureCore(InsightUiConstraints constraints, InsightUiFrame frame)
+        {
+            bool stacked = !float.IsPositiveInfinity(constraints.MaxWidth) && constraints.MaxWidth < 720f;
+            float gap = EffectiveGap(frame);
+            if (stacked)
+            {
+                InsightUiSize firstSize = first.Measure(new InsightUiConstraints(0f, constraints.MaxWidth, 0f, float.PositiveInfinity), frame);
+                InsightUiSize secondSize = second.Measure(new InsightUiConstraints(0f, constraints.MaxWidth, 0f, float.PositiveInfinity), frame);
+                return new InsightUiSize(Math.Max(firstSize.Width, secondSize.Width), firstSize.Height + secondSize.Height + gap);
+            }
+            float firstWidth = Math.Max(0f, constraints.MaxWidth * ratio - gap);
+            InsightUiSize a = first.Measure(new InsightUiConstraints(0f, firstWidth, 0f, constraints.MaxHeight), frame);
+            InsightUiSize b = second.Measure(new InsightUiConstraints(0f, Math.Max(0f, constraints.MaxWidth - firstWidth - gap), 0f, constraints.MaxHeight), frame);
+            return new InsightUiSize(constraints.MaxWidth, Math.Max(a.Height, b.Height));
+        }
+
+        protected override void ArrangeCore(InsightRect rect, InsightUiFrame frame)
+        {
+            float gap = EffectiveGap(frame);
+            if (rect.Width < 720f)
+            {
+                InsightUiSize firstSize = first.MeasuredSize;
+                float firstHeight = Math.Max(180f, Math.Min(rect.Height * 0.48f, firstSize.Height));
+                first.Arrange(new InsightRect(rect.X, rect.Y, rect.Width, firstHeight), frame);
+                second.Arrange(new InsightRect(rect.X, rect.Y + firstHeight + gap, rect.Width,
+                    Math.Max(0f, rect.Height - firstHeight - gap)), frame);
+                return;
+            }
+            float firstWidth = Math.Max(0f, (rect.Width - gap) * ratio);
+            first.Arrange(new InsightRect(rect.X, rect.Y, firstWidth, rect.Height), frame);
+            second.Arrange(new InsightRect(rect.X + firstWidth + gap, rect.Y,
+                Math.Max(0f, rect.Width - firstWidth - gap), rect.Height), frame);
+        }
+
+        protected override void PaintCore(IInsightUiPainter painter, InsightUiFrame frame)
+        {
+            first.Paint(painter, frame);
+            float gap = EffectiveGap(frame);
+            if (LayoutRect.Width >= 720f)
+            {
+                float firstWidth = Math.Max(0f, (LayoutRect.Width - gap) * ratio);
+                painter.Divider(new InsightRect(LayoutRect.X + firstWidth, LayoutRect.Y, gap, LayoutRect.Height),
+                    frame.Theme.SecondaryText.WithAlpha(0.24f), frame);
+            }
+            second.Paint(painter, frame);
+        }
+    }
+
+    internal enum JournalAction { Focus, Response, OpenExpedition }
+
+    internal sealed class WildlifeJournalPresentationSnapshot
+    {
+        internal WildlifeJournalPresentationSnapshot(Map map, int tick, int knowledgeRevision,
+            IEnumerable<JournalSpeciesRecord> species, IEnumerable<JournalLogRecord> fieldLog,
+            IEnumerable<JournalSignalRecord> signals, IEnumerable<JournalRegionRecord> regions,
+            IEnumerable<JournalInvestigationRecord> investigations, IEnumerable<JournalExpeditionRecord> expeditions,
+            IEnumerable<JournalStoryRecord> stories)
+        {
+            Map = map;
+            Tick = tick;
+            KnowledgeRevision = knowledgeRevision;
+            Species = ReadOnly(species);
+            FieldLog = ReadOnly(fieldLog);
+            Signals = ReadOnly(signals);
+            Regions = ReadOnly(regions);
+            Investigations = ReadOnly(investigations);
+            Expeditions = ReadOnly(expeditions);
+            Stories = ReadOnly(stories);
+        }
+
+        internal readonly Map Map;
+        internal readonly int Tick;
+        internal readonly int KnowledgeRevision;
+        internal readonly IReadOnlyList<JournalSpeciesRecord> Species;
+        internal readonly IReadOnlyList<JournalLogRecord> FieldLog;
+        internal readonly IReadOnlyList<JournalSignalRecord> Signals;
+        internal readonly IReadOnlyList<JournalRegionRecord> Regions;
+        internal readonly IReadOnlyList<JournalInvestigationRecord> Investigations;
+        internal readonly IReadOnlyList<JournalExpeditionRecord> Expeditions;
+        internal readonly IReadOnlyList<JournalStoryRecord> Stories;
+
+        private static IReadOnlyList<T> ReadOnly<T>(IEnumerable<T> values) =>
+            new ReadOnlyCollection<T>((values ?? Enumerable.Empty<T>()).Where(value => value != null).ToList());
+    }
+
+    internal sealed class JournalLogRecord
+    {
+        internal JournalLogRecord(string id, string typeKey, string title, string detail, string evidence, string certainty,
+            string location, string age, ThingDef species, IntVec3 cell, int tick, bool urgent, JournalAction action)
+        {
+            Id = id ?? string.Empty; TypeKey = typeKey; Title = title ?? string.Empty; Detail = detail ?? string.Empty;
+            Evidence = evidence ?? string.Empty; Certainty = certainty ?? string.Empty; Location = location ?? string.Empty;
+            Age = age ?? string.Empty; Species = species; Cell = cell; Tick = tick; Urgent = urgent; Action = action;
+        }
+        internal readonly string Id, TypeKey, Title, Detail, Evidence, Certainty, Location, Age;
+        internal readonly ThingDef Species;
+        internal readonly IntVec3 Cell;
+        internal readonly int Tick;
+        internal readonly bool Urgent;
+        internal readonly JournalAction Action;
+        internal string SpeciesName => Species?.LabelCap.ToString() ?? JournalText.Get("Wildlife.UI.Journal.Value.Unknown");
+    }
+
+    internal sealed class JournalSpeciesRecord
+    {
+        internal JournalSpeciesRecord(ThingDef species, string subjectId, string stageId, float confidence, int evidenceCount,
+            IEnumerable<JournalFacetRecord> facets, IEnumerable<JournalClaimRecord> claims, IEnumerable<JournalEvidenceRecord> evidence,
+            bool fieldGuideObserved, bool knowledgeVisible, string nextEvidence,
+            WildlifeInsightSpeciesDisclosure disclosure)
+        {
+            Species = species; SubjectId = subjectId; StageId = stageId; Confidence = Mathf.Clamp01(confidence); EvidenceCount = evidenceCount;
+            Facets = new ReadOnlyCollection<JournalFacetRecord>((facets ?? Enumerable.Empty<JournalFacetRecord>()).ToList());
+            Claims = new ReadOnlyCollection<JournalClaimRecord>((claims ?? Enumerable.Empty<JournalClaimRecord>()).ToList());
+            Evidence = new ReadOnlyCollection<JournalEvidenceRecord>((evidence ?? Enumerable.Empty<JournalEvidenceRecord>()).ToList());
+            FieldGuideObserved = fieldGuideObserved; KnowledgeVisible = knowledgeVisible;
+            NextEvidence = nextEvidence ?? JournalText.Get("Wildlife.UI.Journal.Knowledge.NextEvidence.None");
+            Disclosure = disclosure;
+        }
+        internal readonly ThingDef Species;
+        internal readonly string SubjectId, StageId;
+        internal readonly float Confidence;
+        internal readonly int EvidenceCount;
+        internal readonly IReadOnlyList<JournalFacetRecord> Facets;
+        internal readonly IReadOnlyList<JournalClaimRecord> Claims;
+        internal readonly IReadOnlyList<JournalEvidenceRecord> Evidence;
+        internal readonly bool FieldGuideObserved, KnowledgeVisible;
+        internal readonly string NextEvidence;
+        internal readonly WildlifeInsightSpeciesDisclosure Disclosure;
+        internal string StageLabel => JournalText.StageLabel(StageId);
+        internal string FieldGuideStageLabel => FieldGuideObserved ? StageLabel : JournalText.StageLabel(WildlifeKnowledgeAdapter.StageUnknown);
+        internal int FieldGuideEvidenceCount => FieldGuideObserved ? EvidenceCount : 0;
+        internal string ConfidenceLabel => JournalText.Certainty(Confidence);
+        internal int KnownFacetCount => Facets.Count(value => value.Known);
+    }
+
+    internal sealed class JournalFacetRecord
+    {
+        internal JournalFacetRecord(string id, float amount, float completeness, float confidence, int evidenceCount, bool provisional)
+        {
+            Id = id; Amount = amount; Completeness = Mathf.Clamp01(completeness); Confidence = Mathf.Clamp01(confidence);
+            EvidenceCount = evidenceCount; Provisional = provisional;
+        }
+        internal readonly string Id;
+        internal readonly float Amount, Completeness, Confidence;
+        internal readonly int EvidenceCount;
+        internal readonly bool Provisional;
+        internal bool Known => Amount > 0f || EvidenceCount > 0;
+        internal string Label => JournalText.FacetLabel(Id);
+        internal string ConfidenceLabel => JournalText.Certainty(Confidence);
+    }
+
+    internal sealed class JournalClaimRecord
+    {
+        internal JournalClaimRecord(string id, string value, float confidence, bool contradictory, int observations, string source)
+        {
+            Label = JournalText.ClaimLabel(id);
+            Detail = (value.NullOrEmpty() ? JournalText.Get("Wildlife.UI.Journal.Value.Unknown") : value) + " • " +
+                JournalText.Format("Wildlife.UI.Journal.Knowledge.ClaimDetail", observations, confidence.ToStringPercent(),
+                    source.NullOrEmpty() ? JournalText.Get("Wildlife.UI.Journal.Value.Unknown") : source);
+            Contradictory = contradictory;
+        }
+        internal readonly string Label, Detail;
+        internal readonly bool Contradictory;
+    }
+
+    internal sealed class JournalEvidenceRecord
+    {
+        internal JournalEvidenceRecord(string kind, string summary, string source, float confidence, int observers, int tick, string age)
+        {
+            Kind = kind; Summary = summary ?? string.Empty; Source = source ?? JournalText.Get("Wildlife.UI.Journal.Value.Unknown");
+            Confidence = confidence; ObserverCount = observers; Tick = tick; Age = age;
+        }
+        internal readonly string Kind, Summary, Source, Age;
+        internal readonly float Confidence;
+        internal readonly int ObserverCount, Tick;
+        internal string ConfidenceLabel => JournalText.Certainty(Confidence);
+    }
+
+    internal sealed class JournalSignalRecord
+    {
+        internal JournalSignalRecord(string id, ThingDef species, WildlifeSignalKind kind, IntVec3 cell, int tick, string family,
+            string description, string observerName, bool contradictory, float confidence, string confidenceLabel,
+            string interpretation, string evidence, string age)
+        {
+            Id = id; Species = species; Kind = kind; Cell = cell; Tick = tick; Family = family; Description = description ?? string.Empty;
+            ObserverName = observerName; Contradictory = contradictory; Confidence = confidence; ConfidenceLabel = confidenceLabel;
+            Interpretation = interpretation; Evidence = evidence; Age = age;
+        }
+        internal readonly string Id, Family, Description, ObserverName, ConfidenceLabel, Interpretation, Evidence, Age;
+        internal readonly ThingDef Species;
+        internal readonly WildlifeSignalKind Kind;
+        internal readonly IntVec3 Cell;
+        internal readonly int Tick;
+        internal readonly bool Contradictory;
+        internal readonly float Confidence;
+        internal string SpeciesName => Species?.LabelCap.ToString() ?? JournalText.Get("Wildlife.UI.Journal.Value.Unknown");
+    }
+
+    internal sealed class JournalRegionRecord
+    {
+        internal JournalRegionRecord(ThingDef species, string local, string regional, string trend, float pressureValue,
+            string pressure, string habitat, string movement, string summary, string atlasSummary,
+            int knownEvidenceCount, int trailCount, int migrationCount, int notableCount, int variationCount,
+            WildlifeInsightSpeciesDisclosure disclosure)
+        {
+            Species = species; LocalPopulation = local; RegionalPopulation = regional; Trend = trend; PressureValue = pressureValue;
+            Pressure = pressure; Habitat = habitat; Movement = movement; Summary = summary; AtlasSummary = atlasSummary;
+            KnownEvidenceCount = knownEvidenceCount; TrailCount = trailCount; MigrationCount = migrationCount;
+            NotableCount = notableCount; VariationCount = variationCount; Disclosure = disclosure;
+        }
+        internal readonly ThingDef Species;
+        internal readonly string LocalPopulation, RegionalPopulation, Trend, Pressure, Habitat, Movement, Summary, AtlasSummary;
+        internal readonly float PressureValue;
+        internal readonly int KnownEvidenceCount, TrailCount, MigrationCount, NotableCount, VariationCount;
+        internal readonly WildlifeInsightSpeciesDisclosure Disclosure;
+    }
+
+    internal sealed class JournalInvestigationRecord
+    {
+        internal JournalInvestigationRecord(string id, string title, ThingDef species, string hypothesis, string state, float progress,
+            string uncertainty, string evidence, bool contradictory, string nextAction, IntVec3 cell)
+        {
+            Id = id; Title = title ?? string.Empty; Species = species; Hypothesis = hypothesis ?? string.Empty; State = state ?? string.Empty;
+            Progress = Mathf.Clamp01(progress); Uncertainty = uncertainty; Evidence = evidence; Contradictory = contradictory;
+            NextAction = nextAction; Cell = cell;
+        }
+        internal readonly string Id, Title, Hypothesis, State, Uncertainty, Evidence, NextAction;
+        internal readonly ThingDef Species;
+        internal readonly float Progress;
+        internal readonly bool Contradictory;
+        internal readonly IntVec3 Cell;
+    }
+
+    internal sealed class JournalExpeditionRecord
+    {
+        internal JournalExpeditionRecord(int id, string title, string detail, string stage, float progress, string returnTime, bool rescue)
+        {
+            Id = id; Title = title; Detail = detail; Stage = stage; Progress = progress; ReturnTime = returnTime; Rescue = rescue;
+        }
+        internal readonly int Id;
+        internal readonly string Title, Detail, Stage, ReturnTime;
+        internal readonly float Progress;
+        internal readonly bool Rescue;
+    }
+
+    internal sealed class JournalStoryRecord
+    {
+        internal JournalStoryRecord(string id, string title, string summary, string interpretation, ThingDef species, int tick, string age)
+        {
+            Id = id; Title = title ?? string.Empty; Summary = summary ?? string.Empty; Interpretation = interpretation ?? string.Empty;
+            Species = species; Tick = tick; Age = age;
+        }
+        internal readonly string Id, Title, Summary, Interpretation, Age;
+        internal readonly ThingDef Species;
+        internal readonly int Tick;
+        internal string SpeciesName => Species?.LabelCap.ToString() ?? JournalText.Get("Wildlife.UI.Journal.Value.NotSpeciesSpecific");
+    }
+
+    /// <summary>
+    /// Compatibility window for older callers. It is presentation-only and delegates all drawing to the
+    /// same InsightCanvas document/host used by WildlifeJournal.Open; no legacy manual renderer remains here.
+    /// </summary>
 }

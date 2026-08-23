@@ -244,7 +244,7 @@ namespace Herds
         public override void MapComponentDraw()
         {
             base.MapComponentDraw();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled || Find.CurrentMap != map) return;
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled || Find.CurrentMap != map) return;
             if (lastMigrant?.Spawned == true && Find.TickManager.TicksGame < migrationVisualUntil)
             {
                 GenDraw.DrawLineBetween(lastMigrant.Position.ToVector3Shifted(), lastMigrationEdge.ToVector3Shifted(), SimpleColor.Green);
@@ -290,7 +290,7 @@ namespace Herds
         public override void MapComponentOnGUI()
         {
             base.MapComponentOnGUI();
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled || Find.CurrentMap != map) return;
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled || Find.CurrentMap != map) return;
             foreach (KeyValuePair<Pawn, float> pair in juvenileLearning)
                 if (pair.Key?.Spawned == true && !pair.Key.ageTracker.Adult)
                     GenMapUI.DrawThingLabel(pair.Key, "learning " + pair.Value.ToStringPercent());
@@ -1746,7 +1746,6 @@ namespace Herds
             bool hasStewardship = WildlifeProgression.Unlocked(WildlifeCapability.Stewardship);
             bool hasCameras = HerdsMod.Settings.enableCameraTraps && WildlifeProgression.Unlocked(WildlifeCapability.CameraMonitoring) && component.HasOperationalMonitor(WildlifeToolKind.CameraTrap);
             bool hasTelemetry = HerdsMod.Settings.enableTelemetry && WildlifeProgression.Unlocked(WildlifeCapability.Telemetry) && component.HasOperationalMonitor(WildlifeToolKind.TelemetryStation);
-            bool hasEcology = HerdsMod.Settings.enableAppliedEcology && WildlifeProgression.Unlocked(WildlifeCapability.AppliedEcology);
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width, 32f), "Local Wildlife");
             Text.Font = GameFont.Small;
@@ -1754,9 +1753,9 @@ namespace Herds
             Widgets.Label(new Rect(0f, 29f, rect.width, 22f), "Daily estimates combine known animals, local sightings, habitat, and migration. Surveys improve confidence.");
             GUI.color = Color.white;
 
-            string habitat = hasEcology
-                ? component.HabitatQuality.ToStringPercent()
-                : component.HabitatQuality < 0.35f ? "Poor" : component.HabitatQuality < 0.7f ? "Adequate" : "Healthy";
+            WildlifeEcologySnapshot ecology = WildlifeEcologySnapshots.For(map);
+            WildlifeInsightValue habitatValue = WildlifeInsightDisclosure.MapHabitat(map, ecology);
+            string habitat = habitatValue.Text;
             float cardWidth = (rect.width - 16f) / 3f;
             string seasonal = component.ActiveSeasonalEvent;
             DrawHeaderCard(new Rect(0f, 56f, cardWidth, 66f), "Season",
@@ -1794,28 +1793,29 @@ namespace Herds
             Widgets.BeginScrollView(outer, ref scroll, view);
             for (int i = 0; i < rows.Count; i++)
             {
-                RegionalSpeciesRecord record = rows[i]; int knowledge = HerdsMod.Settings.enableSpeciesKnowledgeProgression ? HuntingKnowledgeMapComponent.ColonyLevel(record.species) : 5;
+                RegionalSpeciesRecord record = rows[i];
+                WildlifeInsightSpeciesDisclosure disclosure = DisclosureFor(record);
+                int knowledge = HerdsMod.Settings.enableSpeciesKnowledgeProgression ? HuntingKnowledgeMapComponent.ColonyLevel(record.species) : 5;
                 Rect row = new Rect(0f, i * 76f, view.width, 70f); Widgets.DrawMenuSection(row);
                 Widgets.DrawHighlightIfMouseover(row);
                 Widgets.Label(new Rect(row.x + 10f, row.y + 8f, 166f, 24f), record.species.LabelCap);
                 GUI.color = new Color(0.72f, 0.78f, 0.72f);
                 Widgets.Label(new Rect(row.x + 10f, row.y + 33f, 166f, 22f), HuntingKnowledgeMapComponent.LevelLabel(knowledge));
                 GUI.color = Color.white;
-                string estimate = knowledge < 1 ? "Nearby: Unknown" :
-                    !hasStewardship ? "Nearby signs: " + component.QualitativeNearbyPopulation(record) :
-                    "Nearby: " + (hasTelemetry ? "About " + Mathf.RoundToInt(record.nearbyPopulation) :
-                        component.ApproximateNearbyPopulation(record)) + "\nPresent: " + record.lastLocalCount;
-                string trend = knowledge < 2 || !hasStewardship ? "Uncertain" :
-                    record.nearbyPopulation > record.previousNearbyPopulation + 0.2f ? "Increasing" :
-                    record.nearbyPopulation < record.previousNearbyPopulation - 0.2f ? "Declining" : "Stable";
-                string forecast = !hasEcology || knowledge < 3 ? null : "Forecast: " + component.Forecast(record);
-                int tagged = hasTelemetry ? component.TaggedCount(record.species) : 0;
-                if (tagged > 0) forecast += " | Tagged " + tagged;
-                if (HerdsMod.Settings.enableDiseaseMonitoring && WildlifeProgression.Unlocked(WildlifeCapability.DiseaseMonitoring)) forecast = (forecast.NullOrEmpty() ? "" : forecast + "    •    ") + "Disease Risk: " + component.DiseaseRisk(record);
+                string estimate = "Nearby: " + disclosure.NearbyPopulation.Text +
+                    "\nPresent: " + disclosure.LocalPopulation.Text;
+                string trend = disclosure.Trend.Text;
+                string forecast = disclosure.Forecast.Available ? "Forecast: " + disclosure.Forecast.Text : null;
+                int tagged = disclosure.NearbyPopulation.Precision == WildlifeInsightPrecision.Measured
+                    ? component.TaggedCount(record.species) : 0;
+                if (tagged > 0) forecast = (forecast.NullOrEmpty() ? "" : forecast + " | ") + "Tagged " + tagged;
+                if (disclosure.DiseaseRisk.Available)
+                    forecast = (forecast.NullOrEmpty() ? "" : forecast + "    •    ") + "Disease Risk: " + disclosure.DiseaseRisk.Text;
                 int roamers = component.RoamersFor(record.species).Count(value =>
                     value.state != RoamingAnimalState.Present && value.state != RoamingAnimalState.Dead);
-                string returnText = component.NextExpectedReturn(record.species);
-                string outlook = (hasStewardship ? component.PopulationStatus(record) : "Basic field signs") +
+                string returnText = roamers > 0 && disclosure.NearbyPopulation.Precision == WildlifeInsightPrecision.Measured
+                    ? "return window monitored" : null;
+                string outlook = (disclosure.Pressure.Available ? disclosure.Pressure.Text : "Basic field signs") +
                     (roamers > 0 ? "\n" + roamers + " known roaming" +
                         (returnText.NullOrEmpty() ? "" : " • " + returnText) :
                         forecast.NullOrEmpty() ? "" : "\n" + forecast);
@@ -1831,7 +1831,7 @@ namespace Herds
                 Widgets.Label(trendRect, trend);
                 Widgets.Label(outlookRect, outlook);
                 Text.Anchor = TextAnchor.UpperCenter;
-                Widgets.Label(confidenceRect, record.confidence.ToStringPercent());
+                Widgets.Label(confidenceRect, disclosure.Certainty);
                 Text.Anchor = TextAnchor.UpperLeft;
                 TooltipHandler.TipRegion(populationRect, "Nearby is the population whose home ranges overlap this map and its immediate surroundings. Present is the subset currently visible. Animals regularly move between these states without changing the nearby population.");
                 TooltipHandler.TipRegion(trendRect, "Trend compares the current nearby population with the previous daily estimate. Habitat, hunting pressure, season, migration management, and the wider regional population affect it.");
@@ -1844,20 +1844,15 @@ namespace Herds
                     (hasTelemetry ? ", telemetry, and tracking collars" : "") +
                     " increase it. Confidence narrows population ranges and determines whether forecasts and population alerts are reported; it does not change the underlying animal population.");
                 Rect policy = new Rect(row.xMax - 137f, row.y + 12f, 129f, 32f);
-                bool managementRelevant = hasStewardship && (HerdsMod.Settings.enableRegionalMigration || HerdsMod.Settings.enableHuntingRegulations || HerdsMod.Settings.enableWildlifeSteward);
-                if (managementRelevant && knowledge >= 3)
+                bool managementRelevant = disclosure.Allows(WildlifeInsightDisclosure.ActionManage);
+                if (managementRelevant)
                 {
                     string manageLabel = record.policy > 0 ? "Encourage" : record.policy < 0 ? "Discourage" : "Manage";
                     if (Widgets.ButtonText(policy, manageLabel)) ShowManagement(component, record);
                     TooltipHandler.TipRegion(policy, "Manage migration, hunting regulations, quotas, and conservation goals for this species.");
                 }
-                else if (managementRelevant)
-                {
-                    GUI.color = new Color(0.68f, 0.68f, 0.68f);
-                    Widgets.Label(policy, "Requires Studied");
-                    GUI.color = Color.white;
-                    TooltipHandler.TipRegion(policy, "Reach Studied Animal Knowledge for this species to unlock management.");
-                }
+                else if (hasStewardship && (HerdsMod.Settings.enableRegionalMigration || HerdsMod.Settings.enableHuntingRegulations || HerdsMod.Settings.enableWildlifeSteward))
+                    TooltipHandler.TipRegion(policy, "Authorized wildlife knowledge is required before management actions are shown.");
                 Rect speciesActions = new Rect(row.x, row.y, row.width -
                     (managementRelevant ? 148f : 0f), row.height);
                 if (Widgets.ButtonInvisible(speciesActions))
@@ -1871,11 +1866,16 @@ namespace Herds
 
         private IReadOnlyList<RegionalSpeciesRecord> VisibleRows(RegionalWildlifeMapComponent component) =>
             component.Records
-                .Where(record => record?.species != null && record.population > 0.05f)
-                .Where(record => !HerdsMod.Settings.enableSpeciesKnowledgeProgression || HuntingKnowledgeMapComponent.ColonyExperience(record.species) > 0f)
-                .OrderByDescending(record => record.population)
-                .ThenBy(record => record.species.label)
+                .Where(record => record?.species != null)
+                .Where(record => DisclosureFor(record).Visible && DisclosureFor(record).RegionalPopulation.Available)
+                .OrderBy(record => record.species.label)
                 .ToList();
+
+        private WildlifeInsightSpeciesDisclosure DisclosureFor(RegionalSpeciesRecord record)
+        {
+            WildlifeSpeciesSnapshot source = WildlifeEcologySnapshots.For(map)?.For(record?.species);
+            return WildlifeInsightDisclosure.For(map, source);
+        }
 
         private static void DrawHeaderCard(Rect rect, string title, string value, Color accent, string tooltip)
         {
@@ -1911,8 +1911,9 @@ namespace Herds
                     () => component.DiscourageReturn(predatorRoamer)));
             if (HerdsMod.Settings.enableHuntingRegulations || HerdsMod.Settings.enableWildlifeSteward)
                 options.Add(new FloatMenuOption("Species Management…", () => PlayerWildlifeCommandPatch.ShowRegulationMenu(map, record.species)));
-            if (HerdsMod.Settings.enableAppliedEcology && WildlifeProgression.Unlocked(WildlifeCapability.AppliedEcology))
-                options.Add(new FloatMenuOption("Predicted Effects: " + component.InterventionSummary(record), null));
+            WildlifeInsightSpeciesDisclosure disclosure = DisclosureFor(record);
+            if (disclosure.Intervention.Available)
+                options.Add(new FloatMenuOption("Predicted Effects: " + disclosure.Intervention.Text, null));
             Find.WindowStack.Add(new FloatMenu(options));
         }
 
@@ -1920,10 +1921,13 @@ namespace Herds
             RegionalSpeciesRecord record, int knowledge, bool managementRelevant)
         {
             List<FloatMenuOption> options = new List<FloatMenuOption>();
-            Pawn local = map.mapPawns.AllPawnsSpawned.Where(pawn =>
-                pawn?.Spawned == true && !pawn.Dead && pawn.Faction == null &&
-                pawn.def == record.species).OrderBy(pawn =>
-                pawn.Position.DistanceToSquared(map.Center)).FirstOrDefault();
+            WildlifeInsightSpeciesDisclosure disclosure = DisclosureFor(record);
+            Pawn local = disclosure.Allows(WildlifeInsightDisclosure.ActionFocus)
+                ? map.mapPawns.AllPawnsSpawned.Where(pawn =>
+                    pawn?.Spawned == true && !pawn.Dead && pawn.Faction == null &&
+                    pawn.def == record.species && WildlifeInsightDisclosure.IsDirectlyObserved(map, pawn.def))
+                    .OrderBy(pawn => pawn.Position.DistanceToSquared(map.Center)).FirstOrDefault()
+                : null;
             if (local != null)
                 options.Add(new FloatMenuOption("Focus Local " + record.species.LabelCap,
                     () => WildlifeUI.Focus(local)));
@@ -1936,7 +1940,7 @@ namespace Herds
                 options.Add(new FloatMenuOption("Review Known Roaming Animals",
                     () => Find.WindowStack.Add(
                         new Window_RoamingWildlife(map, record.species))));
-            if (managementRelevant && knowledge >= 3)
+            if (disclosure.Allows(WildlifeInsightDisclosure.ActionManage))
                 options.Add(new FloatMenuOption("Manage " + record.species.LabelCap,
                     () => ShowManagement(component, record)));
             Find.WindowStack.Add(new FloatMenu(options));
@@ -1991,7 +1995,7 @@ namespace Herds
                 Widgets.Label(new Rect(row.x + 54f, row.y + 6f, row.width - 62f, 23f), record.species.LabelCap);
                 int rowKnowledge = HerdsMod.Settings.enableSpeciesKnowledgeProgression ? HuntingKnowledgeMapComponent.ColonyLevel(record.species) : 5;
                 GUI.color = new Color(0.72f, 0.78f, 0.72f);
-                string amount = rowKnowledge < 1 ? "Population unknown" : component.QualitativePopulation(record);
+                string amount = DisclosureFor(record).RegionalPopulation.Text;
                 Widgets.Label(new Rect(row.x + 54f, row.y + 29f, row.width - 62f, 20f), HuntingKnowledgeMapComponent.LevelLabel(rowKnowledge) + "  •  " + amount);
                 GUI.color = Color.white;
                 if (Widgets.ButtonInvisible(row)) selectedSpecies = record.species;
@@ -2000,11 +2004,13 @@ namespace Herds
             Widgets.EndScrollView();
             RegionalSpeciesRecord selected = rows.FirstOrDefault(record => record.species == selectedSpecies);
             if (selected == null) { Widgets.Label(new Rect(260f, 150f, rect.width - 260f, 40f), "No known species are currently present in the region."); return; }
-            int knowledge = HerdsMod.Settings.enableSpeciesKnowledgeProgression ? HuntingKnowledgeMapComponent.ColonyLevel(selected.species) : 5;
+            WildlifeInsightSpeciesDisclosure selectedDisclosure = DisclosureFor(selected);
             Rect panel = new Rect(252f, 132f, rect.width - 252f, rect.height - 132f); Widgets.DrawMenuSection(panel);
-            Widgets.Label(new Rect(panel.x + 12f, panel.y + 10f, panel.width - 24f, 28f), selected.species.LabelCap + " Regional Distribution — " + component.Forecast(selected));
+            Widgets.Label(new Rect(panel.x + 12f, panel.y + 10f, panel.width - 24f, 28f), selected.species.LabelCap + " Regional Distribution — " +
+                (selectedDisclosure.Forecast.Available ? selectedDisclosure.Forecast.Text : "Forecast unavailable"));
             GUI.color = new Color(0.72f, 0.78f, 0.72f);
-            Widgets.Label(new Rect(panel.x + 12f, panel.y + 35f, panel.width - 24f, 24f), "Each cell estimates a neighboring world region. Select another known animal from the list.");
+            Widgets.Label(new Rect(panel.x + 12f, panel.y + 35f, panel.width - 24f, 24f),
+                "The central cell shows current-map evidence; neighboring cells remain regional scope until cell-level evidence is authorized.");
             GUI.color = Color.white;
             float cellSize = Mathf.Min(145f, (panel.width - 60f) / 3f, (panel.height - 80f) / 3f);
             float startX = panel.x + (panel.width - cellSize * 3f) * 0.5f; float startY = panel.y + 66f;
@@ -2013,23 +2019,20 @@ namespace Herds
             for (int grid = 0; grid < 9; grid++)
             {
                 int index = mapping[grid]; Rect cell = new Rect(startX + grid % 3 * cellSize, startY + grid / 3 * cellSize, cellSize - 6f, cellSize - 6f);
-                Color color = index < 0 ? new Color(0.22f, 0.34f, 0.22f) : selected.neighboringPopulations[index] > selected.population / 8f ? new Color(0.18f, 0.38f, 0.22f) : new Color(0.30f, 0.24f, 0.18f);
+                Color color = index < 0 ? new Color(0.22f, 0.34f, 0.22f) :
+                    selectedDisclosure.RegionalPopulation.Available ? new Color(0.18f, 0.38f, 0.22f) :
+                    new Color(0.30f, 0.24f, 0.18f);
                 Widgets.DrawBoxSolid(cell, color); Widgets.DrawBox(cell);
                 Text.Anchor = TextAnchor.MiddleCenter;
-                bool telemetry = HerdsMod.Settings.enableTelemetry && WildlifeProgression.Unlocked(WildlifeCapability.Telemetry) && component.HasOperationalMonitor(WildlifeToolKind.TelemetryStation);
-                string amount = knowledge < 2 ? "Unknown" : index < 0 ? selected.lastLocalCount + " Local" :
-                    telemetry ? "About " + Mathf.RoundToInt(selected.neighboringPopulations[index]) :
-                    selected.neighboringPopulations[index] < 1f ? "Sparse" : selected.neighboringPopulations[index] < 4f ? "Moderate" : "Dense";
-                string route = index >= 0 && knowledge >= 3 && telemetry ? (selected.neighboringPopulations[index] > selected.lastLocalCount ? "\n→ inward" : "\n← outward") : "";
+                string amount = index < 0 ? selectedDisclosure.LocalPopulation.Text :
+                    selectedDisclosure.RegionalPopulation.Available ? "Regional scope" : "Unknown";
+                string route = string.Empty;
                 Widgets.Label(cell.ContractedBy(5f), directions[grid] + "\n" + amount + route);
                 Text.Anchor = TextAnchor.UpperLeft;
                 TooltipHandler.TipRegion(cell, index < 0
                     ? "Animals of this species currently sighted on the colony map."
-                    : "Estimated population in the " + directions[grid].ToLowerInvariant() +
-                      " neighboring world cell." +
-                      (WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
-                          ? " Telemetry improves the estimate; arrows show predicted movement relative to this map."
-                          : " Continued surveys improve the estimate."));
+                    : "No cell-level population estimate is disclosed for this neighboring region. " +
+                      "Regional evidence is available from the authorized wildlife record.");
             }
         }
     }
@@ -2068,10 +2071,9 @@ namespace Herds
             List<RoamingAnimalRecord> rows = component.RoamingAnimals.Where(record =>
                 record?.animal != null && record.state != RoamingAnimalState.Dead &&
                 (species == null || record.species == species) &&
-                (!HerdsMod.Settings.enableSpeciesKnowledgeProgression ||
-                    HuntingKnowledgeMapComponent.ColonyExperience(record.species) > 0f))
+                WildlifeInsightDisclosure.For(map, WildlifeEcologySnapshots.For(map)?.For(record.species)).Visible)
                 .OrderBy(record => record.state == RoamingAnimalState.Present ? 1 : 0)
-                .ThenBy(record => record.expectedReturnTick).ToList();
+                .ThenBy(record => record.species?.label).ToList();
             Rect outer = new Rect(0f, 78f, rect.width, rect.height - 78f);
             Rect view = new Rect(0f, 0f, outer.width - 18f,
                 Mathf.Max(outer.height, rows.Count * 104f));
@@ -2087,29 +2089,39 @@ namespace Herds
                         : record.state == RoamingAnimalState.Displaced
                             ? new Color(0.72f, 0.45f, 0.24f)
                             : new Color(0.30f, 0.48f, 0.62f));
-                Widgets.Label(new Rect(card.x + 13f, card.y + 8f, 240f, 24f),
-                    record.animal.LabelShortCap + " • " + record.species.LabelCap);
-                string status = record.state == RoamingAnimalState.Present ? "Present on map" :
+                bool currentObserved = WildlifeInsightDisclosure.IsDirectlyObserved(record.animal);
+                bool telemetry = HerdsMod.Settings?.enableTelemetry == true &&
+                    WildlifeProgression.Unlocked(WildlifeCapability.Telemetry) &&
+                    component.HasOperationalMonitor(WildlifeToolKind.TelemetryStation);
+                string individualLabel = currentObserved ? record.animal.LabelShortCap.ToString() :
+                    record.notable ? "Notable " + record.species.LabelCap :
+                    record.tagged ? "Tagged " + record.species.LabelCap : record.species.LabelCap.ToString();
+                Widgets.Label(new Rect(card.x + 13f, card.y + 8f, 240f, 24f), individualLabel + " • " + record.species.LabelCap);
+                string status = currentObserved ? "Present on map" : record.state == RoamingAnimalState.Present ?
+                    "Recorded on map; current observation unavailable" :
                     RegionalWildlifeMapComponent.StatePhrase(record.state).CapitalizeFirst() +
-                    " • " + (record.tagged && WildlifeProgression.Unlocked(WildlifeCapability.Telemetry)
+                    " • " + (record.tagged && telemetry
                         ? "Telemetry: " : "Last seen: ") + record.direction;
                 Widgets.Label(new Rect(card.x + 13f, card.y + 34f, card.width - 285f, 24f), status);
                 GUI.color = new Color(0.72f, 0.78f, 0.74f);
-                string timing = record.state == RoamingAnimalState.Present
+                string timing = currentObserved
                     ? "Returned " + record.returnCount + (record.returnCount == 1 ? " time" : " times")
-                    : record.tagged
-                        ? "Expected return: " + Mathf.Max(0,
+                    : record.tagged && telemetry
+                        ? "Telemetry return window: " + Mathf.Max(0,
                             record.expectedReturnTick - Find.TickManager.TicksGame).ToStringTicksToPeriod()
-                        : "Return estimate: " + component.NextExpectedReturn(record.species);
+                        : "Historical return window: unavailable";
+                string individual = currentObserved ? WildlifeLifeUtility.PersonalityLabel(record.animal) :
+                    "Individual character: historical record only";
                 Widgets.Label(new Rect(card.x + 13f, card.y + 59f, card.width - 285f, 24f),
-                    timing + " • " + WildlifeLifeUtility.PersonalityLabel(record.animal));
+                    timing + " • " + individual);
                 GUI.color = Color.white;
+                string historical = record.reason + "\n\nThis record preserves movement history and evidence; an absent animal's current position and personality are not inferred from the retained record.";
                 TooltipHandler.TipRegion(new Rect(card.x + 8f, card.y + 5f,
                     card.width - 276f, card.height - 10f),
-                    record.reason + "\n\n" + WildlifeLifeUtility.PersonalityDescription(record.animal) +
-                    "\n\nIt retains its memories, health, relationships, and history while away.");
+                    currentObserved ? record.reason + "\n\n" + WildlifeLifeUtility.PersonalityDescription(record.animal) +
+                    "\n\nIt retains its memories, health, relationships, and history while away." : historical);
 
-                if (record.state == RoamingAnimalState.Present && record.animal.Spawned)
+                if (currentObserved)
                 {
                     Rect primary = new Rect(card.xMax - 132f, card.y + 12f, 120f, 31f);
                     if (Widgets.ButtonText(primary, "Select"))
@@ -2117,7 +2129,7 @@ namespace Herds
                 }
                 if (record.tagged)
                     Widgets.Label(new Rect(card.xMax - 260f, card.y + 53f, 248f, 24f),
-                        "Tracking collar • location confidence high");
+                        telemetry ? "Tracking evidence • return window authorized" : "Tracking collar • current position unavailable");
                 else if (record.notable)
                     Widgets.Label(new Rect(card.xMax - 260f, card.y + 53f, 248f, 24f),
                         "Notable animal • sightings are approximate");

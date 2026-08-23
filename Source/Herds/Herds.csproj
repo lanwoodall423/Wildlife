@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Library</OutputType><TargetFramework>net472</TargetFramework><RootNamespace>Herds</RootNamespace><AssemblyName>Herds</AssemblyName><LangVersion>latest</LangVersion><Deterministic>true</Deterministic><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath><GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputType>Library</OutputType><TargetFramework>net472</TargetFramework><RootNamespace>Herds</RootNamespace><AssemblyName>Herds</AssemblyName><LangVersion>latest</LangVersion><Deterministic>true</Deterministic><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath><GenerateAssemblyInfo>false</GenerateAssemblyInfo><GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize><OutputPath>..\..\1.6\Assemblies\</OutputPath><DebugType>none</DebugType>
@@ -9,6 +9,7 @@
   <PropertyGroup>
     <WildlifeRequireHarmony>true</WildlifeRequireHarmony>
     <WildlifeRequireKnowledgeFramework>true</WildlifeRequireKnowledgeFramework>
+    <WildlifeRequireInsightCanvas>true</WildlifeRequireInsightCanvas>
   </PropertyGroup>
   <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
@@ -18,5 +19,6 @@
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="0Harmony"><HintPath>$(WildlifeHarmonyPath)</HintPath><Private>false</Private></Reference>
     <Reference Include="KnowledgeFramework"><HintPath>$(KnowledgeFrameworkAssemblyPath)</HintPath><Private>false</Private></Reference>
+    <Reference Include="InsightCanvas"><HintPath>$(InsightCanvasAssemblyPath)</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

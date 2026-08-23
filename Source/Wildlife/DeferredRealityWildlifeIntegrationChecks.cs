@@ -23,7 +23,7 @@ namespace DeferredReality.Wildlife
             if (world == null) failures.Add("framework world component is unavailable");
             if (WildlifeRealityIntegration.Provider == null ||
                 !RealityProviderRegistry.TryGet(WildlifeRealityProvider.ProviderId, out IRealityProvider registered) ||
-                registered?.GetType() != WildlifeRealityIntegration.Provider.GetType())
+                registered?.GetType() != WildlifeRealityIntegration.FrameworkProvider.GetType())
                 failures.Add("the Wildlife provider is missing or a duplicate provider owns the ID");
 
             if (world != null && WildlifeRealityIntegration.Provider != null)
@@ -48,7 +48,8 @@ namespace DeferredReality.Wildlife
                     if (!(map.Parent is WildlifeDeferredMapParent parent) || parent.regionId != marker.regionId)
                         failures.Add("map " + marker.mapUniqueId + " has the wrong Wildlife map-parent identity");
                     if (!world.TryGetRegion(regionId, out RealityRegionSnapshot region) || region == null ||
-                        region.activeMapUniqueId != map.uniqueID)
+                        region.authority != RealityRegionAuthority.LiveProjection ||
+                        region.projectionMapUniqueId != map.uniqueID)
                         failures.Add("map " + marker.mapUniqueId + " is not the active projection for its region");
                     if (!RealityAdjacentConstructionGuards.IsBlocked(map))
                         failures.Add("map " + marker.mapUniqueId + " is not construction-blocked");
@@ -75,8 +76,8 @@ namespace DeferredReality.Wildlife
                 if (ownedTickets.GroupBy(item => item.pawnLoadId, StringComparer.Ordinal)
                     .Any(group => group.Count() != 1))
                     failures.Add("a nonterminal Pawn has more than one Wildlife excursion ticket");
-                if (WildlifeRealityIntegration.Provider.Registration.operationRetentionTicks >= 0 ||
-                    WildlifeRealityIntegration.Provider.Registration.compactableOperationKinds.Count != 0)
+                if (WildlifeRealityIntegration.FrameworkProvider.Registration.operationRetentionTicks >= 0 ||
+                    WildlifeRealityIntegration.FrameworkProvider.Registration.compactableOperationKinds.Count != 0)
                     failures.Add("Wildlife declared operation compaction without a replay-proof cursor");
             }
 

@@ -136,7 +136,7 @@ namespace Herds
 
         public override void MapComponentDraw()
         {
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled ||
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled ||
                 HerdsMod.Settings?.enableNotableAnimals != true || Find.CurrentMap != map) return;
             for (int i = 0; i < records.Count; i++)
             {
@@ -634,7 +634,10 @@ namespace Herds
                 "    Escapes: " + record.escapes + "    Studies: " + record.studies);
             Widgets.Label(new Rect(12f, 107f, rect.width - 190f, 40f),
                 animal?.Dead == true ? "Status: Dead" :
-                animal?.Spawned == true ? "Status: Present near the colony" : "Status: Away from the colony");
+                WildlifeInsightDisclosure.IsDirectlyObserved(animal)
+                    ? "Status: Present and currently observed" :
+                animal?.Spawned == true ? "Status: Present on the map; current observation not established" :
+                "Status: Historical record; current location unknown");
             Rect cultureButton = new Rect(rect.width - 166f, 108f, 154f, 32f);
             if (HerdsMod.Settings.enableCulturalAnimals &&
                 Widgets.ButtonText(cultureButton, "Culture: " + record.culturalStatus))

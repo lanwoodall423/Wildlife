@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "rimtest-catalog/v1",
+  "tests": [
+    {
+      "id": "wildlife-in-game-suite",
+      "recipe": "wildlife-in-game-suite",
+      "cost": "medium",
+      "tags": ["smoke", "in-game", "rimbridge", "wildlife"]
+    }
+  ],
+  "suites": [
+    {
+      "id": "smoke",
+      "tests": ["wildlife-in-game-suite"]
+    }
+  ]
+}

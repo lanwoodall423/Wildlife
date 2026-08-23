@@ -122,7 +122,7 @@ namespace Herds
 
         public override void MapComponentDraw()
         {
-            if (!Prefs.DevMode || !WildlifeDevMaster.CompleteOverlayEnabled || Find.CurrentMap != map) return;
+            if (!Prefs.DevMode || !WildlifeDebugState.CompleteOverlayEnabled || Find.CurrentMap != map) return;
             if (wave != null)
             {
                 GenDraw.DrawLineBetween(wave.entry.ToVector3Shifted(), wave.exit.ToVector3Shifted(), SimpleColor.Green);
