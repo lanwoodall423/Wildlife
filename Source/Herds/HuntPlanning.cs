@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using InsightCanvas;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
@@ -80,6 +81,7 @@ namespace Herds
         private Vector2 scroll;
         private Vector2 resourceScroll;
         private bool initializedResourceDefaults;
+        private readonly WildlifeInspectorCanvas canvas = new WildlifeInspectorCanvas("wildlife-hunt-setup");
 
         public override Vector2 InitialSize => new Vector2(760f, 720f);
 
@@ -97,6 +99,12 @@ namespace Herds
 
         public override void DoWindowContents(Rect rect)
         {
+            if (canvas != null)
+            {
+                canvas.Draw(rect, (spot?.thingIDNumber ?? -1) * 31 + (prey?.thingIDNumber ?? 0),
+                    BuildInsightRoot);
+                return;
+            }
             if (spot?.Spawned != true) { Widgets.Label(rect, "The hunting spot is unavailable."); return; }
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width, 32f), "Plan Hunt");
@@ -195,6 +203,162 @@ namespace Herds
             }
         }
 
+        private InsightUiElement BuildInsightRoot()
+        {
+            if (spot?.Spawned != true)
+                return InsightUi.Callout("hunt.unavailable", InsightUiCalloutSeverity.Warning,
+                    WildlifeUiText.Get("Wildlife.UI.Hunt.Unavailable"), WildlifeUiText.Get("Wildlife.UI.Hunt.Unavailable.Help"));
+
+            List<Pawn> colonists = EligibleColonists();
+            HuntingKnowledgeMapComponent knowledge = spot.Map.GetComponent<HuntingKnowledgeMapComponent>();
+            HuntResourceDiscovery discovery = Current.Game?.GetComponent<HuntResourceDiscovery>();
+            discovery?.Refresh(spot.Map);
+            List<HuntResourceDef> resources = HerdsMod.Settings.enableFieldcraftEquipment && WildlifeProgression.Unlocked(WildlifeCapability.Fieldcraft)
+                ? DefDatabase<HuntResourceDef>.AllDefsListForReading
+                    .Where(def => discovery?.IsDiscovered(def) == true && (!def.enabledByScentMasking || HerdsMod.Settings.enableScentMasking))
+                    .OrderBy(def => def.label).ToList()
+                : new List<HuntResourceDef>();
+            if (!initializedResourceDefaults)
+            {
+                for (int i = 0; i < resources.Count; i++)
+                    if (CountAvailable(resources[i]) >= resources[i].RequiredFor(selected.Count))
+                        options.selectedResources.Add(resources[i].defName);
+                initializedResourceDefaults = true;
+            }
+
+            List<InsightUiElement> sections = new List<InsightUiElement>
+            {
+                InsightUi.Breadcrumbs("hunt.breadcrumbs", WildlifeUiText.Get("Wildlife.UI.Hunt.Breadcrumb")),
+                InsightUi.SectionHeader("hunt.header", WildlifeUiText.Get("Wildlife.UI.Hunt.Title"),
+                    WildlifeUiText.Get("Wildlife.UI.Hunt.Subtitle")),
+                InsightUi.Surface("hunt.target", InsightUi.Column("hunt.target.content",
+                    InsightUi.SectionHeader("hunt.target.header", WildlifeUiText.Get("Wildlife.UI.Hunt.Target")),
+                    InsightUi.StatRow("hunt.target.value", WildlifeUiText.Get("Wildlife.UI.Hunt.TargetAnimal"),
+                        prey?.Spawned == true ? prey.LabelShortCap + " — " + prey.health.summaryHealth.SummaryHealthPercent.ToStringPercent() : WildlifeUiText.Get("Wildlife.UI.Hunt.NoPrey")),
+                    InsightUi.Button("hunt.target.choose", prey == null ? WildlifeUiText.Get("Wildlife.UI.Hunt.SelectPrey") : WildlifeUiText.Get("Wildlife.UI.Hunt.ChangePrey"), ShowPreyMenu)
+                ).SetGap(5f).SetPadding(8f))
+            };
+
+            List<InsightUiElement> hunterActions = new List<InsightUiElement>
+            {
+                InsightUi.Button("hunt.hunters.all", WildlifeUiText.Get("Wildlife.UI.Hunt.SelectAll"),
+                    () => { selected.Clear(); foreach (Pawn pawn in colonists.Take(MaxHunters)) selected.Add(pawn); canvas.PostClose(); }),
+                InsightUi.Button("hunt.hunters.clear", WildlifeUiText.Get("Wildlife.UI.Hunt.Clear"),
+                    () => { selected.Clear(); canvas.PostClose(); })
+            };
+            sections.Add(InsightUi.Surface("hunt.hunters", InsightUi.Column("hunt.hunters.content",
+                InsightUi.SectionHeader("hunt.hunters.header", WildlifeUiText.Get("Wildlife.UI.Hunt.Hunters"),
+                    selected.Count + " / " + (MaxHunters == 2 ? "2" : WildlifeUiText.Get("Wildlife.UI.Hunt.Unlimited"))),
+                InsightUi.Wrap("hunt.hunters.actions", hunterActions.ToArray()).SetGap(5f),
+                InsightUi.VirtualList("hunt.hunters.list", colonists.Count, 46f, index =>
+                {
+                    Pawn hunter = colonists[index];
+                    bool chosen = selected.Contains(hunter);
+                    float skill = prey == null ? ColonistHuntingUtility.HuntingSkill(hunter) : ColonistHuntingUtility.HuntingSkill(hunter, prey.def);
+                    string level = prey == null ? WildlifeUiText.Get("Wildlife.UI.Hunt.TargetDependent") :
+                        HuntingKnowledgeMapComponent.LevelLabel(knowledge.Level(hunter, prey.def));
+                    InsightUiButton button = InsightUi.Button("hunt.hunter." + hunter.thingIDNumber,
+                        hunter.LabelShortCap + " — " + WildlifeUiText.Get("Wildlife.UI.Hunt.Skill") + " " + skill.ToString("0.0") +
+                        " — " + level + " — " + (hunter.equipment?.Primary?.LabelShortCap.ToString() ?? WildlifeUiText.Get("Wildlife.UI.Hunt.Unarmed")),
+                        () =>
+                        {
+                            if (selected.Contains(hunter)) selected.Remove(hunter);
+                            else if (selected.Count < MaxHunters) selected.Add(hunter);
+                            canvas.PostClose();
+                        });
+                    button.Selected = chosen;
+                    button.SetTooltip(WildlifeUiText.Get("Wildlife.UI.Hunt.HunterHelp"));
+                    return button;
+                })
+            ).SetGap(6f).SetPadding(8f)));
+
+            string risk = options.riskTolerance < 0.34f ? WildlifeUiText.Get("Wildlife.UI.Hunt.Cautious") :
+                options.riskTolerance < 0.67f ? WildlifeUiText.Get("Wildlife.UI.Hunt.Balanced") : WildlifeUiText.Get("Wildlife.UI.Hunt.Bold");
+            float retreatAt = Mathf.Lerp(0.72f, 0.30f, options.riskTolerance);
+            int launchOffset = Mathf.RoundToInt((0.5f - options.riskTolerance) * 240f);
+            List<InsightUiElement> riskButtons = new List<InsightUiElement>();
+            AddRiskButton(riskButtons, "cautious", WildlifeUiText.Get("Wildlife.UI.Hunt.Cautious"), 0.2f);
+            AddRiskButton(riskButtons, "balanced", WildlifeUiText.Get("Wildlife.UI.Hunt.Balanced"), 0.5f);
+            AddRiskButton(riskButtons, "bold", WildlifeUiText.Get("Wildlife.UI.Hunt.Bold"), 0.8f);
+            sections.Add(InsightUi.Surface("hunt.policy", InsightUi.Column("hunt.policy.content",
+                InsightUi.SectionHeader("hunt.policy.header", WildlifeUiText.Get("Wildlife.UI.Hunt.Policy")),
+                InsightUi.StatRow("hunt.policy.selected", WildlifeUiText.Get("Wildlife.UI.Hunt.Risk"), risk),
+                InsightUi.StatRow("hunt.policy.retreat", WildlifeUiText.Get("Wildlife.UI.Hunt.Retreat"), retreatAt.ToStringPercent()),
+                InsightUi.StatRow("hunt.policy.launch", WildlifeUiText.Get("Wildlife.UI.Hunt.Launch"), (launchOffset >= 0 ? "+" : "") + (launchOffset / 60f).ToString("0.0") + "s"),
+                InsightUi.Wrap("hunt.policy.buttons", riskButtons.ToArray()).SetGap(5f),
+                InsightUi.Label("hunt.policy.help", WildlifeUiText.Get("Wildlife.UI.Hunt.PolicyHelp"), InsightUiTextStyle.Caption)
+            ).SetGap(5f).SetPadding(8f)));
+
+            List<InsightUiElement> resourceItems = new List<InsightUiElement>();
+            for (int i = 0; i < resources.Count; i++)
+            {
+                HuntResourceDef resource = resources[i];
+                int available = CountAvailable(resource);
+                bool chosen = options.selectedResources.Contains(resource.defName);
+                InsightUiButton button = InsightUi.Button("hunt.resource." + resource.defName,
+                    resource.LabelCap + " — " + available + " / " + resource.RequirementLabel(selected.Count),
+                    available > 0 ? () =>
+                    {
+                        if (chosen) options.selectedResources.Remove(resource.defName);
+                        else options.selectedResources.Add(resource.defName);
+                        canvas.PostClose();
+                    } : null);
+                button.Selected = chosen;
+                button.Enabled = available > 0;
+                resourceItems.Add(button);
+            }
+            sections.Add(InsightUi.Surface("hunt.resources", InsightUi.Column("hunt.resources.content",
+                InsightUi.SectionHeader("hunt.resources.header", WildlifeUiText.Get("Wildlife.UI.Hunt.Resources"),
+                    WildlifeProgression.Unlocked(WildlifeCapability.Fieldcraft) ? WildlifeUiText.Get("Wildlife.UI.Hunt.Resources.Help") : WildlifeUiText.Get("Wildlife.UI.Hunt.Resources.Locked")),
+                resourceItems.Count == 0 ? InsightUi.Label("hunt.resources.empty", WildlifeUiText.Get("Wildlife.UI.Hunt.NoResources")) :
+                    InsightUi.VirtualList("hunt.resources.list", resourceItems.Count, 36f, index => resourceItems[index])
+            ).SetGap(5f).SetPadding(8f)));
+
+            List<Pawn> qualified = QualifiedHunters();
+            string readiness = prey == null ? WildlifeUiText.Get("Wildlife.UI.Hunt.Readiness.SelectPrey") :
+                qualified.Count + "/" + selected.Count + " " + WildlifeUiText.Get("Wildlife.UI.Hunt.Readiness.Qualified") + " " + HerdsMod.Settings.minimumFieldcraftSkill + ".";
+            string reason = null;
+            WildlifeHuntCoordinator coordinator = spot.Map.GetComponent<WildlifeHuntCoordinator>();
+            bool canStart = prey?.Spawned == true;
+            if (!canStart) reason = WildlifeUiText.Get("Wildlife.UI.Hunt.Reason.SelectPrey");
+            else if (selected.Count == 0) { canStart = false; reason = WildlifeUiText.Get("Wildlife.UI.Hunt.Reason.SelectHunter"); }
+            else if (selected.Count > MaxHunters) { canStart = false; reason = WildlifeUiText.Get("Wildlife.UI.Hunt.Reason.TooMany"); }
+            else if (qualified.Count != selected.Count) { canStart = false; reason = WildlifeUiText.Get("Wildlife.UI.Hunt.Reason.Skill"); }
+            else if (resources.FirstOrDefault(resource => options.selectedResources.Contains(resource.defName) && CountAvailable(resource) < resource.RequiredFor(selected.Count)) is HuntResourceDef missing)
+            { canStart = false; reason = missing.LabelCap + " " + WildlifeUiText.Get("Wildlife.UI.Hunt.Reason.Resource"); }
+            else if (!spot.Map.GetComponent<WildlifeStewardMapComponent>().CanHunt(prey.def, out reason)) canStart = false;
+            if (canStart && coordinator.HasActiveHunt(prey)) { canStart = false; reason = WildlifeUiText.Get("Wildlife.UI.Hunt.Reason.AlreadyTargeted"); }
+
+            InsightUiButton begin = InsightUi.Button("hunt.begin", WildlifeUiText.Get("Wildlife.UI.Hunt.Begin"), () =>
+            {
+                coordinator.Begin(prey, selected.ToList(), options, spot);
+                Close();
+            });
+            begin.Enabled = canStart;
+            begin.SetTooltip(reason ?? WildlifeUiText.Get("Wildlife.UI.Hunt.BeginHelp"));
+            sections.Add(InsightUi.Surface("hunt.readiness", InsightUi.Column("hunt.readiness.content",
+                InsightUi.SectionHeader("hunt.readiness.header", WildlifeUiText.Get("Wildlife.UI.Hunt.Readiness.Title")),
+                InsightUi.Label("hunt.readiness.value", readiness),
+                canStart ? InsightUi.Label("hunt.readiness.ready", WildlifeUiText.Get("Wildlife.UI.Hunt.Readiness.Ready"), InsightUiTextStyle.Caption) :
+                    InsightUi.Callout("hunt.readiness.reason", InsightUiCalloutSeverity.Warning, WildlifeUiText.Get("Wildlife.UI.Hunt.NotReady"), reason),
+                begin
+            ).SetGap(6f).SetPadding(8f)));
+
+            return InsightUi.Scroll("hunt.root.scroll", InsightUi.Column("hunt.root", sections.ToArray())
+                .SetGap(8f).SetPadding(8f));
+        }
+
+        private void AddRiskButton(List<InsightUiElement> buttons, string id, string label, float value)
+        {
+            InsightUiButton button = InsightUi.Button("hunt.risk." + id, label, () =>
+            {
+                options.riskTolerance = value;
+                canvas.PostClose();
+            });
+            button.Selected = Mathf.Abs(options.riskTolerance - value) < 0.01f;
+            buttons.Add(button);
+        }
+
         private void DrawRiskChoices(Rect rect)
         {
             string[] labels = { "Cautious", "Balanced", "Bold" };
@@ -242,7 +406,11 @@ namespace Herds
                 Pawn candidate = possible[i];
                 float distance = candidate.Position.DistanceTo(spot.Position);
                 string label = candidate.LabelShortCap + " — " + distance.ToString("0") + " cells — Health " + candidate.health.summaryHealth.SummaryHealthPercent.ToStringPercent();
-                choices.Add(new FloatMenuOption(label, () => prey = candidate));
+                choices.Add(new FloatMenuOption(label, () =>
+                {
+                    prey = candidate;
+                    canvas.PostClose();
+                }));
             }
             Find.WindowStack.Add(new FloatMenu(choices));
         }

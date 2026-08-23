@@ -45,20 +45,30 @@ namespace Herds
 
         public static bool SignalsVisible() => HerdsMod.Settings?.enableWildlifeSignalCulture == true;
 
-        internal static IReadOnlyList<WildlifeJournalPage> TopLevelPagesForTesting() =>
-            new[]
-            {
-                WildlifeJournalPage.FieldLog,
-                WildlifeJournalPage.Knowledge,
-                WildlifeJournalPage.Region,
-                WildlifeJournalPage.Chronicle,
-                WildlifeJournalPage.FieldGuide,
-                WildlifeJournalPage.LivingAtlas,
-                WildlifeJournalPage.Signals,
-                WildlifeJournalPage.Investigations,
-                WildlifeJournalPage.Expeditions,
-                WildlifeJournalPage.Stories
-            };
+        internal static IReadOnlyList<WildlifeJournalPage> TopLevelPagesForTesting()
+        {
+            Map map = Find.CurrentMap;
+            List<WildlifeJournalPage> pages = new List<WildlifeJournalPage> { WildlifeJournalPage.FieldLog };
+            WildlifeEcologySnapshot ecology = WildlifeEcologySnapshots.For(map);
+            bool species = ecology?.species?.Any(value =>
+                WildlifeInsightDisclosure.For(map, value).Visible) == true;
+            bool knowledge = ecology?.species?.Any(value =>
+                WildlifeInsightDisclosure.For(map, value).KnowledgeVisible) == true;
+            bool region = ecology?.species?.Any(value =>
+                WildlifeInsightDisclosure.For(map, value).RegionalPopulation.Available) == true;
+            if (knowledge) pages.Add(WildlifeJournalPage.Knowledge);
+            if (region) pages.Add(WildlifeJournalPage.Region);
+            if (ecology?.activeMysteries > 0 || ecology?.activeExpeditions > 0) pages.Add(WildlifeJournalPage.Chronicle);
+            if (ecology?.species?.Any(value =>
+                    WildlifeInsightDisclosure.For(map, value).FieldGuideVisible) == true)
+                pages.Add(WildlifeJournalPage.FieldGuide);
+            if (region) pages.Add(WildlifeJournalPage.LivingAtlas);
+            if (SignalsVisible() && ecology?.signals?.Count > 0) pages.Add(WildlifeJournalPage.Signals);
+            if (ecology?.activeMysteries > 0) pages.Add(WildlifeJournalPage.Investigations);
+            if (ExpeditionsVisible()) pages.Add(WildlifeJournalPage.Expeditions);
+            if (ecology?.activeMysteries > 0) pages.Add(WildlifeJournalPage.Stories);
+            return pages.Distinct().ToList();
+        }
 
         public static bool ExpeditionsVisible() => HerdsMod.Settings?.enableOffMapHuntingExpeditions == true &&
             WildlifeProgression.Unlocked(WildlifeCapability.HuntingExpedition);
@@ -179,7 +189,7 @@ namespace Herds
 
     internal sealed class WildlifeJournalPresentation
     {
-        private static readonly WildlifeJournalPage[] Pages =
+        private static readonly WildlifeJournalPage[] PageOrder =
         {
             WildlifeJournalPage.FieldLog, WildlifeJournalPage.Knowledge,
             WildlifeJournalPage.Region, WildlifeJournalPage.Chronicle,
@@ -235,6 +245,9 @@ namespace Herds
         internal InsightUiElement BuildRoot()
         {
             EnsureSnapshot(false);
+            IReadOnlyList<WildlifeJournalPage> pages = AvailablePages();
+            bool usedFallback = !pages.Contains(page);
+            if (usedFallback) page = FallbackPage(pages);
             string pageId = PageId(page);
             InsightUiElement header = InsightUi.Column("journal.header",
                 InsightUi.Breadcrumbs("journal.breadcrumbs", JournalText.Get("Wildlife.UI.Journal.Breadcrumb"), JournalText.PageLabel(page)),
@@ -246,15 +259,46 @@ namespace Herds
 
             InsightUiNavigation navigation = InsightUi.Navigation("journal.navigation", 720f)
                 .Bind(() => PageId(page), value => SelectPage(value));
-            for (int i = 0; i < Pages.Length; i++)
+            for (int i = 0; i < pages.Count; i++)
             {
-                WildlifeJournalPage value = Pages[i];
+                WildlifeJournalPage value = pages[i];
                 navigation.Add(PageId(value), JournalText.PageLabel(value), BuildPage(value));
             }
-            if (!Pages.Any(value => PageId(value) == pageId)) page = WildlifeJournalPage.FieldLog;
             InsightUiElement root = InsightUi.Column("journal.root", header, navigation)
                 .SetGap(10f).SetPadding(8f);
+            if (usedFallback)
+            {
+                Document.Focus.ClearFocus();
+                Document.Focus.RequestFocus("journal.navigation.page." + pageId);
+            }
             return root;
+        }
+
+        private IReadOnlyList<WildlifeJournalPage> AvailablePages()
+        {
+            List<WildlifeJournalPage> pages = new List<WildlifeJournalPage> { WildlifeJournalPage.FieldLog };
+            bool knowledge = snapshot?.Species?.Any(value => value.KnowledgeVisible) == true;
+            bool region = snapshot?.Regions?.Count > 0;
+            if (knowledge) pages.Add(WildlifeJournalPage.Knowledge);
+            if (region) pages.Add(WildlifeJournalPage.Region);
+            if (snapshot?.Investigations?.Count > 0 || snapshot?.Expeditions?.Count > 0)
+                pages.Add(WildlifeJournalPage.Chronicle);
+            if (snapshot?.Species?.Any(value => value.FieldGuideObserved) == true)
+                pages.Add(WildlifeJournalPage.FieldGuide);
+            if (region) pages.Add(WildlifeJournalPage.LivingAtlas);
+            if (WildlifeJournal.SignalsVisible() && snapshot?.Signals?.Count > 0)
+                pages.Add(WildlifeJournalPage.Signals);
+            if (snapshot?.Investigations?.Count > 0) pages.Add(WildlifeJournalPage.Investigations);
+            if (WildlifeJournal.ExpeditionsVisible()) pages.Add(WildlifeJournalPage.Expeditions);
+            if (snapshot?.Stories?.Count > 0) pages.Add(WildlifeJournalPage.Stories);
+            return pages.Distinct().ToList();
+        }
+
+        private WildlifeJournalPage FallbackPage(IReadOnlyList<WildlifeJournalPage> pages)
+        {
+            if (pages == null || pages.Count == 0) return WildlifeJournalPage.FieldLog;
+            if (pages.Contains(WildlifeJournalPage.FieldLog)) return WildlifeJournalPage.FieldLog;
+            return pages[0];
         }
 
         private InsightUiElement HeaderActions()
@@ -397,7 +441,7 @@ namespace Herds
                 InsightUi.Callout("journal.field-log.detail.evidence", value.Urgent ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
                     JournalText.Get("Wildlife.UI.Journal.Evidence"), value.Evidence)
             };
-            if (value.Cell.IsValid || value.Species != null)
+            if (CanFocus(value.Species, value.Cell))
                 elements.Add(InsightUi.Button("journal.field-log.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
                     () => Focus(value.Cell, value.Species)));
             if (value.Action == JournalAction.Response)
@@ -480,8 +524,9 @@ namespace Herds
             }
             overviewChildren.Add(InsightUi.Callout(prefix + ".next-evidence", InsightUiCalloutSeverity.Info,
                 JournalText.Get("Wildlife.UI.Journal.Knowledge.NextEvidence"), value.NextEvidence));
-            overviewChildren.Add(InsightUi.Button(prefix + ".focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
-                () => Focus(IntVec3.Invalid, value.Species)));
+            if (value.Disclosure?.Allows(WildlifeInsightDisclosure.ActionFocus) == true)
+                overviewChildren.Add(InsightUi.Button(prefix + ".focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                    () => Focus(value.Disclosure.CurrentFocusCell, value.Species)));
             InsightUiElement overview = InsightUi.Column(prefix + ".overview", overviewChildren.ToArray()).SetGap(7f);
             return InsightUi.Surface(prefix + ".surface", overview);
         }
@@ -579,8 +624,9 @@ namespace Herds
                 details.Add(InsightUi.Callout(prefix + ".detail.summary", InsightUiCalloutSeverity.Info,
                     JournalText.Get("Wildlife.UI.Journal.Region.SummaryLabel"), selected.Summary));
             }
-            details.Add(InsightUi.Button(prefix + ".detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
-                () => Focus(IntVec3.Invalid, selected.Species)));
+            if (selected.Disclosure?.Allows(WildlifeInsightDisclosure.ActionFocus) == true)
+                details.Add(InsightUi.Button(prefix + ".detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                    () => Focus(selected.Disclosure.CurrentFocusCell, selected.Species)));
             return InsightUi.Surface(prefix + ".detail", InsightUi.Column(prefix + ".detail.content", details.ToArray()).SetGap(7f));
         }
 
@@ -597,7 +643,7 @@ namespace Herds
                 InsightUi.Label(id + ".summary", atlas ? value.AtlasSummary : value.Summary, InsightUiTextStyle.Caption),
                 atlas ? InsightUi.StatRow(id + ".movement", JournalText.Get("Wildlife.UI.Journal.Region.Movement"), value.Movement) :
                     InsightUi.StatRow(id + ".population", JournalText.Get("Wildlife.UI.Journal.Region.Local"), value.LocalPopulation),
-                InsightUi.Meter(id + ".pressure", value.PressureValue, 1f)).SetGap(4f));
+                InsightUi.StatRow(id + ".pressure", JournalText.Get("Wildlife.UI.Journal.Region.Pressure"), value.Pressure)).SetGap(4f));
         }
 
         private InsightUiElement BuildSignals()
@@ -622,8 +668,10 @@ namespace Herds
                         JournalText.Get("Wildlife.UI.Journal.Value.Present") : JournalText.Get("Wildlife.UI.Journal.Value.None")),
                     InsightUi.Callout("journal.signals.detail.evidence", selected.Contradictory ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
                         JournalText.Get("Wildlife.UI.Journal.Evidence"), selected.Evidence),
-                    InsightUi.Button("journal.signals.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
-                        () => Focus(selected.Cell, selected.Species))).SetGap(7f));
+                    CanFocus(selected.Species, selected.Cell)
+                        ? InsightUi.Button("journal.signals.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                            () => Focus(selected.Cell, selected.Species))
+                        : InsightUi.Empty("journal.signals.detail.focus.unavailable")).SetGap(7f));
             return ResponsiveSplit("journal.signals.split", list, detail, 0.45f);
         }
 
@@ -659,8 +707,10 @@ namespace Herds
                     InsightUi.Callout("journal.investigations.detail.evidence", selected.Contradictory ? InsightUiCalloutSeverity.Warning : InsightUiCalloutSeverity.Info,
                         JournalText.Get("Wildlife.UI.Journal.Evidence"), selected.Evidence),
                     InsightUi.StatRow("journal.investigations.detail.next", JournalText.Get("Wildlife.UI.Journal.Investigations.Next"), selected.NextAction),
-                    InsightUi.Button("journal.investigations.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
-                        () => Focus(selected.Cell, selected.Species))).SetGap(7f));
+                    CanFocus(selected.Species, selected.Cell)
+                        ? InsightUi.Button("journal.investigations.detail.focus", JournalText.Get("Wildlife.UI.Journal.Action.FocusMap"),
+                            () => Focus(selected.Cell, selected.Species))
+                        : InsightUi.Empty("journal.investigations.detail.focus.unavailable")).SetGap(7f));
             return ResponsiveSplit("journal.investigations.split", list, detail, 0.48f);
         }
 
@@ -808,14 +858,15 @@ namespace Herds
             foreach (WildlifeSpeciesSnapshot value in ecology?.species ?? Array.Empty<WildlifeSpeciesSnapshot>())
             {
                 if (value?.species == null || HerdsMod.Settings?.enableWildlifeKnowledge != true) continue;
-                bool knowledgeVisible = Observed(value, activeMap);
-                species.Add(BuildSpecies(value, activeMap, now, knowledgeVisible));
+                WildlifeInsightSpeciesDisclosure disclosure = WildlifeInsightDisclosure.For(activeMap, value);
+                if (!disclosure.Visible) continue;
+                species.Add(BuildSpecies(value, activeMap, now, disclosure.KnowledgeVisible));
             }
             species = species.OrderByDescending(value => WildlifeKnowledgeAdapter.StageOrder(value.StageId))
                 .ThenBy(value => value.Species.LabelCap.ToString(), StringComparer.OrdinalIgnoreCase).Take(96).ToList();
             List<JournalSignalRecord> signals = BuildSignalsSnapshot(ecology, activeMap, now);
             List<JournalLogRecord> fieldLog = BuildFieldLogSnapshot(ecology, activeMap, now, signals);
-            List<JournalRegionRecord> regions = species.Where(value => value.KnowledgeVisible)
+            List<JournalRegionRecord> regions = species.Where(value => value.Disclosure?.RegionalPopulation.Available == true)
                 .Select(value => BuildRegion(value, ecology, activeMap)).Take(96).ToList();
             List<JournalInvestigationRecord> investigations = BuildInvestigationsSnapshot(activeMap, now);
             List<JournalExpeditionRecord> expeditions = BuildExpeditionsSnapshot(activeMap, now);
@@ -827,6 +878,7 @@ namespace Herds
         private JournalSpeciesRecord BuildSpecies(WildlifeSpeciesSnapshot value, Map activeMap, int now,
             bool knowledgeVisible)
         {
+            WildlifeInsightSpeciesDisclosure disclosure = WildlifeInsightDisclosure.For(activeMap, value);
             List<JournalFacetRecord> facets = new List<JournalFacetRecord>();
             List<JournalClaimRecord> claims = new List<JournalClaimRecord>();
             foreach (string facetId in KnowledgeFacets)
@@ -850,28 +902,18 @@ namespace Herds
             }
             string stage = WildlifeKnowledgeAdapter.ColonyStage(value.species);
             int evidenceCount = value.evidence.Count + value.signals.Count + value.trails.Count + value.migrations.Count;
-            bool fieldGuideObserved = FieldGuideObserved(value, activeMap);
+            bool fieldGuideObserved = disclosure.FieldGuideVisible;
             string nextEvidence = NextEvidence(stage, facets);
             List<JournalEvidenceRecord> evidence = value.evidence.Take(8).Select(item => new JournalEvidenceRecord(
                 JournalText.EventKind(item.kind), item.summary, item.source, item.confidence, item.observerCount,
                 item.tick, JournalText.Age(item.tick, now))).ToList();
             return new JournalSpeciesRecord(value.species, value.subjectId, stage, value.confidence, evidenceCount,
-                facets, claims, evidence, fieldGuideObserved, knowledgeVisible, nextEvidence);
+                facets, claims, evidence, fieldGuideObserved, knowledgeVisible, nextEvidence, disclosure);
         }
 
         private static bool FieldGuideObserved(WildlifeSpeciesSnapshot value, Map activeMap)
         {
-            if (value == null) return false;
-            if (HerdsMod.Settings?.enableWildlifeKnowledge != true ||
-                HerdsMod.Settings.requireObservationForDetails != true) return true;
-            if (value.evidence.Count > 0 || value.signals.Count > 0 || value.trails.Count > 0 || value.migrations.Count > 0)
-                return true;
-            HerdMapComponent herds = activeMap?.GetComponent<HerdMapComponent>();
-            IReadOnlyList<Pawn> pawns = activeMap?.mapPawns?.AllPawnsSpawned;
-            if (herds == null || pawns == null) return false;
-            for (int i = 0; i < pawns.Count; i++)
-                if (pawns[i]?.def == value.species && herds.IsObserved(pawns[i])) return true;
-            return false;
+            return WildlifeInsightDisclosure.For(activeMap, value).FieldGuideVisible;
         }
 
         private static string NextEvidence(string stage, IReadOnlyList<JournalFacetRecord> facets)
@@ -949,7 +991,7 @@ namespace Herds
                 ?.Where(value => value != null && !value.Resolved).OrderByDescending(value => value.startedTick).Take(16) ??
                 Enumerable.Empty<WildlifeMysteryRecord>())
             {
-                IntVec3 cell = mystery.animal?.Spawned == true ? mystery.animal.Position : IntVec3.Invalid;
+                IntVec3 cell = IntVec3.Invalid;
                 values.Add(new JournalLogRecord("mystery:" + mystery.id, "Wildlife.UI.Journal.Type.Investigation", mystery.title,
                     mystery.Solved ? mystery.explanation : mystery.anomaly,
                     mystery.Solved ? JournalText.Get("Wildlife.UI.Journal.Investigation.Confirmed") : JournalText.Get("Wildlife.UI.Journal.Investigation.Working"),
@@ -990,27 +1032,26 @@ namespace Herds
         private JournalRegionRecord BuildRegion(JournalSpeciesRecord value, WildlifeEcologySnapshot ecology, Map activeMap)
         {
             WildlifeSpeciesSnapshot source = ecology?.For(value.Species);
-            int local = source?.localCount ?? 0;
-            float regional = source?.regionalPopulation ?? 0f;
-            float pressure = source?.pressure ?? 0f;
+            WildlifeInsightSpeciesDisclosure disclosure = value.Disclosure ??
+                WildlifeInsightDisclosure.For(activeMap, source);
             int evidence = source?.evidence?.Count ?? 0;
             int trails = source?.trails?.Count ?? 0;
             int migrations = source?.migrations?.Count ?? 0;
             int variations = source?.variations?.Count ?? 0;
             int notable = activeMap?.GetComponent<NotableWildlifeMapComponent>()?.Records?.Count(item =>
                 item?.species == value.Species && item.deathRecorded == false) ?? 0;
-            string trend = local > 0 ? JournalText.Get("Wildlife.UI.Journal.Region.Present") :
+            string trend = disclosure.Trend.Available ? disclosure.Trend.Text :
                 migrations > 0 ? JournalText.Get("Wildlife.UI.Journal.Region.Moving") : JournalText.Get("Wildlife.UI.Journal.Region.Unseen");
             string movement = migrations > 0 ? JournalText.Format("Wildlife.UI.Journal.Region.MigrationCount", migrations) :
                 trails > 0 ? JournalText.Format("Wildlife.UI.Journal.Region.TrailCount", trails) : JournalText.Get("Wildlife.UI.Journal.Region.NoMovement");
-            string summary = JournalText.Format("Wildlife.UI.Journal.Region.Summary", local, regional.ToString("0.##"));
+            string local = disclosure.LocalPopulation.Text;
+            string regional = disclosure.RegionalPopulation.Text;
+            string summary = JournalText.Format("Wildlife.UI.Journal.Region.Summary", local, regional);
             string atlasSummary = JournalText.Format("Wildlife.UI.Journal.LivingAtlas.Summary", evidence, trails,
                 migrations, notable, ecology?.activeExpeditions ?? 0);
-            return new JournalRegionRecord(value.Species, local.ToString(), regional.ToString("0.##"), trend,
-                Mathf.Clamp01(pressure), pressure >= 0.7f ? JournalText.Get("Wildlife.UI.Journal.Region.Pressure.High") :
-                pressure >= 0.4f ? JournalText.Get("Wildlife.UI.Journal.Region.Pressure.Moderate") : JournalText.Get("Wildlife.UI.Journal.Region.Pressure.Low"),
-                source?.habitatQuality.ToString("0.##") ?? JournalText.Get("Wildlife.UI.Journal.Value.Unknown"), movement,
-                summary, atlasSummary, evidence, trails, migrations, notable, variations);
+            return new JournalRegionRecord(value.Species, local, regional, trend, disclosure.Pressure.HasNumeric ?
+                disclosure.Pressure.Numeric : 0f, disclosure.Pressure.Text, disclosure.Habitat.Text, movement,
+                summary, atlasSummary, evidence, trails, migrations, notable, variations, disclosure);
         }
 
         private List<JournalInvestigationRecord> BuildInvestigationsSnapshot(Map activeMap, int now)
@@ -1024,7 +1065,7 @@ namespace Herds
                     Mathf.Clamp01(value.progress), value.progress >= 0.75f ? JournalText.Get("Wildlife.UI.Journal.Uncertainty.Narrow") : JournalText.Get("Wildlife.UI.Journal.Uncertainty.Open"),
                     string.Join("\n", value.evidence.Take(6).Select(item => item.source + ": " + item.clue)), value.evidence.Any(item => item.value < 0f),
                     value.Solved ? JournalText.Get("Wildlife.UI.Journal.Investigation.Response") : JournalText.Get("Wildlife.UI.Journal.Investigation.Review"),
-                    value.animal?.Spawned == true ? value.animal.Position : IntVec3.Invalid));
+                    IntVec3.Invalid));
             foreach (WildlifeHypothesisRecord value in WildlifeNarrativeUtility.For(activeMap)?.OpenHypotheses?.Take(24) ??
                 Enumerable.Empty<WildlifeHypothesisRecord>())
                 if (value != null) output.Add(new JournalInvestigationRecord("hypothesis:" + value.id, value.title, value.species,
@@ -1069,8 +1110,10 @@ namespace Herds
 
         private void SelectPage(string id)
         {
-            WildlifeJournalPage next = Pages.FirstOrDefault(value => PageId(value) == id);
-            if (!Pages.Contains(next)) next = WildlifeJournalPage.FieldLog;
+            IReadOnlyList<WildlifeJournalPage> pages = AvailablePages();
+            WildlifeJournalPage next = PageOrder.FirstOrDefault(value =>
+                pages.Contains(value) && PageId(value) == id);
+            if (!pages.Contains(next)) next = FallbackPage(pages);
             if (page == next) return;
             page = next;
             Rebuild();
@@ -1102,10 +1145,27 @@ namespace Herds
             Host.RunWithOverlayOwnership(() =>
             {
                 WildlifeUI.CloseMenus();
-                Pawn pawn = map?.mapPawns?.AllPawnsSpawned?.FirstOrDefault(value => value?.def == species && value.Faction == null);
+                WildlifeSpeciesSnapshot source = WildlifeEcologySnapshots.For(map)?.For(species);
+                WildlifeInsightSpeciesDisclosure disclosure = WildlifeInsightDisclosure.For(map, source);
+                if (species != null && !disclosure.Allows(WildlifeInsightDisclosure.ActionFocus))
+                {
+                    if (cell.IsValid) WildlifeUI.Focus(cell, map);
+                    return;
+                }
+                HerdMapComponent herds = map?.GetComponent<HerdMapComponent>();
+                Pawn pawn = map?.mapPawns?.AllPawnsSpawned?.FirstOrDefault(value => value?.def == species &&
+                    value.Faction == null && !value.Dead && herds?.IsObserved(value) == true);
                 if (pawn != null) WildlifeUI.Focus(pawn);
                 else if (cell.IsValid) WildlifeUI.Focus(cell, map);
             });
+        }
+
+        private bool CanFocus(ThingDef species, IntVec3 cell)
+        {
+            if (cell.IsValid) return true;
+            if (species == null) return false;
+            WildlifeSpeciesSnapshot source = WildlifeEcologySnapshots.For(map)?.For(species);
+            return WildlifeInsightDisclosure.For(map, source).Allows(WildlifeInsightDisclosure.ActionFocus);
         }
 
         private void ChooseMomentResponse()
@@ -1131,9 +1191,8 @@ namespace Herds
 
         private static bool Observed(WildlifeSpeciesSnapshot value, Map activeMap)
         {
-            if (value == null || HerdsMod.Settings?.enableWildlifeKnowledge != true) return false;
-            if (FieldGuideObserved(value, activeMap)) return true;
-            return value.knowledge > 0f && HerdsMod.Settings.requireObservationForDetails != true;
+            return value != null && HerdsMod.Settings?.enableWildlifeKnowledge == true &&
+                WildlifeInsightDisclosure.For(activeMap, value).KnowledgeVisible;
         }
 
         private static string PageId(WildlifeJournalPage value)
@@ -1277,7 +1336,8 @@ namespace Herds
     {
         internal JournalSpeciesRecord(ThingDef species, string subjectId, string stageId, float confidence, int evidenceCount,
             IEnumerable<JournalFacetRecord> facets, IEnumerable<JournalClaimRecord> claims, IEnumerable<JournalEvidenceRecord> evidence,
-            bool fieldGuideObserved, bool knowledgeVisible, string nextEvidence)
+            bool fieldGuideObserved, bool knowledgeVisible, string nextEvidence,
+            WildlifeInsightSpeciesDisclosure disclosure)
         {
             Species = species; SubjectId = subjectId; StageId = stageId; Confidence = Mathf.Clamp01(confidence); EvidenceCount = evidenceCount;
             Facets = new ReadOnlyCollection<JournalFacetRecord>((facets ?? Enumerable.Empty<JournalFacetRecord>()).ToList());
@@ -1285,6 +1345,7 @@ namespace Herds
             Evidence = new ReadOnlyCollection<JournalEvidenceRecord>((evidence ?? Enumerable.Empty<JournalEvidenceRecord>()).ToList());
             FieldGuideObserved = fieldGuideObserved; KnowledgeVisible = knowledgeVisible;
             NextEvidence = nextEvidence ?? JournalText.Get("Wildlife.UI.Journal.Knowledge.NextEvidence.None");
+            Disclosure = disclosure;
         }
         internal readonly ThingDef Species;
         internal readonly string SubjectId, StageId;
@@ -1295,6 +1356,7 @@ namespace Herds
         internal readonly IReadOnlyList<JournalEvidenceRecord> Evidence;
         internal readonly bool FieldGuideObserved, KnowledgeVisible;
         internal readonly string NextEvidence;
+        internal readonly WildlifeInsightSpeciesDisclosure Disclosure;
         internal string StageLabel => JournalText.StageLabel(StageId);
         internal string FieldGuideStageLabel => FieldGuideObserved ? StageLabel : JournalText.StageLabel(WildlifeKnowledgeAdapter.StageUnknown);
         internal int FieldGuideEvidenceCount => FieldGuideObserved ? EvidenceCount : 0;
@@ -1369,17 +1431,19 @@ namespace Herds
     {
         internal JournalRegionRecord(ThingDef species, string local, string regional, string trend, float pressureValue,
             string pressure, string habitat, string movement, string summary, string atlasSummary,
-            int knownEvidenceCount, int trailCount, int migrationCount, int notableCount, int variationCount)
+            int knownEvidenceCount, int trailCount, int migrationCount, int notableCount, int variationCount,
+            WildlifeInsightSpeciesDisclosure disclosure)
         {
             Species = species; LocalPopulation = local; RegionalPopulation = regional; Trend = trend; PressureValue = pressureValue;
             Pressure = pressure; Habitat = habitat; Movement = movement; Summary = summary; AtlasSummary = atlasSummary;
             KnownEvidenceCount = knownEvidenceCount; TrailCount = trailCount; MigrationCount = migrationCount;
-            NotableCount = notableCount; VariationCount = variationCount;
+            NotableCount = notableCount; VariationCount = variationCount; Disclosure = disclosure;
         }
         internal readonly ThingDef Species;
         internal readonly string LocalPopulation, RegionalPopulation, Trend, Pressure, Habitat, Movement, Summary, AtlasSummary;
         internal readonly float PressureValue;
         internal readonly int KnownEvidenceCount, TrailCount, MigrationCount, NotableCount, VariationCount;
+        internal readonly WildlifeInsightSpeciesDisclosure Disclosure;
     }
 
     internal sealed class JournalInvestigationRecord

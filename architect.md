@@ -10,8 +10,9 @@ own overview and expedition destinations; optional companion mods register their
   Expeditions (30).
 - The stable `wildlife.overview` entry opens the Journal Field Log; integrations should keep
   using the existing ID and public `Register` signature.
-- The Journal top-level navigation is Field Log, Knowledge, Region, and Chronicle. Existing
-  detail pages remain available through contextual links and direct constructors.
+- The Journal preserves stable top-level page IDs, but exposes destinations progressively from
+  authorized evidence, knowledge, records, settings, and existing capability gates. Existing
+  detail pages remain available through contextual links and direct constructors when authorized.
 - Reserved menu height and rendered button wrapping use the same live content width.
 - Companion assemblies are never referenced by Wildlife, and companions do not reference
   the Wildlife assembly at compile time.
@@ -19,6 +20,52 @@ own overview and expedition destinations; optional companion mods register their
 - Activating a companion button delegates to RimWorld's `MainTabsRoot` and the companion's
   existing `MainTabWindow`; no interface state or drawing logic is duplicated.
 - Registration IDs replace earlier entries, so initialization remains idempotent.
+
+## Wildlife information authority and disclosure
+
+Player-facing wildlife information has one presentation boundary:
+`WildlifeInsightDisclosure` in the Herds presentation layer. It is a pure projection
+over existing owner state. It emits stable subject identity, display-safe values,
+precision (`qualitative`, `approximate`, or `measured`), certainty, provenance/evidence,
+and allowed actions. It never submits Knowledge Framework observations, changes a
+regional record, changes a herd or pack, or makes a simulation decision.
+
+| Authority | Owns | Presentation may reveal |
+| --- | --- | --- |
+| Wildlife simulation | spawned animals, herd state, signs, trails, migration state, ecology calculations | only current observed behavior or physical evidence authorized by the projection |
+| Knowledge Framework V3 | colony subject/facet stage, claims, confidence, evidence contribution | identity and biological facets at the recorded stage; it does not imply research capability |
+| Colony wildlife knowledge | player progression and sharing gates | whether a learned facet or action is available to the colony |
+| Regional Wildlife / DRF | regional records, deferred ownership, routes, aggregate populations | qualitative or approximate regional interpretations when the relevant knowledge and capability exist |
+| Insight Canvas / presentation | disclosure, page availability, retained UI state, focus fallbacks | no new wildlife fact and no gameplay truth |
+
+Research alone never creates species visibility, population, forecast, disease, or
+individual-location knowledge. Knowledge without the relevant research can still show
+learned biological facts, but not research-owned precision. A merely spawned animal does
+not create an exact local count. Exact or measured population text requires an authorized
+operational measurement such as telemetry; otherwise local presence is qualitative and
+regional values are approximate or unknown. Hidden pawn positions and retained-Pawn
+references are never used as current player-facing locations.
+
+The disclosure projection is reused by the Journal's Knowledge, Field Guide, Region, and
+Living Atlas pages, the native Regional Wildlife compatibility window, Herd/compact
+inspectors, and the optional Packs boundary. Packs remains compile-time independent and
+reflects the optional `WildlifePackPresentationAPI` only when Herds is loaded. Native
+world-map pickers, map overlays, Knowledge Framework's own menu, and developer diagnostics
+remain owned by their existing systems.
+
+Journal page IDs are stable (`field-log`, `knowledge`, `region`, `chronicle`,
+`field-guide`, `living-atlas`, `signals`, `investigations`, `expeditions`, `stories`),
+but page availability is state-derived. A fresh colony starts with the Field Log and
+only grows the navigation tree as authorized evidence, knowledge, records, or existing
+research-gated actions appear. Direct deep links to an unavailable page fall back to the
+Field Log and restore focus to the retained navigation control. The document remains one
+Insight Canvas v2 `InsightUiDocument`/`InsightUiHost`/`InsightUiWindow` shell with bounded
+virtual lists and no bundled Insight Canvas assembly.
+
+The in-game suite includes deterministic disclosure mismatch tests for research-without-
+Knowledge, Knowledge-without-research, unseen spawned animals, hidden positions, and
+non-mutating projection behavior. Signal ambiguity/progression remains tested at the
+existing signal authority, and save-facing Scribe field names remain unchanged.
 
 ## Backward compatibility
 

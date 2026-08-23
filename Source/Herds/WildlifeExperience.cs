@@ -227,6 +227,11 @@ namespace Herds
 
         public override void DoWindowContents(Rect rect)
         {
+            if (redirectedToJournal)
+            {
+                Close(false);
+                return;
+            }
             if (!redirectedToJournal)
             {
                 redirectedToJournal = true;
@@ -374,7 +379,7 @@ namespace Herds
                     title = "Local Wildlife", detail = "Populations and roaming animals",
                     tooltip = "Review nearby populations, trends, confidence, habitat, and known animals beyond the map.",
                     accent = new Color(0.29f, 0.52f, 0.50f),
-                    action = () => Find.WindowStack.Add(new Window_RegionalWildlife(map))
+                    action = () => WildlifeJournal.Open(map, WildlifeJournalPage.Region)
                 } : null;
             OverviewNavigation signalGuide = HerdsMod.Settings.enableWildlifeSignalCulture
                 ? new OverviewNavigation
@@ -391,7 +396,7 @@ namespace Herds
                     detail = "Places shaped by wildlife",
                     tooltip = "Review persistent game trails, feeding grounds, nesting sites, wallows, shoreline works, and territorial landmarks. Select a place to study or protect it.",
                     accent = new Color(0.36f, 0.58f, 0.31f),
-                    action = () => Find.WindowStack.Add(new Window_WildlifeLandscape(map))
+                    action = () => WildlifeJournal.Open(map, WildlifeJournalPage.LivingAtlas)
                 } : null;
             OverviewNavigation fieldJournal = (HerdsMod.Settings.enableFieldJournal ||
                 HerdsMod.Settings.enableDynamicWildlifeOpportunities ||
@@ -469,7 +474,7 @@ namespace Herds
             }
             if (HerdsMod.Settings.enableTrailReading && cachedUrgentTrailCount > 0)
             {
-                Find.WindowStack.Add(new Window_WildlifeTrailBoard(map));
+                WildlifeJournal.Open(map, WildlifeJournalPage.FieldLog);
                 return;
             }
             if (HerdsMod.Settings.enableWildlifeMysteries &&
@@ -494,7 +499,7 @@ namespace Herds
                 return;
             }
             if (HerdsMod.Settings.enableRegionalPopulations)
-                Find.WindowStack.Add(new Window_RegionalWildlife(map));
+                WildlifeJournal.Open(map, WildlifeJournalPage.Region);
             else
                 Find.WindowStack.Add(new Window_ColonyWildlifeKnowledge());
         }

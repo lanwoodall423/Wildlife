@@ -27,17 +27,19 @@ function HasReference([string[]]$metadata, [string]$name) {
 $required = @(
     'About\About.xml', 'LoadFolders.xml', '.gitignore',
     'DevTools\RimWorldReferences.props', 'DevTools\WildlifeEnvironment.ps1',
-    'DevTools\WildlifeCoordinator.ps1', 'DevTools\Invoke-WildlifeTest.ps1',
+    'DevTools\WildlifeCoordinator.ps1',
     'DevTools\Install-WildlifeBuild.ps1', 'DevTools\Restart-Wildlife.ps1',
     'DevTools\AssemblyMetadataReader\AssemblyMetadataReader.csproj',
     'DevTools\Read-AssemblyMetadata.ps1', 'DevTools\Verify-DeferredRealityIntegration.ps1',
     'DevTools\Verify-KnowledgeFramework.ps1', 'DevTools\Check-WildlifeTests.ps1', 'Source\Herds\Herds.csproj',
     'DevTools\PORTABLE_VALIDATION.md', 'Source\Herds\WildlifeInsightUi.cs',
+    'Source\Herds\WildlifeInspectorUi.cs', 'WILDLIFE_MIGRATION.md',
     'Source\Packs\PacksAndPredators.csproj', 'Source\Wildlife\Wildlife.csproj',
     'Source\Wildlife\DeferredReality.Wildlife.csproj',
-    'Source\DevHarness\Wildlife.DevHarness.csproj',
-    'Source\DevHarness\WildlifeAutomatedTestRunner.cs',
-    'Source\DevHarness\WildlifeInGameTestSuite.cs')
+    'Source\BridgeTools\Wildlife.BridgeTools.csproj',
+    'Source\BridgeTools\WildlifeBridgeTools.cs',
+    'Source\BridgeTools\WildlifeInGameTestSuite.cs',
+    '.rimdev\stack.json', 'TestCatalog\rimtest.catalog.json')
 foreach ($relative in $required) {
     Check "required:$relative" (Test-Path -LiteralPath (Join-Path $root $relative) -PathType Leaf) 'required file'
 }
@@ -60,7 +62,16 @@ $about = [xml](ReadText 'About\About.xml')
 $loadText = ReadText 'LoadFolders.xml'
 $propsText = ReadText 'DevTools\RimWorldReferences.props'
 $portableText = ReadText 'DevTools\PORTABLE_VALIDATION.md'
+$stackText = ReadText '.rimdev\stack.json'
+$catalogText = ReadText 'TestCatalog\rimtest.catalog.json'
 $uiText = ReadText 'Source\Herds\WildlifeInsightUi.cs'
+$inspectorText = ReadText 'Source\Herds\WildlifeInspectorUi.cs'
+$huntPlanningText = ReadText 'Source\Herds\HuntPlanning.cs'
+$herdIntegrationText = ReadText 'Source\Herds\HerdIntegration.cs'
+$hidingText = ReadText 'Source\Herds\Hiding.cs'
+$memoryText = ReadText 'Source\Herds\WildlifeCulturePresentation.cs'
+$knowledgeText = ReadText 'Source\Herds\HuntingKnowledge.cs'
+$migrationText = ReadText 'WILDLIFE_MIGRATION.md'
 $journalText = ReadText 'Source\Herds\WildlifeJournal.cs'
 $herdsProjectText = ReadText 'Source\Herds\Herds.csproj'
 Check 'package:wildlife' ($about.ModMetaData.packageId -eq 'Lan.Wildlife') 'exact Wildlife package ID'
@@ -78,6 +89,22 @@ Check 'shared-environment-properties' ($propsText -match 'RIMWORLD_MANAGED_PATH'
     $propsText -match 'KNOWLEDGE_FRAMEWORK_PATH' -and $propsText -match 'INSIGHT_CANVAS_PATH' -and
     $propsText -match 'DEFERRED_REALITY_FRAMEWORK_PATH') 'shared properties expose documented overrides'
 Check 'portable-insightcanvas-documentation' ($portableText -match 'INSIGHT_CANVAS_PATH') 'Insight Canvas override is documented'
+
+$legacyInvokerPath = Join-Path $root ('DevTools\Invoke-' + 'WildlifeTest.ps1')
+Check 'rimtest-legacy-wrapper-absent' (-not (Test-Path -LiteralPath $legacyInvokerPath)) 'legacy repository test wrapper is absent'
+try {
+    $stack = $stackText | ConvertFrom-Json
+    $catalog = $catalogText | ConvertFrom-Json
+    $wildlifeTest = @($catalog.tests | Where-Object { $_.id -eq 'wildlife-in-game-suite' })[0]
+    $smokeSuite = @($catalog.suites | Where-Object { $_.id -eq 'smoke' })[0]
+    Check 'rimtest-stack-configured' ($stack.catalog -eq 'TestCatalog/rimtest.catalog.json' -and
+        $stack.devBridgeProject -eq 'wildlife' -and $stack.fallbackSuite -eq 'smoke') 'RimTest stack routes Wildlife to its catalog and fallback suite'
+    Check 'rimtest-wildlife-recipe-mapped' ($null -ne $wildlifeTest -and
+        $wildlifeTest.recipe -eq 'wildlife-in-game-suite' -and $null -ne $smokeSuite -and
+        @($smokeSuite.tests) -contains 'wildlife-in-game-suite') 'RimTest catalog maps the Wildlife suite into the fallback workflow'
+} catch {
+    Check 'rimtest-metadata-json' $false $_.Exception.Message
+}
 Check 'insightcanvas-project-required' ($herdsProjectText -match '<WildlifeRequireInsightCanvas>true</WildlifeRequireInsightCanvas>' -and
     $herdsProjectText -match '<Reference Include="InsightCanvas"' -and $herdsProjectText -match '<Private>false</Private>')
     'Herds references the installed Insight Canvas assembly without copying it'
@@ -86,6 +113,22 @@ Check 'insightcanvas-ui-api' ($uiText -match 'InsightUiDocument' -and $uiText -m
 Check 'wildlife-ui-surfaces' ($uiText -match 'settings-categories' -and $uiText -match 'profiles-responsive-master-detail' -and
     $uiText -match 'InsightUi\.VirtualList' -and $uiText -match 'profile-reset')
     'settings and Species Profiles use the responsive migrated surfaces'
+Check 'wildlife-inspector-v2-shell' ($inspectorText -match 'InsightUiDocument' -and
+    $inspectorText -match 'InsightUiHost' -and $inspectorText -match 'WildlifeUiTheme\.Configure' -and
+    $inspectorText -match 'InsightUi\.VirtualList' -and $inspectorText -match 'PostClose' -and
+    $inspectorText -match '/ 30')
+    'compact inspectors use bounded retained InsightCanvas hosts'
+Check 'wildlife-inspector-wiring' ($herdIntegrationText -match 'WildlifeInspectorCanvas' -and
+    $herdIntegrationText -match 'WildlifeInspectorUi\.Herd' -and $herdIntegrationText -match 'WildlifeInspectorUi\.Pen' -and
+    $hidingText -match 'WildlifeInspectorUi\.Hiding' -and $memoryText -match 'WildlifeInspectorUi\.Memory' -and
+    $memoryText -match 'WildlifeInspectorUi\.MemoryTimeline' -and $knowledgeText -match 'WildlifeInspectorUi\.SpeciesKnowledge' -and
+    $huntPlanningText -match 'BuildInsightRoot')
+    'high-priority animal, memory, knowledge, and hunt paths route through shared inspectors'
+Check 'wildlife-inspector-localized' ($migrationText -match 'Labels for these paths are keyed' -and
+    (ReadText '1.6\Languages\English\Keyed\Herds.xml') -match 'Wildlife\.UI\.Inspector\.Title' -and
+    (ReadText '1.6\Languages\English\Keyed\Herds.xml') -match 'Wildlife\.UI\.Memory\.Title' -and
+    (ReadText '1.6\Languages\English\Keyed\Herds.xml') -match 'Wildlife\.UI\.Hunt\.Title')
+    'migrated player-facing surfaces have keyed English localization and documented scope'
 Check 'wildlife-journal-v2-shell' ($journalText -match 'InsightUiDocument\("wildlife-journal"' -and
     $journalText -match 'InsightUiHost' -and $journalText -match 'InsightUiWindow' -and
     $journalText -match 'InsightUi\.Navigation' -and $journalText -match 'InsightUi\.Split|WildlifeResponsiveJournalSplit' -and
@@ -119,12 +162,20 @@ foreach ($project in $normalProjects) {
             'non-UI assembly has no unnecessary Insight Canvas coupling'
     }
 }
-$harnessProject = ReadText 'Source\DevHarness\Wildlife.DevHarness.csproj'
-Check 'harness-no-coordinator-reference' ($harnessProject -notmatch 'DevBridge') 'harness has no coordinator reference'
-Check 'harness-output' ($harnessProject -match '<AssemblyName>Wildlife\.DevHarness</AssemblyName>' -and $harnessProject -match '1\.6[\\/]Assemblies') 'harness output is optional and isolated'
+$bridgeProject = ReadText 'Source\BridgeTools\Wildlife.BridgeTools.csproj'
+$bridgeToolText = ReadText 'Source\BridgeTools\WildlifeBridgeTools.cs'
+$suiteText = ReadText 'Source\BridgeTools\WildlifeInGameTestSuite.cs'
+Check 'bridge-sdk-package' ($bridgeProject -match 'RimBridgeServer\.Sdk' -and $bridgeProject -match 'RimBridgeServerSdkPath' -and
+    $bridgeProject -match 'RimBridgeServerSdkPackageVersion' -and $bridgeProject -match '>2\.0\.0<') 'companion uses the released SDK fallback or an explicit host SDK path'
+Check 'bridge-no-coordinator-reference' ($bridgeProject -notmatch 'DevBridge' -and $bridgeToolText -notmatch 'DevBridge') 'companion has no coordinator reference'
+Check 'bridge-output' ($bridgeProject -match '<AssemblyName>Wildlife\.BridgeTools</AssemblyName>' -and $bridgeProject -match 'BridgeTools[\\/]Wildlife') 'companion output is the sibling BridgeTools bundle'
+Check 'bridge-main-thread-seam' ($bridgeToolText -match 'IRimBridgeContext' -and $bridgeToolText -match 'MainThread' -and $bridgeToolText -match 'InvokeAsync' -and $bridgeToolText -match 'WildlifeInGameTestSuite\.Run') 'companion invokes gameplay assertions on the RimBridge main-thread seam'
+Check 'bridge-authenticated-tool' ($bridgeToolText -match '\[Tool\("wildlife/run-test-suite"' -and $bridgeToolText -match 'RequiresAuth\s*=\s*true') 'suite tool requires authenticated routed calls'
+Check 'bridge-stable-result' ($bridgeToolText -match 'public bool success' -and $bridgeToolText -match 'reportPath' -and $bridgeToolText -match 'WildlifeInGameTestSuite') 'companion returns a stable suite/report result'
 Check 'production-harness-boundary' (-not (Test-Path -LiteralPath (Join-Path $root 'Source\Herds\WildlifeInGameTestSuite.cs')) -and
     -not (Test-Path -LiteralPath (Join-Path $root 'Source\Herds\WildlifeAutomatedTestRunner.cs')) -and
-    -not (Test-Path -LiteralPath (Join-Path $root 'Source\Herds\WildlifeDevDashboard.cs'))) 'test and dashboard code is outside Herds source'
+    -not (Test-Path -LiteralPath (Join-Path $root 'Source\Herds\WildlifeDevDashboard.cs')) -and
+    -not (Test-Path -LiteralPath (Join-Path $root 'Source\DevHarness\Wildlife.DevHarness.csproj'))) 'test and dashboard code is outside production and old harness paths are absent'
 
 $retiredPaths = @(
     'Source\Herds\WildlifeDevBridge.cs', 'Source\Herds\WildlifeBridgeHotReload.cs',
@@ -146,7 +197,9 @@ $forbiddenText = @(
     ('Wildlife' + 'DevBridge'), ('Wildlife' + 'BridgeHotReload'),
     ('RimWorld' + 'DevBridge'), 'wildlifetestserver', 'Application.Quit',
     'Start-Process', 'Get-Process', 'Stop-Process', 'taskkill', 'Process.Kill', 'Process.Start',
-    'RIMWORLD_DEVBRIDGE', 'WILDLIFE_ENABLE_LEGACY_BRIDGE')
+    'RIMWORLD_DEVBRIDGE', 'WILDLIFE_ENABLE_LEGACY_BRIDGE',
+    'WildlifeAutomatedTestRunner', 'Wildlife.DevHarness', 'Wildlife-TestRequests',
+    'ProtocolSelfTest')
 $foundForbidden = New-Object System.Collections.Generic.List[string]
 foreach ($file in $textFiles) {
     $content = Get-Content -LiteralPath $file.FullName -Raw
@@ -158,12 +211,9 @@ foreach ($file in $textFiles) {
 }
 Check 'no-retired-text-or-process-control' ($foundForbidden.Count -eq 0) ('found=' + ($foundForbidden -join ', '))
 
-$runnerText = ReadText 'Source\DevHarness\WildlifeAutomatedTestRunner.cs'
-$suiteText = ReadText 'Source\DevHarness\WildlifeInGameTestSuite.cs'
-Check 'runner-no-implicit-auto-run' ($runnerText -match 'AutomaticMode\s*=>\s*false' -and $runnerText -match 'Postfix\(\)') 'launch identity does not authorize execution'
-Check 'runner-explicit-protocol' ($runnerText -match 'requestId' -and $runnerText -match 'launchId' -and $runnerText -match 'generation' -and
-    $runnerText -match 'suite' -and $runnerText -match 'mode' -and $runnerText -match 'leaseId' -and
-    $runnerText -match 'result\.json' -and $runnerText -match 'TryClaim') 'runner uses atomic identity-bound request/result protocol'
+Check 'suite-no-old-runner-coupling' ($suiteText -notmatch 'WildlifeAutomatedTestRunner' -and $suiteText -notmatch 'ProtocolSelfTest' -and
+    $suiteText -match 'execution=rimbridge-server') 'suite has no file-runner coupling'
+Check 'suite-no-debug-action-entry' ($suiteText -notmatch '\[DebugAction') 'suite has no duplicate in-game DebugAction entry'
 Check 'suite-cleanup-regression' ($suiteText -match 'OriginalGameRestored' -and $suiteText -match 'OriginalMapStateRestored' -and
     $suiteText -match 'WorldInterfaceSafe' -and $suiteText -match 'TilePickerSafe' -and $suiteText -match 'RootUiUpdateSafe' -and
     $suiteText -match 'NoIsolatedState' -and $suiteText -match 'DeferredCallbacksDrained') 'suite owns cleanup regression checks'
@@ -186,14 +236,21 @@ if ($RequireAssemblies) {
     $assemblies = @(
         (Join-Path $root '1.6\Assemblies\Herds.dll'),
         (Join-Path $root '1.6\Assemblies\PacksAndPredators.dll'),
-        (Join-Path $root '1.6\Assemblies\Wildlife.dll'),
-        (Join-Path $root '1.6\Assemblies\Wildlife.DevHarness.dll'))
+        (Join-Path $root '1.6\Assemblies\Wildlife.dll'))
+    $gameRoot = Split-Path -Parent (Split-Path -Parent $root)
+    $bridgeAssembly = Join-Path $gameRoot 'BridgeTools\Wildlife\Wildlife.BridgeTools.dll'
+    $legacyHarnessAssembly = Join-Path $root '1.6\Assemblies\Wildlife.DevHarness.dll'
     $optionalAssembly = Join-Path $root '1.6\OptionalDeferredReality\Assemblies\DeferredReality.Wildlife.dll'
     foreach ($path in $assemblies) { Check "assembly:$([IO.Path]::GetFileName($path))" (Test-Path -LiteralPath $path -PathType Leaf) 'built output' }
+    Check 'assembly:Wildlife.BridgeTools.dll' (Test-Path -LiteralPath $bridgeAssembly -PathType Leaf) 'bridge companion output'
+    Check 'assembly:Wildlife.DevHarness.dll' (-not (Test-Path -LiteralPath $legacyHarnessAssembly -PathType Leaf)) 'legacy harness output absent'
+    if (Test-Path -LiteralPath $bridgeAssembly -PathType Leaf) {
+        Check 'assembly:Wildlife.BridgeTools.no-sdk-deploy' (-not (Test-Path -LiteralPath (Join-Path (Split-Path $bridgeAssembly) 'RimBridgeServer.Sdk.dll') -PathType Leaf)) 'companion does not deploy the host SDK'
+    }
     Check 'assembly:DeferredReality.Wildlife.dll' (Test-Path -LiteralPath $optionalAssembly -PathType Leaf) 'optional built output'
     if ($failures.Count -eq 0) {
         $metadata = @{}
-        foreach ($path in $assemblies + $optionalAssembly) { $metadata[[IO.Path]::GetFileName($path)] = GetMetadata $path }
+        foreach ($path in $assemblies + $optionalAssembly + $bridgeAssembly) { $metadata[[IO.Path]::GetFileName($path)] = GetMetadata $path }
         foreach ($path in $assemblies) {
             $name = [IO.Path]::GetFileName($path)
             Check "assembly:$name-no-drf" (-not (HasReference $metadata[$name] 'DeferredRealityFramework')) 'assembly has no DRF reference'
@@ -205,6 +262,9 @@ if ($RequireAssemblies) {
         $optionalName = [IO.Path]::GetFileName($optionalAssembly)
         Check 'assembly:optional-drf' (HasReference $metadata[$optionalName] 'DeferredRealityFramework') 'optional adapter references DRF'
         Check 'assembly:optional-no-bridge' (-not (HasReference $metadata[$optionalName] ('RimWorld' + 'DevBridge'))) 'optional adapter has no coordinator reference'
+        $bridgeName = [IO.Path]::GetFileName($bridgeAssembly)
+        Check 'assembly:Wildlife.BridgeTools-sdk' (HasReference $metadata[$bridgeName] 'RimBridgeServer.Sdk') 'companion references only the RimBridgeServer SDK for bridge access'
+        Check 'assembly:Wildlife.BridgeTools-no-coordinator' (-not (HasReference $metadata[$bridgeName] ('RimWorld' + 'DevBridge'))) 'companion has no coordinator reference'
     }
 }
 

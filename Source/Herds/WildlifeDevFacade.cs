@@ -10,9 +10,8 @@ using Verse;
 namespace Herds
 {
     // This is the small player-assembly seam used by existing DevMode gizmos.
-    // The dashboard, suite, request transport, and test runner live in the
-    // optional Wildlife.DevHarness assembly and are discovered only when it is
-    // installed for development.
+    // Development overlays remain in the gameplay assembly. The full test suite
+    // is exposed through the optional RimBridgeServer companion instead.
     public static class WildlifeDebugState
     {
         public static bool CompleteOverlayEnabled;
@@ -39,21 +38,6 @@ namespace Herds
             FieldcraftDebug.GuardianOverlay = enabled;
             FieldcraftDebug.WarningOverlay = enabled;
             SetPacksDevField("OverlayEnabled", enabled);
-        }
-
-        public static void OpenDashboard()
-        {
-            try
-            {
-                Type entry = AccessTools.TypeByName("Herds.WildlifeDevHarnessEntry");
-                AccessTools.Method(entry, "OpenDashboard")?.Invoke(null, null);
-                if (entry == null)
-                    Messages.Message("Wildlife development harness is not installed.", MessageTypeDefOf.RejectInput, false);
-            }
-            catch (Exception exception)
-            {
-                Log.Warning("[Wildlife] Development harness dashboard unavailable: " + exception.GetBaseException().Message);
-            }
         }
 
         private static void SetPacksDevField(string fieldName, bool value)

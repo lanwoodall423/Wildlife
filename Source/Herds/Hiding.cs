@@ -32,9 +32,15 @@ namespace Herds
             HerdMapComponent component = parent.Map.GetComponent<HerdMapComponent>();
             IReadOnlyList<Pawn> hidden = component?.HiddenPreyAt(parent);
             IReadOnlyList<Pawn> home = component?.HomePreyAt(parent);
+            List<Pawn> visibleHidden = (hidden ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
+            List<Pawn> visibleHome = (home ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
             var lines = new List<string>();
-            if (home?.Count > 0) lines.Add("Home animals: " + string.Join(", ", home.Select(pawn => pawn.LabelShortCap)));
-            if (hidden?.Count > 0) lines.Add("Currently hiding: " + string.Join(", ", hidden.Select(pawn => pawn.LabelShortCap)));
+            if (visibleHome.Count > 0) lines.Add("Home animals: " + string.Join(", ", visibleHome.Select(pawn => pawn.LabelShortCap)));
+            if (visibleHidden.Count > 0) lines.Add("Currently hiding: " + string.Join(", ", visibleHidden.Select(pawn => pawn.LabelShortCap)));
+            if ((hidden?.Count ?? 0) > visibleHidden.Count || (home?.Count ?? 0) > visibleHome.Count)
+                lines.Add("Other wildlife activity is recorded here; individual identities are unavailable.");
             return lines.Count > 0 ? string.Join("\n", lines) : null;
         }
     }
@@ -154,9 +160,15 @@ namespace Herds
             HerdMapComponent component = __instance.Map.GetComponent<HerdMapComponent>();
             IReadOnlyList<Pawn> hidden = component?.HiddenPreyAt(__instance);
             IReadOnlyList<Pawn> home = component?.HomePreyAt(__instance);
+            List<Pawn> visibleHidden = (hidden ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
+            List<Pawn> visibleHome = (home ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
             var lines = new List<string>();
-            if (home?.Count > 0) lines.Add("Tree home: " + string.Join(", ", home.Select(pawn => pawn.LabelShortCap)));
-            if (hidden?.Count > 0) lines.Add("Currently hiding: " + string.Join(", ", hidden.Select(pawn => pawn.LabelShortCap)));
+            if (visibleHome.Count > 0) lines.Add("Tree home: " + string.Join(", ", visibleHome.Select(pawn => pawn.LabelShortCap)));
+            if (visibleHidden.Count > 0) lines.Add("Currently hiding: " + string.Join(", ", visibleHidden.Select(pawn => pawn.LabelShortCap)));
+            if ((hidden?.Count ?? 0) > visibleHidden.Count || (home?.Count ?? 0) > visibleHome.Count)
+                lines.Add("Other wildlife activity is recorded here; individual identities are unavailable.");
             if (lines.Count == 0) return;
             string text = string.Join("\n", lines);
             __result = __result.NullOrEmpty() ? text : __result + "\n" + text;
@@ -166,6 +178,7 @@ namespace Herds
     public sealed class ITab_HidingRefuge : ITab
     {
         private Vector2 scroll;
+        private readonly WildlifeInspectorCanvas canvas = new WildlifeInspectorCanvas("wildlife-inspector-refuge");
 
         public ITab_HidingRefuge()
         {
@@ -191,33 +204,45 @@ namespace Herds
             if (component == null) return;
             IReadOnlyList<Pawn> hidden = component.HiddenPreyAt(refuge);
             IReadOnlyList<Pawn> home = component.HomePreyAt(refuge);
+            if (canvas != null)
+            {
+                canvas.Draw(new Rect(0f, 0f, size.x, size.y), refuge?.thingIDNumber ?? -1,
+                    () => WildlifeInspectorUi.Hiding(refuge, hidden, home));
+                return;
+            }
+            List<Pawn> visibleHidden = (hidden ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
+            List<Pawn> visibleHome = (home ?? new List<Pawn>())
+                .Where(WildlifeInsightDisclosure.IsPresentationVisible).ToList();
             Rect rect = new Rect(0f, 0f, size.x, size.y).ContractedBy(12f);
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width, 32f), refuge is Plant ? refuge.LabelCap + " - claimed tree home" : refuge.LabelCap);
             Text.Font = GameFont.Small;
             Rect outer = new Rect(rect.x, rect.y + 38f, rect.width, rect.height - 38f);
-            float contentHeight = 34f + hidden.Count * 30f + 42f + home.Count * 30f;
+            float contentHeight = 34f + visibleHidden.Count * 30f + 42f + visibleHome.Count * 30f + 32f;
             Rect view = new Rect(0f, 0f, outer.width - 16f, Mathf.Max(outer.height, contentHeight));
             Widgets.BeginScrollView(outer, ref scroll, view);
             float y = 0f;
-            Widgets.Label(new Rect(0f, y, view.width, 28f), "Currently Hiding (" + hidden.Count + ")");
+            Widgets.Label(new Rect(0f, y, view.width, 28f), "Currently Hiding (" + visibleHidden.Count + ")");
             y += 32f;
-            for (int i = 0; i < hidden.Count; i++, y += 30f) Widgets.Label(new Rect(12f, y, view.width - 12f, 26f), hidden[i].LabelShortCap + " - " + hidden[i].def.LabelCap);
+            for (int i = 0; i < visibleHidden.Count; i++, y += 30f) Widgets.Label(new Rect(12f, y, view.width - 12f, 26f), visibleHidden[i].LabelShortCap + " - " + visibleHidden[i].def.LabelCap);
             y += 8f;
-            Widgets.Label(new Rect(0f, y, view.width, 28f), "Home Animals (" + home.Count + ")");
+            Widgets.Label(new Rect(0f, y, view.width, 28f), "Home Animals (" + visibleHome.Count + ")");
             y += 32f;
-            for (int i = 0; i < home.Count; i++, y += 30f)
+            for (int i = 0; i < visibleHome.Count; i++, y += 30f)
             {
                 Rect row = new Rect(12f, y, view.width - 12f, 26f);
                 Widgets.DrawHighlightIfMouseover(row);
-                Widgets.Label(row, home[i].LabelShortCap + " - " + home[i].def.LabelCap);
-                if (Widgets.ButtonInvisible(row) && home[i].Spawned)
+                Widgets.Label(row, visibleHome[i].LabelShortCap + " - " + visibleHome[i].def.LabelCap);
+                if (Widgets.ButtonInvisible(row) && visibleHome[i].Spawned)
                 {
                     Find.Selector.ClearSelection();
-                    Find.Selector.Select(home[i]);
-                    CameraJumper.TryJump(home[i]);
+                    Find.Selector.Select(visibleHome[i]);
+                    CameraJumper.TryJump(visibleHome[i]);
                 }
             }
+            if ((hidden?.Count ?? 0) > visibleHidden.Count || (home?.Count ?? 0) > visibleHome.Count)
+                Widgets.Label(new Rect(0f, y + 8f, view.width, 28f), "Other wildlife activity is recorded here; individual identities are unavailable.");
             Widgets.EndScrollView();
         }
     }

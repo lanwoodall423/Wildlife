@@ -8,7 +8,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using KnowledgeFramework;
-using LudeonTK;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
@@ -1615,8 +1614,16 @@ namespace Herds
                 "field-log", "knowledge", "region", "chronicle", "field-guide", "living-atlas",
                 "signals", "investigations", "expeditions", "stories"
             };
-            check("UI", journalPageIds.All(id => UiFindPageElement(journalNavigation, "journal.page." + id + ".scroll") != null),
-                "Journal retains stable deep-link pages for evidence, knowledge, ecology, and stories");
+            List<string> availableJournalIds = ((UiProperty(journalNavigation, "Pages") as IEnumerable) ??
+                Enumerable.Empty<object>()).Cast<object>()
+                .Select(value => UiProperty(value, "Id") as string).Where(value => !value.NullOrEmpty()).ToList();
+            check("UI", availableJournalIds.Contains("field-log") &&
+                availableJournalIds.Distinct(StringComparer.Ordinal).Count() == availableJournalIds.Count &&
+                availableJournalIds.All(id => journalPageIds.Contains(id)),
+                "Journal exposes only state-authorized pages with stable navigation IDs");
+            check("UI", availableJournalIds.All(id =>
+                UiFindPageElement(journalNavigation, "journal.page." + id + ".scroll") != null),
+                "Every progressive Journal page has a retained scroll surface");
             object fieldLogList = UiFindPageElement(journalNavigation, "journal-field-log-items");
             bool fieldLogEmpty = UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty");
             check("UI", fieldLogEmpty || fieldLogList?.GetType().Name == "InsightUiVirtualList",
@@ -1634,12 +1641,17 @@ namespace Herds
                 (UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-NoResults") ||
                     UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty")),
                 "Journal search rebuilds the snapshot-backed surface with an explicit no-results state");
-            UiSetField(journalPresentation, "page", WildlifeJournalPage.Signals);
+            IReadOnlyList<WildlifeJournalPage> availablePages = WildlifeJournal.TopLevelPagesForTesting();
+            UiSetField(journalPresentation, "page", availablePages.Contains(WildlifeJournalPage.Signals)
+                ? WildlifeJournalPage.Signals : WildlifeJournalPage.FieldLog);
             UiRebuildWithSearch(journalPresentation, string.Empty);
-            check("UI", UiHasElement(journalDocument, "journal.signals.disabled") ||
-                UiHasElement(journalDocument, "journal-signals-items") ||
-                UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-Signals-Empty"),
-                "Signals preserve disabled, empty, and populated presentation paths");
+            check("UI", availablePages.Contains(WildlifeJournalPage.Signals)
+                ? UiHasElement(journalDocument, "journal.signals.disabled") ||
+                    UiHasElement(journalDocument, "journal-signals-items") ||
+                    UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-Signals-Empty")
+                : UiHasElement(journalDocument, "journal-field-log-items") ||
+                    UiHasElement(journalDocument, "journal.empty.Wildlife-UI-Journal-FieldLog-Empty"),
+                "Signals retain their gated path and unavailable deep links fall back safely");
             object journalDiagnostics = UiProperty(journalDocument, "Diagnostics");
             check("UI", journalDiagnostics != null && UiProperty(journalDiagnostics, "RenderErrors") != null &&
                 UiProperty(journalDiagnostics, "DuplicateIds") != null,
@@ -1719,13 +1731,6 @@ namespace Herds
             UiInvoke(profilesDocument, "CloseTransientOverlays");
         }
 
-        [DebugAction("Wildlife", "Run full in-game test suite", actionType = DebugActionType.Action,
-            allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        public static void Run()
-        {
-            Run(false);
-        }
-
         public static bool Run(bool quiet)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -1764,11 +1769,8 @@ namespace Herds
                 Check("Core", AccessTools.TypeByName("Packs.PackMapComponent") != null, "Predator assembly loaded");
                 Check("Core", AccessTools.TypeByName("Packs.ITab_Pack") != null, "Predator Wildlife tab loaded");
                 Check("Core", typeof(WorldDrawLayer_WildlifeKnowledgeFog) != null, "World knowledge layer loaded");
-                Check("Core", WildlifeAutomatedTestRunner.ProtocolSelfTest(),
-                    "Wildlife-owned request/result protocol round-trips atomically");
-                Check("Core", typeof(WildlifeUnifiedOverlayMapComponent) != null &&
-                    typeof(WildlifeDebugState).GetMethod("DebugToggleUnifiedOverlay") != null,
-                    "Unified dev overlay and global toggle are registered");
+                Check("Core", typeof(WildlifeDebugState).GetMethod("DebugToggleUnifiedOverlay") != null,
+                    "Unified dev overlay toggle is registered");
             });
 
             Section("Defs", () =>
@@ -1860,8 +1862,6 @@ namespace Herds
                     Check("Components", map.GetComponent<HuntingExpeditionMapComponent>() != null, "Wildlife expedition component");
                     Check("Components", map.GetComponent<NotableWildlifeMapComponent>() != null, "Notable wildlife component");
                     Check("Components", map.GetComponent<WildlifeFieldJournalMapComponent>() != null, "Wildlife Field Journal component");
-                    Check("Components", map.GetComponent<WildlifeUnifiedOverlayMapComponent>() != null,
-                        "Unified Wildlife overlay component");
                     Check("Components", map.components.Any(component => component.GetType().FullName == "Packs.PackMapComponent"),
                         "Predator simulation component");
                 });
@@ -2390,6 +2390,10 @@ namespace Herds
 
                 Section("Knowledge", () =>
                 {
+                    string disclosureFailure;
+                    Check("Knowledge", WildlifeInsightDisclosure.SelfTest(out disclosureFailure),
+                        "Insight disclosure mismatch and purity tests" +
+                        (disclosureFailure.NullOrEmpty() ? string.Empty : ": " + disclosureFailure));
                     HuntingKnowledgeMapComponent knowledge = map.GetComponent<HuntingKnowledgeMapComponent>();
                     List<string> lines = null;
                     try { lines = knowledge?.DebugOverviewLines(); }
@@ -2656,20 +2660,10 @@ namespace Herds
                         (int)WildlifeJournalPage.Expeditions == 4 &&
                         (int)WildlifeJournalPage.Stories == 5 &&
                         (int)WildlifeJournalPage.FieldLog == 6 &&
-                        WildlifeJournal.TopLevelPagesForTesting().SequenceEqual(new[]
-                        {
-                        WildlifeJournalPage.FieldLog,
-                        WildlifeJournalPage.Knowledge,
-                        WildlifeJournalPage.Region,
-                            WildlifeJournalPage.Chronicle,
-                            WildlifeJournalPage.FieldGuide,
-                            WildlifeJournalPage.LivingAtlas,
-                            WildlifeJournalPage.Signals,
-                            WildlifeJournalPage.Investigations,
-                            WildlifeJournalPage.Expeditions,
-                            WildlifeJournalPage.Stories
-                        }),
-                        "Journal preserves legacy page values and exposes all ten stable pages");
+                        WildlifeJournal.TopLevelPagesForTesting().Contains(WildlifeJournalPage.FieldLog) &&
+                        WildlifeJournal.TopLevelPagesForTesting().Distinct().Count() ==
+                            WildlifeJournal.TopLevelPagesForTesting().Count,
+                        "Journal preserves legacy page values and derives a duplicate-free progressive page set");
                     WildlifeJournalPage[] journalPages =
                     {
                         WildlifeJournalPage.FieldGuide, WildlifeJournalPage.LivingAtlas,
@@ -2966,9 +2960,7 @@ namespace Herds
                 "context=map:" + (map?.uniqueID.ToString() ?? "none") + " pawns:" +
                     (map?.mapPawns?.AllPawnsSpawnedCount.ToString() ?? "0") + " mods:" + LoadedModManager.RunningModsListForReading.Count()
             };
-            lines.Add("execution=" + (WildlifeAutomatedTestRunner.ExplicitRequestActive ? "explicit-request" : "manual") +
-                " launch=" + WildlifeAutomatedTestRunner.LaunchId +
-                " generation=" + WildlifeAutomatedTestRunner.Generation.ToString());
+            lines.Add("execution=rimbridge-server suite=WildlifeInGameTestSuite");
             if (map != null)
             {
                 lines.Add("features=prey:" + Bool(HerdsMod.Settings.enablePreyAndHerds) +

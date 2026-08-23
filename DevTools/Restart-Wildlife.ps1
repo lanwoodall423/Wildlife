@@ -8,6 +8,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'WildlifeCoordinator.ps1')
 $bridgeRoot = Get-WildlifeCoordinatorRoot $DevBridgeRoot
 $bridge = Join-Path $bridgeRoot 'DevBridge.cmd'
+$registration = Invoke-WildlifeCoordinatorJson $bridge @('project', 'register', 'wildlife', '--json')
+Assert-WildlifeCoordinatorSuccess $registration 'project register wildlife'
 $arguments = if ([string]::IsNullOrWhiteSpace($LeaseId)) {
     @('restart', '--json')
 } else {

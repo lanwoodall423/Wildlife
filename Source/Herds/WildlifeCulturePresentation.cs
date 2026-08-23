@@ -179,14 +179,15 @@ namespace Herds
                     " ago");
                 GUI.color = Color.white;
                 Text.Anchor = TextAnchor.UpperLeft;
-                if (row.other?.Spawned == true && Widgets.ButtonInvisible(card))
+                bool rowOtherVisible = WildlifeInsightDisclosure.IsPresentationVisible(row.other);
+                if (rowOtherVisible && Widgets.ButtonInvisible(card))
                 {
                     Find.Selector.ClearSelection();
                     Find.Selector.Select(row.other);
                     CameraJumper.TryJump(row.other);
                 }
                 TooltipHandler.TipRegion(card, row.tooltip +
-                    (row.other?.Spawned == true ? "\nClick to select." : ""));
+                    (rowOtherVisible ? "\nClick to select." : ""));
             }
             Widgets.EndScrollView();
         }
@@ -241,15 +242,16 @@ namespace Herds
                         relationship.otherAnimal).CapitalizeFirst());
                 Text.Font = GameFont.Small;
                 GUI.color = Color.white;
+                bool relationshipVisible = WildlifeInsightDisclosure.IsPresentationVisible(relationship.otherAnimal);
                 TooltipHandler.TipRegion(node, "Bond: " +
                     relationship.bond.ToStringPercent() + "\nFear: " +
                     relationship.fear.ToStringPercent() + "\nRivalry: " +
                     relationship.rivalry.ToStringPercent() + "\nLatest: " +
                     (relationship.lastEvent ?? "No recorded event") +
-                    (relationship.otherAnimal?.Spawned == true
+                    (relationshipVisible
                         ? "\nClick to select and center." : "\nCurrently away from this map."));
                 if (Widgets.ButtonInvisible(node) &&
-                    relationship.otherAnimal?.Spawned == true)
+                    relationshipVisible)
                 {
                     Find.Selector.ClearSelection();
                     Find.Selector.Select(relationship.otherAnimal);
@@ -285,6 +287,7 @@ namespace Herds
     {
         private readonly Pawn animal;
         private readonly WildlifeMemoryMapComponent component;
+        private readonly WildlifeInspectorCanvas canvas;
         private Vector2 scroll;
         private bool socialWeb;
         public override Vector2 InitialSize => new Vector2(820f, 660f);
@@ -294,12 +297,21 @@ namespace Herds
             this.animal = animal;
             component = animal?.MapHeld?.GetComponent<WildlifeMemoryMapComponent>();
             socialWeb = startWithSocialWeb;
+            canvas = new WildlifeInspectorCanvas("wildlife-memory-window");
             doCloseX = true;
             absorbInputAroundWindow = true;
         }
 
         public override void DoWindowContents(Rect rect)
         {
+            if (canvas != null)
+            {
+                canvas.Draw(rect, (animal?.thingIDNumber ?? -1) * 2 + (socialWeb ? 1 : 0),
+                    () => WildlifeInspectorUi.MemoryTimeline(animal, component, socialWeb,
+                        () => { socialWeb = false; canvas.PostClose(); },
+                        () => { socialWeb = true; canvas.PostClose(); }));
+                return;
+            }
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(0f, 0f, rect.width - 240f, 32f),
                 AnimalMemoryPresentation.DisplayName(animal) + " — Memory");
@@ -320,11 +332,18 @@ namespace Herds
             if (rows.Count == 0) Widgets.Label(new Rect(8f, 52f, rect.width - 16f, 40f),
                 "This animal has no recorded encounters with colonists or other animals.");
         }
+
+        public override void PostClose()
+        {
+            canvas.PostClose();
+            base.PostClose();
+        }
     }
 
     public sealed class ITab_AnimalMemory : ITab
     {
         private Vector2 scroll;
+        private readonly WildlifeInspectorCanvas canvas = new WildlifeInspectorCanvas("wildlife-inspector-memory");
 
         public ITab_AnimalMemory()
         {
@@ -347,6 +366,13 @@ namespace Herds
             Pawn animal = SelThing as Pawn;
             WildlifeMemoryMapComponent component = animal?.Map?.GetComponent<WildlifeMemoryMapComponent>();
             if (animal == null || component == null) return;
+            if (canvas != null)
+            {
+                canvas.Draw(new Rect(0f, 0f, size.x, size.y), animal.thingIDNumber,
+                    () => WildlifeInspectorUi.Memory(animal, component,
+                        () => Find.WindowStack.Add(new Window_AnimalMemoryTimeline(animal, true))));
+                return;
+            }
             Rect rect = new Rect(0f, 0f, size.x, size.y).ContractedBy(12f);
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(rect.x, rect.y, rect.width - 112f, 30f),
@@ -397,7 +423,7 @@ namespace Herds
                     "\nRivalry: " + relationship.rivalry.ToStringPercent() +
                     "\nPositive encounters: " + relationship.positiveEvents +
                     "\nNegative encounters: " + relationship.negativeEvents);
-                if (relationship.otherAnimal?.Spawned == true && Widgets.ButtonInvisible(relation))
+                if (WildlifeInsightDisclosure.IsPresentationVisible(relationship.otherAnimal) && Widgets.ButtonInvisible(relation))
                 {
                     Find.Selector.ClearSelection();
                     Find.Selector.Select(relationship.otherAnimal);
@@ -419,7 +445,7 @@ namespace Herds
                     "\nHunting encounters: " + relationship.huntingEncounters +
                     "\nGunfire encounters: " + relationship.rangedEncounters +
                     "\nTrap encounters: " + relationship.trapEncounters);
-                if (relationship.colonist?.Spawned == true && Widgets.ButtonInvisible(relation))
+                if (WildlifeInsightDisclosure.IsPresentationVisible(relationship.colonist) && Widgets.ButtonInvisible(relation))
                 {
                     Find.Selector.ClearSelection();
                     Find.Selector.Select(relationship.colonist);

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "rimdev-stack/v1",
+  "project": "Wildlife",
+  "devBridgeProject": "wildlife",
+  "catalog": "TestCatalog/rimtest.catalog.json",
+  "fallbackSuite": "smoke",
+  "rimBridge": "via-devbridge"
+}

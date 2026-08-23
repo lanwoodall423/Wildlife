@@ -660,11 +660,25 @@ namespace Herds
     public sealed class Window_SpeciesHuntingKnowledge : Window
     {
         private readonly Pawn colonist;
+        private readonly WildlifeInspectorCanvas canvas;
         private Vector2 scroll;
         public override Vector2 InitialSize => new Vector2(580f, 520f);
-        public Window_SpeciesHuntingKnowledge(Pawn colonist) { this.colonist = colonist; doCloseX = true; absorbInputAroundWindow = true; }
+        public Window_SpeciesHuntingKnowledge(Pawn colonist)
+        {
+            this.colonist = colonist;
+            canvas = new WildlifeInspectorCanvas("wildlife-knowledge-species");
+            doCloseX = true;
+            absorbInputAroundWindow = true;
+        }
         public override void DoWindowContents(Rect inRect)
         {
+            if (canvas != null)
+            {
+                canvas.Draw(inRect, colonist?.thingIDNumber ?? -1,
+                    () => WildlifeInspectorUi.SpeciesKnowledge(colonist,
+                        colonist?.Map?.GetComponent<HuntingKnowledgeMapComponent>()));
+                return;
+            }
             Widgets.Label(new Rect(0f, 0f, inRect.width, 32f), colonist.LabelShortCap + " — Animal Knowledge");
             List<ColonistSpeciesKnowledgeRecord> records = colonist.Map.GetComponent<HuntingKnowledgeMapComponent>().ForColonist(colonist).ToList();
             Rect outer = new Rect(0f, 40f, inRect.width, inRect.height - 40f); Rect view = new Rect(0f, 0f, outer.width - 16f, Mathf.Max(outer.height, records.Count * 44f));
@@ -681,6 +695,12 @@ namespace Herds
             }
             Widgets.EndScrollView();
             if (records.Count == 0) Widgets.Label(new Rect(8f, 52f, inRect.width - 16f, 50f), "No Animal Knowledge yet. Track, observe, wound, or successfully hunt wildlife to learn it.");
+        }
+
+        public override void PostClose()
+        {
+            canvas.PostClose();
+            base.PostClose();
         }
     }
 

@@ -259,7 +259,6 @@ namespace Herds
 
             PreyProfile profile = PreyProfileDatabase.For(__instance.def);
 
-            yield return new Command_Action { defaultLabel = "DEV: Wildlife Overview", defaultDesc = "Open the complete organized wildlife development dashboard.", icon = TexCommand.OpenLinkedQuestTex, action = WildlifeDebugState.OpenDashboard };
             yield return WildlifeDebugMenus.CompleteOverlayToggle();
             yield return WildlifeDebugMenus.DiagnosticToggle(__instance);
             yield return new Command_Action { defaultLabel = "DEV: Prey Tests...", defaultDesc = "Open organized response, hiding, home, simulation, overlay, logging, and benchmark tools.", icon = TexCommand.SquadAttack, action = () => WildlifeDebugMenus.ShowPreyTests(__instance) };

@@ -5,6 +5,147 @@
   <Herds_Hiding>Hiding</Herds_Hiding>
   <Herds_WildlifeKnowledge>Wildlife</Herds_WildlifeKnowledge>
   <Herds_AnimalMemoryTab>Memory</Herds_AnimalMemoryTab>
+  <Wildlife.UI.Inspector.Title>Wildlife inspection</Wildlife.UI.Inspector.Title>
+  <Wildlife.UI.Inspector.Unavailable>This wildlife record is unavailable.</Wildlife.UI.Inspector.Unavailable>
+  <Wildlife.UI.Inspector.UnknownAnimal>Unknown animal</Wildlife.UI.Inspector.UnknownAnimal>
+  <Wildlife.UI.Inspector.Focus.Help>Focus this subject on the map.</Wildlife.UI.Inspector.Focus.Help>
+  <Wildlife.UI.Inspector.Value.None>None</Wildlife.UI.Inspector.Value.None>
+  <Wildlife.UI.Inspector.Value.Unknown>Unknown</Wildlife.UI.Inspector.Value.Unknown>
+  <Wildlife.UI.Inspector.Status.Downed>Downed</Wildlife.UI.Inspector.Status.Downed>
+  <Wildlife.UI.Inspector.Status.MentalState>Mental state</Wildlife.UI.Inspector.Status.MentalState>
+  <Wildlife.UI.Inspector.Status.Idle>Idle</Wildlife.UI.Inspector.Status.Idle>
+  <Wildlife.UI.Inspector.Knowledge>Knowledge</Wildlife.UI.Inspector.Knowledge>
+  <Wildlife.UI.Inspector.KnowledgeProgress>Knowledge progress</Wildlife.UI.Inspector.KnowledgeProgress>
+  <Wildlife.UI.Inspector.Species>Species</Wildlife.UI.Inspector.Species>
+  <Wildlife.UI.Inspector.Observation>Observation</Wildlife.UI.Inspector.Observation>
+  <Wildlife.UI.Inspector.Observed>Observed</Wildlife.UI.Inspector.Observed>
+  <Wildlife.UI.Inspector.NotObserved>Not observed</Wildlife.UI.Inspector.NotObserved>
+  <Wildlife.UI.Inspector.Lifestyle>Lifestyle</Wildlife.UI.Inspector.Lifestyle>
+  <Wildlife.UI.Inspector.Survival>Survival</Wildlife.UI.Inspector.Survival>
+  <Wildlife.UI.Inspector.Refuge>Refuge</Wildlife.UI.Inspector.Refuge>
+  <Wildlife.UI.Inspector.DetailsLocked>More detail is locked</Wildlife.UI.Inspector.DetailsLocked>
+  <Wildlife.UI.Inspector.Knowledge.IdentityHelp>Observe, study trails, tend, or encounter this animal during a hunt to identify it and reveal more wildlife information.</Wildlife.UI.Inspector.Knowledge.IdentityHelp>
+  <Wildlife.UI.Inspector.ObservationHelp>Observe this animal or group nearby, or use an active observation post, to reveal its behavior and social structure.</Wildlife.UI.Inspector.ObservationHelp>
+  <Wildlife.UI.Inspector.Knowledge.SocialHelp>Tracked Animal Knowledge is required to reveal social structure and behavior.</Wildlife.UI.Inspector.Knowledge.SocialHelp>
+  <Wildlife.UI.Inspector.Independent>Independent animal</Wildlife.UI.Inspector.Independent>
+  <Wildlife.UI.Inspector.SoloBird>Solo bird</Wildlife.UI.Inspector.SoloBird>
+  <Wildlife.UI.Inspector.Individual>Individual profile</Wildlife.UI.Inspector.Individual>
+  <Wildlife.UI.Inspector.Solitary>Solitary</Wildlife.UI.Inspector.Solitary>
+  <Wildlife.UI.Inspector.Flock>Flock</Wildlife.UI.Inspector.Flock>
+  <Wildlife.UI.Inspector.SocialGroup>Social group</Wildlife.UI.Inspector.SocialGroup>
+  <Wildlife.UI.Inspector.Leader>Leader</Wildlife.UI.Inspector.Leader>
+  <Wildlife.UI.Inspector.Sentinel>Sentinel</Wildlife.UI.Inspector.Sentinel>
+  <Wildlife.UI.Inspector.CurrentBehavior>Current behavior</Wildlife.UI.Inspector.CurrentBehavior>
+  <Wildlife.UI.Inspector.State>State</Wildlife.UI.Inspector.State>
+  <Wildlife.UI.Inspector.Vigilance>Vigilance</Wildlife.UI.Inspector.Vigilance>
+  <Wildlife.UI.Inspector.Personality>Personality</Wildlife.UI.Inspector.Personality>
+  <Wildlife.UI.Inspector.HomeSafety>Home and safety</Wildlife.UI.Inspector.HomeSafety>
+  <Wildlife.UI.Inspector.Home>Home</Wildlife.UI.Inspector.Home>
+  <Wildlife.UI.Inspector.Threat>Threat</Wildlife.UI.Inspector.Threat>
+  <Wildlife.UI.Inspector.Enclosure>Enclosure</Wildlife.UI.Inspector.Enclosure>
+  <Wildlife.UI.Inspector.Season>Season</Wildlife.UI.Inspector.Season>
+  <Wildlife.UI.Inspector.Landscape>Landscape</Wildlife.UI.Inspector.Landscape>
+  <Wildlife.UI.Inspector.LocalSignals>Local signals</Wildlife.UI.Inspector.LocalSignals>
+  <Wildlife.UI.Inspector.NoSignals>No local signals recorded.</Wildlife.UI.Inspector.NoSignals>
+  <Wildlife.UI.Inspector.IndividualMemory>Individual memory</Wildlife.UI.Inspector.IndividualMemory>
+  <Wildlife.UI.Inspector.NoMemories>No lasting memories recorded.</Wildlife.UI.Inspector.NoMemories>
+  <Wildlife.UI.Inspector.CurrentActivity>Current activity</Wildlife.UI.Inspector.CurrentActivity>
+  <Wildlife.UI.Inspector.GroupMembers>Group members</Wildlife.UI.Inspector.GroupMembers>
+  <Wildlife.UI.Inspector.Members>members</Wildlife.UI.Inspector.Members>
+  <Wildlife.UI.Inspector.State.Calm>Calm</Wildlife.UI.Inspector.State.Calm>
+  <Wildlife.UI.Inspector.State.Flocking>Flocking</Wildlife.UI.Inspector.State.Flocking>
+  <Wildlife.UI.Inspector.State.GroundFeeding>Ground feeding</Wildlife.UI.Inspector.State.GroundFeeding>
+  <Wildlife.UI.Inspector.State.Hunted>Hunted</Wildlife.UI.Inspector.State.Hunted>
+  <Wildlife.UI.Inspector.State.Threatened>Threatened</Wildlife.UI.Inspector.State.Threatened>
+  <Wildlife.UI.Inspector.Defense.Inactive>Inactive</Wildlife.UI.Inspector.Defense.Inactive>
+  <Wildlife.UI.Inspector.Defense.ProtectYoung>Protecting young</Wildlife.UI.Inspector.Defense.ProtectYoung>
+  <Wildlife.UI.Inspector.Defense.Flight>Fleeing</Wildlife.UI.Inspector.Defense.Flight>
+  <Wildlife.UI.Inspector.Defense.Scatter>Scattering</Wildlife.UI.Inspector.Defense.Scatter>
+  <Wildlife.UI.Inspector.Defense.Hide>Seeking refuge</Wildlife.UI.Inspector.Defense.Hide>
+  <Wildlife.UI.Inspector.Defense.Freeze>Freezing</Wildlife.UI.Inspector.Defense.Freeze>
+  <Wildlife.UI.Inspector.Defense.StandGround>Standing ground</Wildlife.UI.Inspector.Defense.StandGround>
+  <Wildlife.UI.Inspector.Refuge.TreesVegetation>Trees / vegetation</Wildlife.UI.Inspector.Refuge.TreesVegetation>
+  <Wildlife.UI.Inspector.Refuge.TreesDens>Trees / dens</Wildlife.UI.Inspector.Refuge.TreesDens>
+  <Wildlife.UI.Inspector.PenTitle>Pen prey groups</Wildlife.UI.Inspector.PenTitle>
+  <Wildlife.UI.Inspector.GroupCount>Groups</Wildlife.UI.Inspector.GroupCount>
+  <Wildlife.UI.Inspector.NoGroups>No eligible prey are currently present.</Wildlife.UI.Inspector.NoGroups>
+  <Wildlife.UI.Inspector.NoGroups.Help>Prey groups appear when eligible animals are assigned to this pen.</Wildlife.UI.Inspector.NoGroups.Help>
+  <Wildlife.UI.Inspector.TreeHome>Claimed tree home</Wildlife.UI.Inspector.TreeHome>
+  <Wildlife.UI.Inspector.CurrentlyHiding>Currently hiding</Wildlife.UI.Inspector.CurrentlyHiding>
+  <Wildlife.UI.Inspector.HomeAnimals>Home animals</Wildlife.UI.Inspector.HomeAnimals>
+  <Wildlife.UI.Memory.Title>Animal memory</Wildlife.UI.Memory.Title>
+  <Wildlife.UI.Memory.Subtitle>Relationships, encounters, and learned responses</Wildlife.UI.Memory.Subtitle>
+  <Wildlife.UI.Memory.OpenTimeline>Open timeline</Wildlife.UI.Memory.OpenTimeline>
+  <Wildlife.UI.Memory.Temperament>Temperament</Wildlife.UI.Memory.Temperament>
+  <Wildlife.UI.Memory.ColonistCount>Remembered colonists</Wildlife.UI.Memory.ColonistCount>
+  <Wildlife.UI.Memory.AnimalCount>Remembered animals</Wildlife.UI.Memory.AnimalCount>
+  <Wildlife.UI.Memory.NoColonists>No recognized colonists.</Wildlife.UI.Memory.NoColonists>
+  <Wildlife.UI.Memory.Relationships>Animal relationships</Wildlife.UI.Memory.Relationships>
+  <Wildlife.UI.Memory.NoRelationships>No lasting animal relationships have formed.</Wildlife.UI.Memory.NoRelationships>
+  <Wildlife.UI.Memory.BondFearRivalry>Bond / fear / rivalry</Wildlife.UI.Memory.BondFearRivalry>
+  <Wildlife.UI.Memory.Colonists>Colonist memories</Wildlife.UI.Memory.Colonists>
+  <Wildlife.UI.Memory.TrustFearHostility>Trust / fear / hostility</Wildlife.UI.Memory.TrustFearHostility>
+  <Wildlife.UI.Memory.Latest>Latest event</Wildlife.UI.Memory.Latest>
+  <Wildlife.UI.Memory.NoEvent>No recorded event</Wildlife.UI.Memory.NoEvent>
+  <Wildlife.UI.Memory.Timeline>Timeline</Wildlife.UI.Memory.Timeline>
+  <Wildlife.UI.Memory.NoEvents>No recorded encounters.</Wildlife.UI.Memory.NoEvents>
+  <Wildlife.UI.Memory.NoEvents.Help>This animal has no recorded encounters with colonists or other animals.</Wildlife.UI.Memory.NoEvents.Help>
+  <Wildlife.UI.Memory.Subject>Subject</Wildlife.UI.Memory.Subject>
+  <Wildlife.UI.Memory.Event>Event</Wildlife.UI.Memory.Event>
+  <Wildlife.UI.Memory.Ago>ago</Wildlife.UI.Memory.Ago>
+  <Wildlife.UI.Memory.SocialWeb>Social web</Wildlife.UI.Memory.SocialWeb>
+  <Wildlife.UI.Memory.Relationship>Relationship</Wildlife.UI.Memory.Relationship>
+  <Wildlife.UI.Memory.Time>Time</Wildlife.UI.Memory.Time>
+  <Wildlife.UI.Memory.Focus>Focus</Wildlife.UI.Memory.Focus>
+  <Wildlife.UI.Knowledge.Breadcrumb>Animal knowledge</Wildlife.UI.Knowledge.Breadcrumb>
+  <Wildlife.UI.Knowledge.Subtitle>Species knowledge learned by this colonist</Wildlife.UI.Knowledge.Subtitle>
+  <Wildlife.UI.Knowledge.SpeciesCount>Known species</Wildlife.UI.Knowledge.SpeciesCount>
+  <Wildlife.UI.Knowledge.Experience>Experience</Wildlife.UI.Knowledge.Experience>
+  <Wildlife.UI.Knowledge.Empty>No Animal Knowledge yet.</Wildlife.UI.Knowledge.Empty>
+  <Wildlife.UI.Knowledge.Empty.Help>Track, observe, tend, or successfully hunt wildlife to learn it.</Wildlife.UI.Knowledge.Empty.Help>
+  <Wildlife.UI.Hunt.Breadcrumb>Hunt planning</Wildlife.UI.Hunt.Breadcrumb>
+  <Wildlife.UI.Hunt.Title>Plan hunt</Wildlife.UI.Hunt.Title>
+  <Wildlife.UI.Hunt.Subtitle>Choose a target, prepare the party, and review readiness.</Wildlife.UI.Hunt.Subtitle>
+  <Wildlife.UI.Hunt.Unavailable>The hunting spot is unavailable.</Wildlife.UI.Hunt.Unavailable>
+  <Wildlife.UI.Hunt.Unavailable.Help>Select an active hunting spot to continue.</Wildlife.UI.Hunt.Unavailable.Help>
+  <Wildlife.UI.Hunt.Target>Target</Wildlife.UI.Hunt.Target>
+  <Wildlife.UI.Hunt.TargetAnimal>Animal</Wildlife.UI.Hunt.TargetAnimal>
+  <Wildlife.UI.Hunt.NoPrey>No prey selected</Wildlife.UI.Hunt.NoPrey>
+  <Wildlife.UI.Hunt.SelectPrey>Select prey</Wildlife.UI.Hunt.SelectPrey>
+  <Wildlife.UI.Hunt.ChangePrey>Change prey</Wildlife.UI.Hunt.ChangePrey>
+  <Wildlife.UI.Hunt.Hunters>Hunters</Wildlife.UI.Hunt.Hunters>
+  <Wildlife.UI.Hunt.Unlimited>no fieldcraft limit</Wildlife.UI.Hunt.Unlimited>
+  <Wildlife.UI.Hunt.SelectAll>Select all</Wildlife.UI.Hunt.SelectAll>
+  <Wildlife.UI.Hunt.Clear>Clear</Wildlife.UI.Hunt.Clear>
+  <Wildlife.UI.Hunt.TargetDependent>target-dependent knowledge</Wildlife.UI.Hunt.TargetDependent>
+  <Wildlife.UI.Hunt.Skill>skill</Wildlife.UI.Hunt.Skill>
+  <Wildlife.UI.Hunt.Unarmed>unarmed</Wildlife.UI.Hunt.Unarmed>
+  <Wildlife.UI.Hunt.HunterHelp>Toggle this hunter in the party.</Wildlife.UI.Hunt.HunterHelp>
+  <Wildlife.UI.Hunt.Policy>Hunt policy</Wildlife.UI.Hunt.Policy>
+  <Wildlife.UI.Hunt.Risk>Risk</Wildlife.UI.Hunt.Risk>
+  <Wildlife.UI.Hunt.Retreat>Retreat below</Wildlife.UI.Hunt.Retreat>
+  <Wildlife.UI.Hunt.Launch>Launch offset</Wildlife.UI.Hunt.Launch>
+  <Wildlife.UI.Hunt.Cautious>Cautious</Wildlife.UI.Hunt.Cautious>
+  <Wildlife.UI.Hunt.Balanced>Balanced</Wildlife.UI.Hunt.Balanced>
+  <Wildlife.UI.Hunt.Bold>Bold</Wildlife.UI.Hunt.Bold>
+  <Wildlife.UI.Hunt.PolicyHelp>Cautious keeps distance and retreats sooner. Balanced uses standard positioning. Bold closes distance and retreats later.</Wildlife.UI.Hunt.PolicyHelp>
+  <Wildlife.UI.Hunt.Resources>Resources</Wildlife.UI.Hunt.Resources>
+  <Wildlife.UI.Hunt.Resources.Help>Discovered equipment available near the spot or carried by selected hunters.</Wildlife.UI.Hunt.Resources.Help>
+  <Wildlife.UI.Hunt.Resources.Locked>Advanced equipment unlocks with Fieldcraft.</Wildlife.UI.Hunt.Resources.Locked>
+  <Wildlife.UI.Hunt.NoResources>None available.</Wildlife.UI.Hunt.NoResources>
+  <Wildlife.UI.Hunt.Readiness.Title>Readiness</Wildlife.UI.Hunt.Readiness.Title>
+  <Wildlife.UI.Hunt.Readiness.SelectPrey>Select prey to calculate species knowledge and readiness.</Wildlife.UI.Hunt.Readiness.SelectPrey>
+  <Wildlife.UI.Hunt.Readiness.Qualified>selected hunters meet effective skill</Wildlife.UI.Hunt.Readiness.Qualified>
+  <Wildlife.UI.Hunt.Readiness.Ready>All requirements are met.</Wildlife.UI.Hunt.Readiness.Ready>
+  <Wildlife.UI.Hunt.NotReady>Not ready</Wildlife.UI.Hunt.NotReady>
+  <Wildlife.UI.Hunt.Begin>Begin hunt</Wildlife.UI.Hunt.Begin>
+  <Wildlife.UI.Hunt.BeginHelp>Complete all hunt requirements first.</Wildlife.UI.Hunt.BeginHelp>
+  <Wildlife.UI.Hunt.Reason.SelectPrey>Select an available prey target.</Wildlife.UI.Hunt.Reason.SelectPrey>
+  <Wildlife.UI.Hunt.Reason.SelectHunter>Select at least one hunter.</Wildlife.UI.Hunt.Reason.SelectHunter>
+  <Wildlife.UI.Hunt.Reason.TooMany>Fieldcraft is required to coordinate more hunters.</Wildlife.UI.Hunt.Reason.TooMany>
+  <Wildlife.UI.Hunt.Reason.Skill>Every selected hunter must meet the required effective skill.</Wildlife.UI.Hunt.Reason.Skill>
+  <Wildlife.UI.Hunt.Reason.Resource>is not available in sufficient quantity.</Wildlife.UI.Hunt.Reason.Resource>
+  <Wildlife.UI.Hunt.Reason.AlreadyTargeted>This prey is already targeted by another coordinated hunt.</Wildlife.UI.Hunt.Reason.AlreadyTargeted>
   <Herds_Nature>Nature</Herds_Nature>
   <Wildlife.UI.Settings.CategoryName>Wildlife</Wildlife.UI.Settings.CategoryName>
   <Wildlife.UI.Settings.Breadcrumb>Settings</Wildlife.UI.Settings.Breadcrumb>

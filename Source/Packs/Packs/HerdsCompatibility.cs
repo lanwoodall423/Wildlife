@@ -30,6 +30,12 @@ internal static class HerdsCompatibility
 	private static Func<Pawn, string> ecologicalRoleTooltip;
 	private static Func<ThingDef, bool> isPredator;
 	private static Func<ThingDef, bool> isPrey;
+	private static Func<ThingDef, bool, bool> canRevealPackIdentity;
+	private static Func<ThingDef, bool, bool> canRevealPackSocial;
+	private static Func<ThingDef, bool, bool> canRevealPackBehavior;
+	private static Func<ThingDef, bool, bool> canRevealPackTerritory;
+	private static Func<ThingDef, bool, bool> canRevealPackDen;
+	private static Func<ThingDef, bool, bool> canRevealCurrentPrey;
 	private static Func<ThingDef, bool> hasPredatorOverride;
 	private static Func<ThingDef, bool> hasPreyOverride;
 	private static Action<ThingDef, bool, bool> setPredatorOverride;
@@ -161,6 +167,42 @@ internal static class HerdsCompatibility
 			species.race.IsFlesh && !species.race.IsAnomalyEntity && !species.race.predator;
 	}
 
+	public static bool CanRevealPackIdentity(ThingDef species, bool observed)
+	{
+		Initialize();
+		return canRevealPackIdentity?.Invoke(species, observed) ?? true;
+	}
+
+	public static bool CanRevealPackSocial(ThingDef species, bool observed)
+	{
+		Initialize();
+		return canRevealPackSocial?.Invoke(species, observed) ?? true;
+	}
+
+	public static bool CanRevealPackBehavior(ThingDef species, bool observed)
+	{
+		Initialize();
+		return canRevealPackBehavior?.Invoke(species, observed) ?? true;
+	}
+
+	public static bool CanRevealPackTerritory(ThingDef species, bool observed)
+	{
+		Initialize();
+		return canRevealPackTerritory?.Invoke(species, observed) ?? true;
+	}
+
+	public static bool CanRevealPackDen(ThingDef species, bool observed)
+	{
+		Initialize();
+		return canRevealPackDen?.Invoke(species, observed) ?? true;
+	}
+
+	public static bool CanRevealCurrentPrey(ThingDef species, bool preyObserved)
+	{
+		Initialize();
+		return canRevealCurrentPrey?.Invoke(species, preyObserved) ?? true;
+	}
+
 	public static bool HasPredatorOverride(ThingDef species)
 	{
 		Initialize();
@@ -241,6 +283,19 @@ internal static class HerdsCompatibility
 				MethodInfo setPreyMethod = AccessTools.Method(classificationType,
 					"SetPreyOverride", new Type[3]
 					{ typeof(ThingDef), typeof(bool), typeof(bool) }, (Type[])null);
+			Type presentationType = AccessTools.TypeByName("Herds.WildlifePackPresentationAPI");
+			MethodInfo packIdentityMethod = AccessTools.Method(presentationType, "CanRevealPackIdentity",
+				new Type[2] { typeof(ThingDef), typeof(bool) }, (Type[])null);
+			MethodInfo packSocialMethod = AccessTools.Method(presentationType, "CanRevealPackSocial",
+				new Type[2] { typeof(ThingDef), typeof(bool) }, (Type[])null);
+			MethodInfo packBehaviorMethod = AccessTools.Method(presentationType, "CanRevealPackBehavior",
+				new Type[2] { typeof(ThingDef), typeof(bool) }, (Type[])null);
+			MethodInfo packTerritoryMethod = AccessTools.Method(presentationType, "CanRevealPackTerritory",
+				new Type[2] { typeof(ThingDef), typeof(bool) }, (Type[])null);
+			MethodInfo packDenMethod = AccessTools.Method(presentationType, "CanRevealPackDen",
+				new Type[2] { typeof(ThingDef), typeof(bool) }, (Type[])null);
+			MethodInfo currentPreyMethod = AccessTools.Method(presentationType, "CanRevealCurrentPrey",
+				new Type[2] { typeof(ThingDef), typeof(bool) }, (Type[])null);
 			if (methodInfo != null)
 			{
 				notifyThreat = (Action<Pawn, Thing, int>)Delegate.CreateDelegate(typeof(Action<Pawn, Thing, int>), methodInfo);
@@ -282,7 +337,19 @@ internal static class HerdsCompatibility
 						typeof(Action<ThingDef, bool, bool>), setPredatorMethod);
 				if (setPreyMethod != null) setPreyOverride =
 					(Action<ThingDef, bool, bool>)Delegate.CreateDelegate(
-						typeof(Action<ThingDef, bool, bool>), setPreyMethod);
+						 typeof(Action<ThingDef, bool, bool>), setPreyMethod);
+			if (packIdentityMethod != null) canRevealPackIdentity =
+				(Func<ThingDef, bool, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool, bool>), packIdentityMethod);
+			if (packSocialMethod != null) canRevealPackSocial =
+				(Func<ThingDef, bool, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool, bool>), packSocialMethod);
+			if (packBehaviorMethod != null) canRevealPackBehavior =
+				(Func<ThingDef, bool, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool, bool>), packBehaviorMethod);
+			if (packTerritoryMethod != null) canRevealPackTerritory =
+				(Func<ThingDef, bool, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool, bool>), packTerritoryMethod);
+			if (packDenMethod != null) canRevealPackDen =
+				(Func<ThingDef, bool, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool, bool>), packDenMethod);
+			if (currentPreyMethod != null) canRevealCurrentPrey =
+				(Func<ThingDef, bool, bool>)Delegate.CreateDelegate(typeof(Func<ThingDef, bool, bool>), currentPreyMethod);
 		}
 		catch (Exception ex)
 		{
@@ -302,6 +369,12 @@ internal static class HerdsCompatibility
 			predatorSignalTooltip = null;
 			ecologicalRoleSummary = null;
 			ecologicalRoleTooltip = null;
+			canRevealPackIdentity = null;
+			canRevealPackSocial = null;
+			canRevealPackBehavior = null;
+			canRevealPackTerritory = null;
+			canRevealPackDen = null;
+			canRevealCurrentPrey = null;
 		}
 	}
 }

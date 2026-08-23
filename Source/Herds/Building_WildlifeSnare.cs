@@ -38,7 +38,6 @@ namespace Herds
         {
             foreach (Gizmo gizmo in base.GetGizmos()) yield return gizmo;
             if (!Prefs.DevMode) yield break;
-            yield return new Command_Action { defaultLabel = "DEV: Wildlife Overview", defaultDesc = "Open the organized wildlife development dashboard.", icon = TexCommand.OpenLinkedQuestTex, action = WildlifeDebugState.OpenDashboard };
             yield return WildlifeDebugMenus.CompleteOverlayToggle();
             yield return WildlifeDebugMenus.DiagnosticToggle(null);
             yield return new Command_Action { defaultLabel = "DEV: Snare Tests...", defaultDesc = "Open organized snare test controls.", icon = TexCommand.Attack, action = ShowDevMenu };

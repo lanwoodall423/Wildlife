@@ -30,6 +30,16 @@ function Assert-WildlifeCoordinatorSuccess {
     }
 }
 
+function ConvertTo-WildlifeCoordinatorJsonArgument {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json
+    )
+    if ([string]::IsNullOrWhiteSpace($Json)) { throw 'JSON arguments cannot be empty.' }
+    # DevBridge.cmd is a Windows batch boundary. Preserve the JSON quotes when
+    # PowerShell forwards the argument through cmd.exe to the coordinator.
+    return '"' + $Json.Replace('\', '\\').Replace('"', '\"') + '"'
+}
+
 function Get-WildlifeLaunchIdentity {
     param(
         [Parameter(Mandatory = $true)][string]$CoordinatorRoot,

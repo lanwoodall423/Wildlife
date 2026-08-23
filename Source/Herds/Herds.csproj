@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Library</OutputType><TargetFramework>net472</TargetFramework><RootNamespace>Herds</RootNamespace><AssemblyName>Herds</AssemblyName><LangVersion>latest</LangVersion><Deterministic>true</Deterministic><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath><GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputType>Library</OutputType><TargetFramework>net472</TargetFramework><RootNamespace>Herds</RootNamespace><AssemblyName>Herds</AssemblyName><LangVersion>latest</LangVersion><Deterministic>true</Deterministic><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath><GenerateAssemblyInfo>false</GenerateAssemblyInfo><GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize><OutputPath>..\..\1.6\Assemblies\</OutputPath><DebugType>none</DebugType>
