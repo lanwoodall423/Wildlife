@@ -23,6 +23,12 @@
     <Compile Include="WildlifeMod.cs" />
     <Compile Include="WildlifeNativeFieldLog.cs" />
     <Compile Include="WildlifeNativeFieldJournalWindow.cs" />
+    <!-- Compile original Packs predator configuration source once, in vanilla Wildlife.
+         Existing Packs simulation retains the same namespace/types and reads these
+         definitions via a one-way project reference; no duplicate implementation. -->
+    <Compile Include="..\Packs\Packs\PredatorSocialStrategy.cs" Link="PredatorCore\PredatorSocialStrategy.cs" />
+    <Compile Include="..\Packs\Packs\PredatorHuntingStyle.cs" Link="PredatorCore\PredatorHuntingStyle.cs" />
+    <Compile Include="..\Packs\Packs\PackHunterExtension.cs" Link="PredatorCore\PackHunterExtension.cs" />
     <Reference Include="Assembly-CSharp">
       <HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>

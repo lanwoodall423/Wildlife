@@ -27,6 +27,12 @@ The dependency arrow is **Herds → Wildlife**, never Wildlife → Herds. The He
 3. Presenters read their respective existing records. They never own or update simulation/knowledge records merely because a window was opened. No new mirror save file or second Journal model is needed.
 4. When separating Herds/Packs, **move** their actual gameplay systems into vanilla-compatible source where possible; leave Harmony patches and framework-backed evidence/UI in conditional adapters. Do not replace them with a parallel simplified animal model.
 
+### First physical native predator schema extraction (WILD-DEP-01D)
+
+The existing `Source/Packs/Packs/PredatorSocialStrategy.cs`, `PredatorHuntingStyle.cs`, and `PackHunterExtension.cs` are now **linked into the vanilla Wildlife build from their original paths**; the Packs project explicitly removes those items from its own compile and takes a one-way `PacksAndPredators → Wildlife` project reference. The file bodies, public `Packs.*` names and enum values, and `1.7/Patches/Packs_VanillaPackHunters.xml` class tokens are unchanged. This gives the standalone core the existing species-level predator strategy vocabulary **without inventing a second model or copying source**.
+
+The predator `PacksSettings`, `AnimalPackSettings`, saved `PackRecord`, `PackMapComponent`, AI jobs and Harmony patches are **not** moved and continue to use the same schema through that one-way reference. These saved/gameplay types must be disentangled later using their existing implementation and specific compatibility gates, not rewritten. Moving the DefModExtension and enums changes their future defining **assembly**, so old saves and 1.7 Def type resolution require real build/mod-load/save testing; the current staged source alone is not a runtime or save-compatibility guarantee.
+
 ### Still blocking independent 1.7 operation
 
 - `About/About.xml` still advertises RimWorld 1.6 and mandatory Harmony, Knowledge Framework and Insight Canvas; `LoadFolders.xml` still selects `1.6/`. Neither is changed by this presenter seam.

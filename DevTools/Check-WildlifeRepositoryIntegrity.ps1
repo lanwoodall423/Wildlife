@@ -219,9 +219,12 @@ $coreReferences = @([regex]::Matches($coreProjectText, '<Reference\s+Include="([
 $coreAllowedReferences = @('Assembly-CSharp', 'UnityEngine.CoreModule',
     'UnityEngine.IMGUIModule', 'UnityEngine.TextRenderingModule')
 Check 'native-core-explicit-compile' ($coreProjectText -match '<EnableDefaultCompileItems>false</EnableDefaultCompileItems>' -and
-    $coreCompiles.Count -eq 3 -and $coreCompiles[0] -eq 'WildlifeMod.cs' -and
+    $coreCompiles.Count -eq 6 -and $coreCompiles[0] -eq 'WildlifeMod.cs' -and
     $coreCompiles[1] -eq 'WildlifeNativeFieldLog.cs' -and
-    $coreCompiles[2] -eq 'WildlifeNativeFieldJournalWindow.cs') 'native core includes only the vanilla entry point, witnessed field log and journal window'
+    $coreCompiles[2] -eq 'WildlifeNativeFieldJournalWindow.cs' -and
+    $coreCompiles[3] -eq '..\Packs\Packs\PredatorSocialStrategy.cs' -and
+    $coreCompiles[4] -eq '..\Packs\Packs\PredatorHuntingStyle.cs' -and
+    $coreCompiles[5] -eq '..\Packs\Packs\PackHunterExtension.cs') 'native core compiles only vanilla field views and shared original predator Def schema'
 Check 'native-core-no-external-build-references' ($coreProjectText -notmatch '<ProjectReference\b' -and
     $coreProjectText -notmatch '<WildlifeRequire(?:Harmony|KnowledgeFramework|InsightCanvas)>true' -and
     $coreReferences.Count -eq 4 -and
@@ -232,6 +235,31 @@ Check 'native-core-no-third-party-types' ($coreSourceText -notmatch '\b(HarmonyL
     $coreFieldLogText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;' -and
     $coreJournalText -notmatch '\b(HarmonyLib|KnowledgeFramework|InsightCanvas|DeferredReality)\b' -and
     $coreJournalText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;') 'native code does not reference companion mod types'
+# WILD-DEP-01D: share the *original* predator Def schema, not a second
+# simulation or a duplicated copy of the same C# runtime type.
+$predatorProjectText = ReadText 'Source\Packs\PacksAndPredators.csproj'
+$predatorSchemaFiles = @('PredatorSocialStrategy.cs', 'PredatorHuntingStyle.cs', 'PackHunterExtension.cs')
+foreach ($schemaFile in $predatorSchemaFiles) {
+    $coreInclude = '<Compile Include="..\Packs\Packs\' + $schemaFile + '"'
+    $legacyExclude = '<Compile Remove="Packs\' + $schemaFile + '"'
+    $schemaText = ReadText ('Source\Packs\Packs\' + $schemaFile)
+    Check "predator-schema-single-source:$schemaFile" ($coreProjectText.Contains($coreInclude) -and
+        $predatorProjectText.Contains($legacyExclude)) 'original source compiled into Wildlife and excluded from Packs'
+    Check "predator-schema-vanilla:$schemaFile" ($schemaText -match 'namespace Packs;' -and
+        $schemaText -notmatch '\b(HarmonyLib|KnowledgeFramework|InsightCanvas|DeferredReality|HerdsMod|PacksMod)\b') 'unchanged predator definition uses no companion mod types'
+}
+Check 'predator-schema-dependency-direction' ($predatorProjectText.Contains('<ProjectReference Include="..\Wildlife\Wildlife.csproj" ReferenceOutputAssembly="true" Private="false" />') -and
+    $coreProjectText -notmatch '<ProjectReference\b' -and
+    $predatorProjectText -match '<WildlifeRequireHarmony>true</WildlifeRequireHarmony>') 'legacy predator simulation references vanilla core, retaining its Harmony-dependent implementation'
+$predatorSocialText = ReadText 'Source\Packs\Packs\PredatorSocialStrategy.cs'
+$predatorHuntingText = ReadText 'Source\Packs\Packs\PredatorHuntingStyle.cs'
+$predatorExtensionText = ReadText 'Source\Packs\Packs\PackHunterExtension.cs'
+Check 'predator-schema-type-names' ($predatorSocialText -match 'public enum PredatorSocialStrategy' -and
+    $predatorHuntingText -match 'public enum PredatorHuntingStyle' -and
+    $predatorExtensionText -match 'public sealed class PackHunterExtension : DefModExtension') 'original public type identities retained'
+Check 'predator-schema-xml-class' (([regex]::Matches((ReadText '1.7\Patches\Packs_VanillaPackHunters.xml'),
+    'Class="Packs\.PackHunterExtension"').Count -eq 2)) '1.7 predator XML still uses the original non-assembly-qualified class name'
+
 Check 'native-core-safe-observation' ($coreSourceText -match 'Find\.CurrentMap' -and
     $coreSourceText -match 'AllPawnsSpawned' -and
     $coreSourceText -match 'pawn\.Position\.Fogged\(map\)' -and

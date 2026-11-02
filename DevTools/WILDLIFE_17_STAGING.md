@@ -41,6 +41,12 @@ The native assembly explicitly includes `WildlifeNativeFieldJournalWindow.cs` in
 
 It remains uncompiled and unverified in RimWorld 1.7 until the RimTest-managed build, save/load and no-companion tests succeed; the 1.6 package and its mandatory dependencies remain unchanged.
 
+## Original predator strategy schema linked into core (WILD-DEP-01D)
+
+The native `Wildlife.csproj` compiles **the original three, unchanged** `Source/Packs/Packs/` source files defining predator social strategies, hunting styles and their existing `Packs.PackHunterExtension` XML Def extension. The legacy Packs project excludes the same three files and references Wildlife one-way. The existing `PackMapComponent`, saved pack records and Harmony-dependent AI stay where they are and **are not duplicated**. The original `Packs.PackHunterExtension` XML `Class` token remains unchanged. New integrity assertions enforce single source ownership; only runtime builds can establish absence of assembly identity and Def/load/save regressions.
+
+This is groundwork for migrating the existing simulation rather than writing another. No 1.7 binaries, textures, game loading metadata or third-party runtime dependencies have been changed.
+
 ## Required gates before switching to 1.7-only
 
 1. **1.7 source/Defs:** audit all staged Def classes, Thing/Job/Thought/Research/Precept references and patches against the installed RimWorld 1.7 environment; resolve any 1.7 C# API changes.

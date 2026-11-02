@@ -75,6 +75,12 @@ Wildlife's vanilla core now exposes a presentation-only journal registration sea
 
 This does **not** duplicate Knowledge Framework evidence or progression, create a second Insight Canvas journal, or move Herds/Packs simulation into a parallel implementation. The detailed ownership map and no-double-credit rules are in `DevTools/WILDLIFE_INTEGRATION_OWNERSHIP.md`. Herds still compiles directly against its three companion frameworks and is not yet independently optional at package-load time. Complete the actual adapter separation and RimWorld 1.7/RimTest matrix before changing mandatory metadata or shipping a standalone release.
 
+### WILD-DEP-01D — first original predator schema extraction (not new simulation)
+
+The native `Wildlife.dll` build now directly compiles the **original unchanged source** for `Packs.PredatorSocialStrategy`, `Packs.PredatorHuntingStyle`, and `Packs.PackHunterExtension`. These are the real, existing predator social-strategy/hunting-style definitions used by `PacksSettings` and `PackMapComponent`. `PacksAndPredators.csproj` excludes the three original files from its own compile and references the vanilla `Wildlife.csproj` one way, preventing two definitions of the same runtime types. XML class names and enum values remain unchanged. No second predator behavior model or settings state has been created.
+
+This is the **first physical ownership separation**, not the extraction of `PackMapComponent` or its predator AI jobs. The existing Harmony-based predator simulation remains framework-dependent and stays the sole implementation. Def loading, assembly-type identity and existing saves must be checked with a *fresh 1.7 build and RimTest* before relying on this relocation; static validation alone does not establish compatibility. `About/About.xml`, `LoadFolders.xml`, existing binaries, all Def XML, and actual gameplay logic remain unchanged in this slice.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.

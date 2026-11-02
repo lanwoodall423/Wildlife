@@ -21,6 +21,12 @@
   </PropertyGroup>
   <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
+    <!-- These original predator Def types now compile once in vanilla Wildlife.
+         Preserve their existing Packs namespace and XML Class values. -->
+    <Compile Remove="Packs\PredatorSocialStrategy.cs" />
+    <Compile Remove="Packs\PredatorHuntingStyle.cs" />
+    <Compile Remove="Packs\PackHunterExtension.cs" />
+    <ProjectReference Include="..\Wildlife\Wildlife.csproj" ReferenceOutputAssembly="true" Private="false" />
     <Reference Include="Assembly-CSharp">
       <HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
