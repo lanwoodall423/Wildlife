@@ -15,6 +15,28 @@ This roadmap tracks planned Wildlife features and their intended implementation 
 3. **WILD-DEP-02 — Optional feature bridges.** Move integrations requiring third-party types or assemblies behind isolated, conditionally loaded adapter assemblies/Defs or narrowly guarded reflection interfaces, avoiding compile-time coupling in the base core. With **Harmony** present, enable patch-dependent enhanced AI/behavior hooks; without it, the native core still loads and uses supported vanilla extension points. With **Knowledge Framework** present, enable richer shared species learning/evidence; without it, retain an honest native knowledge/observation presentation. With **Insight Canvas** present, enable enhanced retained Journal/inspector UI; without it, provide a usable native RimWorld UI for core controls. Keep **Deferred Reality Framework** and its adjacent-region/trail integration optional, retaining its separate adapter and conditional package loading. No third-party DLLs should be bundled implicitly into Wildlife.
 4. **WILD-TEST-01 — Standalone and combination matrix.** Verify fresh RimWorld 1.7 startup and gameplay with no optional dependencies, then individually with Harmony, Knowledge Framework, Insight Canvas, Deferred Reality, and representative supported combinations. Confirm conditional load paths, safe no-mod behavior, 1.7 build resolution, save/load, old-save migration behavior where supported, and no unexpected loss of core gameplay. Run repository-prescribed `rimtest doctor --json` followed by `rimtest affected --run --json` for affected changes and record actual in-game evidence. Treat compatibility, missing-runtime behavior and integration smoke tests as release gates.
 
+### Roadmap milestones and release gates
+
+| ID | Milestone | Status | Exit evidence |
+| --- | --- | --- | --- |
+| `WILD-17-01` | RimWorld 1.7-only source, metadata, and package layout | Planned | 1.7 assembly references and Defs are validated; `supportedVersions` advertises only 1.7; packaged output contains no stale 1.6 runtime payload |
+| `WILD-DEP-01` | Usable standalone core without third-party mods | Planned | Core mod loads on RimWorld 1.7 with **no** Harmony, Knowledge Framework, Insight Canvas, or Deferred Reality; supported baseline features and native UI work with no missing-assembly/type/Def errors |
+| `WILD-DEP-02` | Optional integration adapters | Planned | Each integration can be absent with no startup failure; when installed at a supported version, it unlocks only its declared extra features, without duplicating or overriding core ownership |
+| `WILD-TEST-01` | Runtime compatibility and release evidence | Planned | RimTest-owned 1.7 mod-load and focused gameplay/save/load checks pass for the standalone configuration plus supported individual and combined optional-mod configurations |
+
+### Optional integration feature contract
+
+| Installed companion | No companion: required baseline | Companion present: optional enhancement |
+| --- | --- | --- |
+| **Harmony** | Standalone core loads and exposes its supported vanilla-extension behavior and UI without requiring `0Harmony.dll` | Harmony-isolated patch layer adds hook-dependent AI coordination and advanced behavior not possible through native extension points alone |
+| **Knowledge Framework** | Native species knowledge and observation remain available at honest, bounded precision | Shared biological evidence, progression and species facets integrate through an isolated adapter |
+| **Insight Canvas** | Core Journal, animal details, settings and other essential controls have usable native RimWorld presentation | Enhanced retained Journal, inspectors and navigation activate through an isolated UI adapter |
+| **Deferred Reality Framework** | Local ecology and animal gameplay operate without regional deferred simulation | Existing optional adapter supplies supported deferred-region, migration and adjacent-trail features |
+
+**Acceptance boundary:** The supported game and its shipped assemblies are inherent requirements, not optional companion mods. Internal Wildlife components must also be tested together. No optional adapter may expose another mod's types through public core signatures, require its DLL during base-load type resolution, or activate when an incompatible version is detected. Every absent-integration fallback must be honest about which features are unavailable; do not silently emulate advanced behavior or fabricate research/observation evidence.
+
+The 1.7 migration and third-party dependency decoupling are independent release gates: a working 1.7 build with mandatory integrations is **not** `WILD-DEP-01` complete, and an independently loading core still must prove the 1.7-only package and runtime contract. Do not mark any row complete from source review or compilation alone; record exact RimTest and in-game evidence.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.
