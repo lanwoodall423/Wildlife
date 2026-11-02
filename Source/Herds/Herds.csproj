@@ -13,6 +13,9 @@
   </PropertyGroup>
   <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
+    <!-- One-way optional presenter connection: Herds may depend on vanilla Wildlife;
+         the Wildlife core must never depend on Herds or its frameworks. -->
+    <ProjectReference Include="..\Wildlife\Wildlife.csproj" ReferenceOutputAssembly="true" Private="false" />
     <Reference Include="Assembly-CSharp"><HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>

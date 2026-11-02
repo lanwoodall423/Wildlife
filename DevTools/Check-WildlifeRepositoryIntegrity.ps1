@@ -32,7 +32,7 @@ $required = @(
     'DevTools\AssemblyMetadataReader\AssemblyMetadataReader.csproj',
     'DevTools\Read-AssemblyMetadata.ps1', 'DevTools\Verify-DeferredRealityIntegration.ps1',
     'DevTools\Verify-KnowledgeFramework.ps1', 'DevTools\Check-WildlifeTests.ps1', 'Source\Herds\Herds.csproj',
-    'DevTools\PORTABLE_VALIDATION.md', 'DevTools\WILDLIFE_17_STAGING.md', 'Source\Herds\WildlifeInsightUi.cs',
+    'DevTools\PORTABLE_VALIDATION.md', 'DevTools\WILDLIFE_17_STAGING.md', 'DevTools\WILDLIFE_INTEGRATION_OWNERSHIP.md', 'Source\Herds\WildlifeInsightUi.cs',
     'Source\Herds\WildlifeInspectorUi.cs', 'WILDLIFE_MIGRATION.md',
     'Source\Packs\PacksAndPredators.csproj', 'Source\Wildlife\Wildlife.csproj',
     'Source\Wildlife\DeferredReality.Wildlife.csproj',
@@ -269,6 +269,34 @@ Check 'native-journal-bounded-filter-scroll' ($coreJournalText -match 'entries\.
     $coreJournalText -match 'Widgets\.TextField' -and
     $coreJournalText -match 'Widgets\.BeginScrollView' -and
     $coreJournalText -match 'Widgets\.EndScrollView') 'journal has bounded rows, case-insensitive search and scrolling'
+
+# WILD-DEP-02A: one-way UI presenter, never a competing knowledge engine.
+$enhancedStartup = ReadText 'Source\Herds\HerdIntegration.cs'
+$enhancedProject = ReadText 'Source\Herds\Herds.csproj'
+$richJournal = ReadText 'Source\Herds\WildlifeJournal.cs'
+$ownershipContract = ReadText 'DevTools\WILDLIFE_INTEGRATION_OWNERSHIP.md'
+Check 'journal-optional-vanilla-router' ($coreSourceText -match 'class WildlifeJournalRouting' -and
+    $coreSourceText -match 'Action<Map> enhancedJournal' -and
+    $coreSourceText -match 'RegisterEnhancedJournal\(Action<Map> opener\)' -and
+    $coreProjectText -notmatch '<ProjectReference\b') 'vanilla core accepts UI registration but has no Herds project dependency'
+Check 'journal-router-safe-fallback' ($coreSourceText -match 'if \(opener == null\)' -and
+    $coreSourceText -match 'catch \(Exception exception\)' -and
+    $coreSourceText -match 'enhancedJournal = null;' -and
+    $coreSourceText -match 'OpenNative\(map\)') 'absent or failed optional journal opens native field journal'
+Check 'journal-enhanced-opt-in-control' ($coreSourceText -match 'WildlifeJournalRouting\.EnhancedAvailable &&' -and
+    $coreSourceText -match 'WildlifeJournalRouting\.OpenEnhanced\(map\)' -and
+    $coreSourceText -match 'WildlifeJournalRouting\.OpenNative\(map\)') 'enhanced button only appears after registration, basic always remains'
+
+Check 'journal-enhanced-reuses-existing-ui' ($enhancedStartup -match 'Wildlife\.WildlifeJournalRouting\.RegisterEnhancedJournal\(' -and
+    $enhancedStartup -match 'map => WildlifeJournal\.OpenFieldLog\(map\)' -and
+    $richJournal -match 'public static void OpenFieldLog\(Map map') 'enhanced presenter opens existing journal, no second rich renderer'
+Check 'journal-integration-one-way-reference' ($enhancedProject -match '<ProjectReference Include="\.\.[\\/]Wildlife[\\/]Wildlife\.csproj"' -and
+    $enhancedProject -match 'ReferenceOutputAssembly="true" Private="false"' -and
+    $coreProjectText -notmatch '<ProjectReference\b' -and
+    $coreSourceText -notmatch '\b(Herds|HarmonyLib|KnowledgeFramework|InsightCanvas)\.') 'Herds references vanilla core, never the reverse'
+Check 'journal-no-duplicate-evidence' ($coreSourceText -notmatch 'KnowledgeEngine|KnowledgeObservation|HuntingKnowledgeMapComponent|WildlifeKnowledgeAdapter' -and
+    $ownershipContract -match '\*\*Do not\*\* automatically submit native receipt samples' -and
+    $coreSourceText -notmatch 'Scribe_Collections\.Look') 'presenter routing never submits knowledge or persists another history'
 
 $bridgeProject = ReadText 'Source\BridgeTools\Wildlife.BridgeTools.csproj'
 $bridgeToolText = ReadText 'Source\BridgeTools\WildlifeBridgeTools.cs'

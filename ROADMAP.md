@@ -69,6 +69,12 @@ The native-only `Wildlife.dll` candidate now explicitly compiles a third source,
 
 This provides a usable initial native Journal fallback without depending on third-party UI assemblies. The legacy full Journal, Herds/Packs gameplay, third-party integrations, and RimWorld 1.7 binaries remain separate unresolved migration work. The candidate is source-only and still requires compilation, actual RimTest 1.7 no-companion load/save verification, and developer review before claims of runtime support.
 
+### WILD-DEP-02A — reuse the existing rich journal through a one-way adapter
+
+Wildlife's vanilla core now exposes a presentation-only journal registration seam. Its basic witnessed field journal remains available without any framework assembly; after the framework-dependent Herds assembly initializes, Herds registers its **existing** `WildlifeJournal.OpenFieldLog` presenter. Settings offers enhanced presentation only after registration, and failures fall back to the basic journal. The dependency arrow is **Herds → Wildlife**, not the reverse.
+
+This does **not** duplicate Knowledge Framework evidence or progression, create a second Insight Canvas journal, or move Herds/Packs simulation into a parallel implementation. The detailed ownership map and no-double-credit rules are in `DevTools/WILDLIFE_INTEGRATION_OWNERSHIP.md`. Herds still compiles directly against its three companion frameworks and is not yet independently optional at package-load time. Complete the actual adapter separation and RimWorld 1.7/RimTest matrix before changing mandatory metadata or shipping a standalone release.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.
