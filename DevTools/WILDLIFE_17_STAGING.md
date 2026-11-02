@@ -25,9 +25,15 @@ The 33 original UTF-8 XML assets under `1.6/` have corresponding **byte-identica
 
 ## Native-core boundary staged (WILD-DEP-01A)
 
-The candidate `Source/Wildlife/Wildlife.csproj` explicitly compiles `WildlifeMod.cs` only, with vanilla RimWorld/Unity references and no project reference to Herds/Packs. The native `WildlifeMod` settings page displays a bounded read-only count of currently spawned, unfogged, factionless animals. This is a truthful field observation, not native ecology simulation, species knowledge, or a drop-in replacement for the previous Insight Canvas UI.
+The WILD-DEP-01A baseline `Source/Wildlife/Wildlife.csproj` originally compiled `WildlifeMod.cs` only, with vanilla RimWorld/Unity references and no project reference to Herds/Packs. The native `WildlifeMod` settings page displays a bounded read-only count of currently spawned, unfogged, factionless animals. This is a truthful field observation, not native ecology simulation, species knowledge, or a drop-in replacement for the previous Insight Canvas UI.
 
 All Herds, Packs, Insight Canvas, Knowledge Framework, Harmony and optional Deferred Reality **gameplay sources** remain separate and unchanged for subsequent adapter and native fallback work. The shipped 1.6 compiled binaries and `About/About.xml` still have their original mandatory dependencies. No 1.7 build, dependency-free loading, RimTest, or old-save behavior has been established by this source-only step.
+
+## Witnessed wildlife field log staged (WILD-DEP-01B)
+
+The native-core candidate now compiles `WildlifeMod.cs` plus `WildlifeNativeFieldLog.cs` only. A bounded vanilla `MapComponent` preserves sampled **colonist-witnessed** wild-animal species sightings, recording first and last game ticks and the number of sampled intervals with direct line-of-sight evidence. It limits scans to 256 spawned Pawns and 24 colonists every 1,800 ticks and stores up to 48 species. The native UI labels its unfogged live-map view separately from the sampled, witnessed saved log; a persisted toggle pauses new field-log collection without rewriting old saves.
+
+These new native Scribe keys do not migrate or reinterpret Knowledge Framework, Herds or Packs save data. The feature is a small source-level native field journal, **not** the full wildlife simulation or verified 1.7 persistence contract. No game assembly build or RimTest run has established its runtime behavior.
 
 ## Required gates before switching to 1.7-only
 
