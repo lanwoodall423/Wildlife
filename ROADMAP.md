@@ -2,6 +2,29 @@
 
 This roadmap tracks planned Wildlife features and their intended implementation sequence. Entries describe design goals, not release commitments. Features remain unimplemented until explicitly marked otherwise.
 
+## Priority: RimWorld 1.7-only standalone Wildlife
+
+**Direction:** Approved for planning; migration not implemented or validated.  
+**Release support target:** RimWorld **1.7 only** (do not continue packaging or claiming 1.6 support).  
+**Dependency policy:** Wildlife's core must load and provide useful functionality on a clean RimWorld 1.7 installation, without requiring third-party mods. External integrations are opt-in enhancements and must not prevent base loading.
+
+### Migration workstreams (in priority order)
+
+1. **WILD-17-01 — Version/package migration.** Port the current 1.6 source and Defs to RimWorld 1.7, validate relevant 1.7 API differences, move version-specific assets and assembly outputs to a 1.7-only layout, update `About/About.xml` and `LoadFolders.xml`, update development scripts/release notes/test paths, and remove the advertised 1.6 supported-version entry. Do not change the package ID or silently claim compatibility until runtime evidence exists.
+2. **WILD-DEP-01 — Independent native core.** Inventory all third-party runtime and compile references, Harmony patches, conditional Defs, UI hooks and shared-knowledge calls. Remove the current mandatory `brrainz.harmony`, `lan.knowledgeframework`, and `lan.insightcanvas` dependencies from the final core distribution. Build a useful native 1.7 baseline with no third-party mods: wildlife behaviors/ecology, safe save/load, player-facing core controls, and no missing-assembly, missing-type or missing-Def errors. Preserve public functionality where practical; make features that cannot work without a companion explicitly unavailable rather than crashing.
+3. **WILD-DEP-02 — Optional feature bridges.** Move integrations requiring third-party types or assemblies behind isolated, conditionally loaded adapter assemblies/Defs or narrowly guarded reflection interfaces, avoiding compile-time coupling in the base core. With **Harmony** present, enable patch-dependent enhanced AI/behavior hooks; without it, the native core still loads and uses supported vanilla extension points. With **Knowledge Framework** present, enable richer shared species learning/evidence; without it, retain an honest native knowledge/observation presentation. With **Insight Canvas** present, enable enhanced retained Journal/inspector UI; without it, provide a usable native RimWorld UI for core controls. Keep **Deferred Reality Framework** and its adjacent-region/trail integration optional, retaining its separate adapter and conditional package loading. No third-party DLLs should be bundled implicitly into Wildlife.
+4. **WILD-TEST-01 — Standalone and combination matrix.** Verify fresh RimWorld 1.7 startup and gameplay with no optional dependencies, then individually with Harmony, Knowledge Framework, Insight Canvas, Deferred Reality, and representative supported combinations. Confirm conditional load paths, safe no-mod behavior, 1.7 build resolution, save/load, old-save migration behavior where supported, and no unexpected loss of core gameplay. Run repository-prescribed `rimtest doctor --json` followed by `rimtest affected --run --json` for affected changes and record actual in-game evidence. Treat compatibility, missing-runtime behavior and integration smoke tests as release gates.
+
+### Existing baseline and design constraints
+
+- `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.
+- `Source/Herds/Herds.csproj` currently directly requires all three assemblies. Other patch-dependent code must be audited for safe absence rather than assuming removing XML metadata is sufficient.
+- The Deferred Reality adapter is already packaged conditionally; preserve that boundary and bring it forward to 1.7, rather than converting it into a hard requirement.
+- Preserve existing persisted gameplay identities/keys and the established knowledge-disclosure boundary. Optional integration absence must not create fabricated observations or misleading exact biological claims.
+- **Do not simply delete mandatory `modDependencies` and call this complete.** Standalone loading, behavioral fallback, build independence and actual 1.7 testing must be demonstrated first.
+
+**Sequencing:** Establish and validate the 1.7-only standalone core and optional-integrations baseline before the Animal Exertion & Endurance feature enters implementation. The stamina feature must use native core APIs first and offer richer optional Knowledge Framework / Insight Canvas presentation only when those integrations are available.
+
 ## Planned: Animal Exertion & Endurance
 
 **Status:** Proposed / not implemented  
