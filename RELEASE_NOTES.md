@@ -1,5 +1,7 @@
 # Wildlife Release Candidate
 
+**Historical 1.6 candidate notes.** The approved product target is RimWorld 1.7-only, but WILD-17-01A only stages 1.7 build/reference paths. This document does not authorize or describe a 1.7 release. See `ROADMAP.md` for incomplete content migration, optional-dependency work, and mandatory runtime validation.
+
 Recommended tag: `wildlife-v0.1.0-rc.1`
 
 The normal Wildlife and Herds assemblies remain independent of Deferred Reality.

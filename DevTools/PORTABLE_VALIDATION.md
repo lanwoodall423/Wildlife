@@ -1,5 +1,7 @@
 # Portable Wildlife validation
 
+**WILD-17-01A (migration in progress):** The paths and commands below describe the **future 1.7 build target**, not a validated 1.7 package. The tracked game Defs, textures, checked-in 1.6 assemblies, `About/About.xml`, and `LoadFolders.xml` remain 1.6 until the content migration and native/optional integration work has been validated. The install script deliberately refuses to deploy 1.7 binaries to an unmigrated target. Do not release or install this intermediate configuration. RimTest remains the required runtime owner; no in-game compatibility result is implied by the source changes.
+
 Set the build and coordinator locations explicitly:
 
 ```powershell
@@ -13,10 +15,10 @@ $env:WILDLIFE_DEVBRIDGE2_ROOT = '.../DevBridge2'
 $env:DEVBRIDGE_RIMBRIDGE_MODE = 'required'
 # Optional: compile against the SDK shipped by the installed RimBridgeServer 2.1.0 payload.
 # Omit this to use the published RimBridgeServer.Sdk 2.0.0 compile-time fallback.
-$env:RIMBRIDGE_SERVER_SDK_PATH = '.../RimBridgeServer/1.6/Assemblies/RimBridgeServer.Sdk.dll'
+$env:RIMBRIDGE_SERVER_SDK_PATH = '.../RimBridgeServer/1.7/Assemblies/RimBridgeServer.Sdk.dll'
 ```
 
-Normal assemblies are built into `1.6/Assemblies` and do not reference Deferred Reality Framework, DevBridge2, or RimBridgeServer. The optional Deferred Reality adapter is built into `1.6/OptionalDeferredReality/Assemblies` and is conditionally loaded. The RimBridgeServer companion project writes to the game-root `BridgeTools/Wildlife/Wildlife.BridgeTools.dll` bundle beside the `Mods` folder; do not copy `RimBridgeServer.Sdk.dll` beside it. Required RimBridge mode makes DevBridge2 include and validate RimBridgeServer in the managed profile.
+Once rebuilt against RimWorld 1.7, normal assemblies are expected in `1.7/Assemblies` and must not reference Deferred Reality Framework, DevBridge2, or RimBridgeServer. The optional Deferred Reality adapter must be rebuilt separately into `1.7/OptionalDeferredReality/Assemblies` and will only be loaded after the 1.7 content package and conditional LoadFolders entry are completed. The RimBridgeServer companion project writes to the game-root `BridgeTools/Wildlife/Wildlife.BridgeTools.dll` bundle beside the `Mods` folder; do not copy `RimBridgeServer.Sdk.dll` beside it. Required RimBridge mode makes DevBridge2 include and validate RimBridgeServer in the managed profile.
 
 Build and validate with PowerShell 7:
 

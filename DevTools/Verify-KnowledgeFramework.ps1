@@ -10,7 +10,7 @@ $wildlifeRoot = [IO.Path]::GetFullPath($WildlifeRoot)
 $frameworkRoot = if ([string]::IsNullOrWhiteSpace($KnowledgeFrameworkPath)) {
     Get-WildlifeRequiredPath 'KNOWLEDGE_FRAMEWORK_PATH' 'Knowledge-Framework checkout'
 } else { [IO.Path]::GetFullPath($KnowledgeFrameworkPath) }
-$frameworkAssembly = Join-Path $frameworkRoot '1.6\Assemblies\KnowledgeFramework.dll'
+$frameworkAssembly = Join-Path $frameworkRoot '1.7\Assemblies\KnowledgeFramework.dll'
 $adapterPath = Join-Path $wildlifeRoot 'Source\Herds\WildlifeKnowledgeAdapter.cs'
 $testPath = Join-Path $wildlifeRoot 'Source\BridgeTools\WildlifeInGameTestSuite.cs'
 $aboutPath = Join-Path $wildlifeRoot 'About\About.xml'

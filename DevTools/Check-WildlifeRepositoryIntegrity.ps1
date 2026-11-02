@@ -74,6 +74,27 @@ $knowledgeText = ReadText 'Source\Herds\HuntingKnowledge.cs'
 $migrationText = ReadText 'WILDLIFE_MIGRATION.md'
 $journalText = ReadText 'Source\Herds\WildlifeJournal.cs'
 $herdsProjectText = ReadText 'Source\Herds\Herds.csproj'
+# Versioned build outputs have migrated first. Defs, textures and About/LoadFolders
+# intentionally remain 1.6 until the complete 1.7 package has been relocated.
+$versionedProjects = @(
+    'Source\Herds\Herds.csproj',
+    'Source\Packs\PacksAndPredators.csproj',
+    'Source\Wildlife\Wildlife.csproj',
+    'Source\Wildlife\DeferredReality.Wildlife.csproj'
+)
+foreach ($project in $versionedProjects) {
+    $projectText = ReadText $project
+    $expected = if ($project -like '*DeferredReality.Wildlife.csproj') {
+        '1\.7[\\/]OptionalDeferredReality[\\/]Assemblies'
+    } else {
+        '1\.7[\\/]Assemblies'
+    }
+    Check "1.7-output:$project" ($projectText -match $expected) 'Release output is scoped to RimWorld 1.7'
+}
+Check '1.7-companion-defaults' ($propsText -match 'KnowledgeFrameworkPath.*1\.7' -and
+    $propsText -match 'InsightCanvasPath.*1\.7' -and
+    $propsText -match 'DeferredRealityFrameworkRoot.*1\.7') 'companion build references target 1.7'
+
 Check 'package:wildlife' ($about.ModMetaData.packageId -eq 'Lan.Wildlife') 'exact Wildlife package ID'
 Check 'package:knowledge-framework' (@($about.ModMetaData.modDependencies.li.packageId) -contains 'lan.knowledgeframework') 'exact Knowledge Framework package ID'
 Check 'package:insightcanvas' (@($about.ModMetaData.modDependencies.li.packageId) -contains 'lan.insightcanvas') 'exact Insight Canvas package ID'
@@ -234,13 +255,13 @@ Check 'ignore-bin-obj' ($gitignore -match '(?m)^\*\*/bin/$' -and $gitignore -mat
 
 if ($RequireAssemblies) {
     $assemblies = @(
-        (Join-Path $root '1.6\Assemblies\Herds.dll'),
-        (Join-Path $root '1.6\Assemblies\PacksAndPredators.dll'),
-        (Join-Path $root '1.6\Assemblies\Wildlife.dll'))
+        (Join-Path $root '1.7\Assemblies\Herds.dll'),
+        (Join-Path $root '1.7\Assemblies\PacksAndPredators.dll'),
+        (Join-Path $root '1.7\Assemblies\Wildlife.dll'))
     $gameRoot = Split-Path -Parent (Split-Path -Parent $root)
     $bridgeAssembly = Join-Path $gameRoot 'BridgeTools\Wildlife\Wildlife.BridgeTools.dll'
-    $legacyHarnessAssembly = Join-Path $root '1.6\Assemblies\Wildlife.DevHarness.dll'
-    $optionalAssembly = Join-Path $root '1.6\OptionalDeferredReality\Assemblies\DeferredReality.Wildlife.dll'
+    $legacyHarnessAssembly = Join-Path $root '1.7\Assemblies\Wildlife.DevHarness.dll'
+    $optionalAssembly = Join-Path $root '1.7\OptionalDeferredReality\Assemblies\DeferredReality.Wildlife.dll'
     foreach ($path in $assemblies) { Check "assembly:$([IO.Path]::GetFileName($path))" (Test-Path -LiteralPath $path -PathType Leaf) 'built output' }
     Check 'assembly:Wildlife.BridgeTools.dll' (Test-Path -LiteralPath $bridgeAssembly -PathType Leaf) 'bridge companion output'
     Check 'assembly:Wildlife.DevHarness.dll' (-not (Test-Path -LiteralPath $legacyHarnessAssembly -PathType Leaf)) 'legacy harness output absent'

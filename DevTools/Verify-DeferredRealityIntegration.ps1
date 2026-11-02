@@ -10,14 +10,14 @@ $wildlifeRoot = Split-Path -Parent $PSScriptRoot
 $frameworkRoot = if ([string]::IsNullOrWhiteSpace($DeferredRealityFrameworkPath)) {
     Get-WildlifeRequiredPath 'DEFERRED_REALITY_FRAMEWORK_PATH' 'Deferred Reality Framework checkout'
 } else { [IO.Path]::GetFullPath($DeferredRealityFrameworkPath) }
-$wildlifeAssembly = Join-Path $wildlifeRoot '1.6\Assemblies\Wildlife.dll'
-$herdsAssembly = Join-Path $wildlifeRoot '1.6\Assemblies\Herds.dll'
-$oldAdapterAssembly = Join-Path $wildlifeRoot '1.6\Assemblies\DeferredReality.Wildlife.dll'
-$adapterAssembly = Join-Path $wildlifeRoot '1.6\OptionalDeferredReality\Assemblies\DeferredReality.Wildlife.dll'
+$wildlifeAssembly = Join-Path $wildlifeRoot '1.7\Assemblies\Wildlife.dll'
+$herdsAssembly = Join-Path $wildlifeRoot '1.7\Assemblies\Herds.dll'
+$oldAdapterAssembly = Join-Path $wildlifeRoot '1.7\Assemblies\DeferredReality.Wildlife.dll'
+$adapterAssembly = Join-Path $wildlifeRoot '1.7\OptionalDeferredReality\Assemblies\DeferredReality.Wildlife.dll'
 $optionalDef = Join-Path $wildlifeRoot '1.6\OptionalDeferredReality\Defs\WorldObjectDefs\DeferredReality_Wildlife.xml'
 $unconditionalDef = Join-Path $wildlifeRoot '1.6\Defs\WorldObjectDefs\DeferredReality_Wildlife.xml'
 $loadFolders = Join-Path $wildlifeRoot 'LoadFolders.xml'
-$frameworkAssembly = Join-Path $frameworkRoot '1.6\Assemblies\DeferredRealityFramework.dll'
+$frameworkAssembly = Join-Path $frameworkRoot '1.7\Assemblies\DeferredRealityFramework.dll'
 $projectFiles = @(
     (Join-Path $wildlifeRoot 'Source\Herds\Herds.csproj'),
     (Join-Path $wildlifeRoot 'Source\Packs\PacksAndPredators.csproj'),

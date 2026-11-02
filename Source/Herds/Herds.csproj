@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType><TargetFramework>net472</TargetFramework><RootNamespace>Herds</RootNamespace><AssemblyName>Herds</AssemblyName><LangVersion>latest</LangVersion><Deterministic>true</Deterministic><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath><GenerateAssemblyInfo>false</GenerateAssemblyInfo><GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <Optimize>true</Optimize><OutputPath>..\..\1.6\Assemblies\</OutputPath><DebugType>none</DebugType>
+    <Optimize>true</Optimize><OutputPath>..\..\1.7\Assemblies\</OutputPath><DebugType>none</DebugType>
   </PropertyGroup>
   <PropertyGroup>
     <WildlifeRequireHarmony>true</WildlifeRequireHarmony>

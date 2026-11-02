@@ -11,6 +11,17 @@ $ErrorActionPreference = 'Stop'
 $wildlifeRoot = Split-Path -Parent $PSScriptRoot
 $source = if ([string]::IsNullOrWhiteSpace($SourceRoot)) { $wildlifeRoot } else { [IO.Path]::GetFullPath($SourceRoot) }
 $target = if ([string]::IsNullOrWhiteSpace($TargetModRoot)) { $wildlifeRoot } else { [IO.Path]::GetFullPath($TargetModRoot) }
+# WILD-17-01A: never deploy 1.7 assemblies into an unmigrated 1.6 content package.
+# This check runs before a DevBridge2 maintenance lease is requested.
+$targetAbout = [xml](Get-Content -LiteralPath (Join-Path $target 'About\About.xml') -Raw)
+$targetLoads = [xml](Get-Content -LiteralPath (Join-Path $target 'LoadFolders.xml') -Raw)
+$targetVersions = @($targetAbout.ModMetaData.supportedVersions.li)
+if ($targetVersions.Count -ne 1 -or [string]$targetVersions[0] -ne '1.7' -or
+    $null -eq $targetLoads.SelectSingleNode('/loadFolders/v1.7') -or
+    -not (Test-Path -LiteralPath (Join-Path $target '1.7\Defs') -PathType Container)) {
+    throw 'Wildlife 1.7 installation blocked: migrate the complete target package, metadata, and LoadFolders first.'
+}
+
 $bridgeRoot = Get-WildlifeCoordinatorRoot $DevBridgeRoot
 $bridge = Join-Path $bridgeRoot 'DevBridge.cmd'
 $ownedLease = $false
@@ -40,8 +51,8 @@ try {
     $files = @('Herds.dll', 'PacksAndPredators.dll', 'Wildlife.dll')
     $hashes = New-Object System.Collections.Generic.List[object]
     foreach ($file in $files) {
-        $sourcePath = Join-Path $source ('1.6\Assemblies\' + $file)
-        $targetPath = Join-Path $target ('1.6\Assemblies\' + $file)
+        $sourcePath = Join-Path $source ('1.7\Assemblies\' + $file)
+        $targetPath = Join-Path $target ('1.7\Assemblies\' + $file)
         if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw "Missing Release output: $sourcePath" }
         $targetDirectory = Split-Path -Parent $targetPath
         New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
@@ -57,7 +68,7 @@ try {
     }
 
     $legacyHarnessName = 'Wildlife.' + 'DevHarness.dll'
-    $legacyHarnessPath = Join-Path $target (Join-Path '1.6\Assemblies' $legacyHarnessName)
+    $legacyHarnessPath = Join-Path $target (Join-Path '1.7\Assemblies' $legacyHarnessName)
     if (Test-Path -LiteralPath $legacyHarnessPath -PathType Leaf) {
         Remove-Item -LiteralPath $legacyHarnessPath -Force
         $removedLegacyHarness = $true

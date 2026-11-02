@@ -37,6 +37,12 @@ This roadmap tracks planned Wildlife features and their intended implementation 
 
 The 1.7 migration and third-party dependency decoupling are independent release gates: a working 1.7 build with mandatory integrations is **not** `WILD-DEP-01` complete, and an independently loading core still must prove the 1.7-only package and runtime contract. Do not mark any row complete from source review or compilation alone; record exact RimTest and in-game evidence.
 
+### WILD-17-01A — build-target preparation (not 1.7 support)
+
+The first migration slice changes versioned **Release build outputs** and installed-companion **assembly reference defaults** to `1.7` and aligns build/install validation paths. Deployment is deliberately blocked until the **target** mod package advertises only 1.7, has a `v1.7` LoadFolders entry, and carries relocated 1.7 Defs. This is a staging change, **not** a compatible release; existing `About/About.xml`, `LoadFolders.xml`, 1.6 content/graphics, and tracked 1.6 DLLs remain unchanged.
+
+Remaining WILD-17-01 gates: relocate all text/binary assets and remove obsolete packaged 1.6 outputs; build fresh 1.7 DLLs against actual RimWorld 1.7 references and supported companions; audit 1.7 Def/API changes; then switch metadata and LoadFolders atomically. WILD-DEP-01/02 must eliminate mandatory companion dependencies and establish independent loading before declaring a standalone release. Run RimTest's doctor/affected workflow and real 1.7 runtime/save-load matrix before checking off either milestone. Static source validation is not a substitute.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.

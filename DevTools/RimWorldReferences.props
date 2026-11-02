@@ -11,14 +11,14 @@
     <KnowledgeFrameworkPath Condition="'$(KnowledgeFrameworkPath)' == ''">$(KnowledgeFrameworkRoot)</KnowledgeFrameworkPath>
     <KnowledgeFrameworkPath Condition="'$(KnowledgeFrameworkPath)' == ''">$(KNOWLEDGE_FRAMEWORK_PATH)</KnowledgeFrameworkPath>
     <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and $([System.IO.Path]::GetExtension('$(KnowledgeFrameworkPath)')) == '.dll'">$(KnowledgeFrameworkPath)</KnowledgeFrameworkAssemblyPath>
-    <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and '$(KnowledgeFrameworkPath)' != ''">$(KnowledgeFrameworkPath)\1.6\Assemblies\KnowledgeFramework.dll</KnowledgeFrameworkAssemblyPath>
+    <KnowledgeFrameworkAssemblyPath Condition="'$(KnowledgeFrameworkAssemblyPath)' == '' and '$(KnowledgeFrameworkPath)' != ''">$(KnowledgeFrameworkPath)\1.7\Assemblies\KnowledgeFramework.dll</KnowledgeFrameworkAssemblyPath>
     <InsightCanvasPath Condition="'$(InsightCanvasPath)' == ''">$(InsightCanvasRoot)</InsightCanvasPath>
     <InsightCanvasPath Condition="'$(InsightCanvasPath)' == ''">$(INSIGHT_CANVAS_PATH)</InsightCanvasPath>
     <InsightCanvasAssemblyPath Condition="'$(InsightCanvasAssemblyPath)' == '' and $([System.IO.Path]::GetExtension('$(InsightCanvasPath)')) == '.dll'">$(InsightCanvasPath)</InsightCanvasAssemblyPath>
-    <InsightCanvasAssemblyPath Condition="'$(InsightCanvasAssemblyPath)' == '' and '$(InsightCanvasPath)' != ''">$(InsightCanvasPath)\1.6\Assemblies\InsightCanvas.dll</InsightCanvasAssemblyPath>
+    <InsightCanvasAssemblyPath Condition="'$(InsightCanvasAssemblyPath)' == '' and '$(InsightCanvasPath)' != ''">$(InsightCanvasPath)\1.7\Assemblies\InsightCanvas.dll</InsightCanvasAssemblyPath>
     <DeferredRealityFrameworkRoot Condition="'$(DeferredRealityFrameworkRoot)' == ''">$(DeferredRealityFrameworkPath)</DeferredRealityFrameworkRoot>
     <DeferredRealityFrameworkRoot Condition="'$(DeferredRealityFrameworkRoot)' == ''">$(DEFERRED_REALITY_FRAMEWORK_PATH)</DeferredRealityFrameworkRoot>
-    <DeferredRealityFrameworkAssemblyPath Condition="'$(DeferredRealityFrameworkAssemblyPath)' == '' and '$(DeferredRealityFrameworkRoot)' != ''">$(DeferredRealityFrameworkRoot)\1.6\Assemblies\DeferredRealityFramework.dll</DeferredRealityFrameworkAssemblyPath>
+    <DeferredRealityFrameworkAssemblyPath Condition="'$(DeferredRealityFrameworkAssemblyPath)' == '' and '$(DeferredRealityFrameworkRoot)' != ''">$(DeferredRealityFrameworkRoot)\1.7\Assemblies\DeferredRealityFramework.dll</DeferredRealityFrameworkAssemblyPath>
     <DeferredRealityManagedPath Condition="'$(DeferredRealityManagedPath)' == ''">$(WildlifeManagedPath)</DeferredRealityManagedPath>
     <DeferredRealityHarmonyPath Condition="'$(DeferredRealityHarmonyPath)' == ''">$(WildlifeHarmonyPath)</DeferredRealityHarmonyPath>
   </PropertyGroup>
