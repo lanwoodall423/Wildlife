@@ -49,6 +49,14 @@ The next migration slice stages **33 byte-identical XML assets** from `1.6/` int
 
 The remaining **13 PNG graphics and four compiled DLLs** are not copied. The original `1.6/` package, `About/About.xml`, and `LoadFolders.xml` stay unchanged; the new `1.7/` text payload is not loaded or advertised. See `DevTools/WILDLIFE_17_STAGING.md` for the binary inventory, 1.7 rebuild gates, eventual 1.7-only package switch, standalone companion fallback work, and RimTest evidence required before release.
 
+### WILD-DEP-01A — vanilla-only core shell (not standalone gameplay support)
+
+The RimWorld 1.7 **build candidate** for `Wildlife.dll` now compiles only the `WildlifeMod` source entry point and references only RimWorld/Unity assemblies. It no longer depends at **build time** on `Herds.csproj`, `PacksAndPredators.csproj`, or `0Harmony.dll`. This creates a clear native-core assembly boundary, **not** a complete gameplay replacement: the existing Herds/Packs simulation, patch-dependent behavior, Knowledge Framework integration, Insight Canvas UI, and optional Deferred Reality adapter remain in their unchanged source projects.
+
+The native mod settings page adds one conservative field view: counts of spawned, live, factionless animal Pawns in unfogged cells of the selected map. This is a momentary observation only; it cannot identify hidden animals, estimate latent wildlife, infer species knowledge or change saved state. Future standalone work must restore useful vanilla-path ecology/gameplay, native settings/Journal controls, and safe persistent behavior while moving optional features behind conditionally loaded adapters.
+
+This candidate does not change `About/About.xml`, `LoadFolders.xml`, packaged 1.6 binaries, or game startup. Until 1.7 compilation, RimTest-owned real mod-load checks, no-companion checks, and save/load verification exist, do **not** claim standalone RimWorld 1.7 compatibility or remove mandatory dependencies.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.

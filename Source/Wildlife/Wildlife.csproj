@@ -1,24 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Library</OutputType><TargetFramework>net472</TargetFramework><RootNamespace>Wildlife</RootNamespace><AssemblyName>Wildlife</AssemblyName><LangVersion>latest</LangVersion><Deterministic>true</Deterministic><AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath><GenerateAssemblyInfo>false</GenerateAssemblyInfo><GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>Wildlife</RootNamespace>
+    <AssemblyName>Wildlife</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <Optimize>true</Optimize><OutputPath>..\..\1.7\Assemblies\</OutputPath><DebugType>none</DebugType>
-  </PropertyGroup>
-  <PropertyGroup>
-    <WildlifeRequireHarmony>true</WildlifeRequireHarmony>
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\1.7\Assemblies\</OutputPath>
+    <DebugType>none</DebugType>
   </PropertyGroup>
   <Import Project="..\..\DevTools\RimWorldReferences.props" />
   <ItemGroup>
-    <Compile Remove="DeferredRealityWildlifeAdapter.cs" />
-    <Compile Remove="DeferredRealityWildlifeAdjacent.cs" />
-    <Compile Remove="DeferredRealityWildlifeIntegrationChecks.cs" />
-    <Compile Remove="DeferredRealityWildlifePolicy.cs" />
-    <ProjectReference Include="..\Herds\Herds.csproj" /><ProjectReference Include="..\Packs\PacksAndPredators.csproj" />
-    <Reference Include="Assembly-CSharp"><HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <!-- Core compile boundary: adapters and legacy gameplay assemblies are separate. -->
+    <Compile Include="WildlifeMod.cs" />
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(WildlifeManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(WildlifeManagedPath)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(WildlifeManagedPath)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 </Project>

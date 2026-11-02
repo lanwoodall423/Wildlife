@@ -205,6 +205,32 @@ foreach ($project in $normalProjects) {
             'non-UI assembly has no unnecessary Insight Canvas coupling'
     }
 }
+# WILD-DEP-01A: the base Wildlife DLL has an explicit, vanilla-only compile
+# boundary. Legacy Herds/Packs remain separately migrated and are not described
+# as optional or independently loadable by this check.
+$coreProjectText = ReadText 'Source\Wildlife\Wildlife.csproj'
+$coreSourceText = ReadText 'Source\Wildlife\WildlifeMod.cs'
+$coreCompiles = @([regex]::Matches($coreProjectText, '<Compile\s+Include="([^"]+)"') |
+    ForEach-Object { $_.Groups[1].Value })
+$coreReferences = @([regex]::Matches($coreProjectText, '<Reference\s+Include="([^"]+)"') |
+    ForEach-Object { $_.Groups[1].Value })
+$coreAllowedReferences = @('Assembly-CSharp', 'UnityEngine.CoreModule',
+    'UnityEngine.IMGUIModule', 'UnityEngine.TextRenderingModule')
+Check 'native-core-explicit-compile' ($coreProjectText -match '<EnableDefaultCompileItems>false</EnableDefaultCompileItems>' -and
+    $coreCompiles.Count -eq 1 -and $coreCompiles[0] -eq 'WildlifeMod.cs') 'native core compiles only its independent entry point'
+Check 'native-core-no-external-build-references' ($coreProjectText -notmatch '<ProjectReference\b' -and
+    $coreProjectText -notmatch '<WildlifeRequire(?:Harmony|KnowledgeFramework|InsightCanvas)>true' -and
+    $coreReferences.Count -eq 4 -and
+    @($coreReferences | Where-Object { $coreAllowedReferences -notcontains $_ }).Count -eq 0) 'native Wildlife DLL references only supported game/Unity assemblies'
+Check 'native-core-no-third-party-types' ($coreSourceText -notmatch '\b(HarmonyLib|KnowledgeFramework|InsightCanvas|DeferredReality)\b' -and
+    $coreSourceText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;') 'native entry point does not use companion mod types'
+Check 'native-core-safe-observation' ($coreSourceText -match 'Find\.CurrentMap' -and
+    $coreSourceText -match 'AllPawnsSpawned' -and
+    $coreSourceText -match 'pawn\.Position\.Fogged\(map\)' -and
+    $coreSourceText -match 'pawn\.Faction != null' -and
+    $coreSourceText -match 'pawn\.Dead' -and
+    $coreSourceText -notmatch '\bScribe_') 'field view only counts actual unfogged unowned live animals'
+
 $bridgeProject = ReadText 'Source\BridgeTools\Wildlife.BridgeTools.csproj'
 $bridgeToolText = ReadText 'Source\BridgeTools\WildlifeBridgeTools.cs'
 $suiteText = ReadText 'Source\BridgeTools\WildlifeInGameTestSuite.cs'
