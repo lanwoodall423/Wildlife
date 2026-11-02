@@ -63,6 +63,12 @@ The standalone `Wildlife.dll` candidate now explicitly compiles a second vanilla
 
 A native mod setting can pause new sightings without destroying the existing saved field log. New Scribe keys are independent from all legacy Herds/Packs saves. The settings UI displays a small recent history and labels live unfogged counts separately from colonist-witnessed sightings. Source checks verify this boundary, but **only a real RimWorld 1.7 build plus RimTest save/load and no-companion checks** can establish compatibility. No packaged binaries, `About` dependencies, LoadFolders, or legacy gameplay have changed in this slice.
 
+### WILD-DEP-01C — native witnessed field journal window (source only)
+
+The native-only `Wildlife.dll` candidate now explicitly compiles a third source, `WildlifeNativeFieldJournalWindow.cs`, alongside the mod entry point and saved witnessed field-log component. The vanilla `Verse.Window` opens from Wildlife settings on the selected map and displays only up to 48 **previously recorded, colonist-witnessed** species entries. It supports case-insensitive species filtering, sorting by latest verified sighting or by species name, and a scrollable history of first/last confirmed game ticks and sampled-check counts. It never reads unseen animals, estimates populations, or changes world state.
+
+This provides a usable initial native Journal fallback without depending on third-party UI assemblies. The legacy full Journal, Herds/Packs gameplay, third-party integrations, and RimWorld 1.7 binaries remain separate unresolved migration work. The candidate is source-only and still requires compilation, actual RimTest 1.7 no-companion load/save verification, and developer review before claims of runtime support.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.

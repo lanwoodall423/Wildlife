@@ -211,6 +211,7 @@ foreach ($project in $normalProjects) {
 $coreProjectText = ReadText 'Source\Wildlife\Wildlife.csproj'
 $coreSourceText = ReadText 'Source\Wildlife\WildlifeMod.cs'
 $coreFieldLogText = ReadText 'Source\Wildlife\WildlifeNativeFieldLog.cs'
+$coreJournalText = ReadText 'Source\Wildlife\WildlifeNativeFieldJournalWindow.cs'
 $coreCompiles = @([regex]::Matches($coreProjectText, '<Compile\s+Include="([^"]+)"') |
     ForEach-Object { $_.Groups[1].Value })
 $coreReferences = @([regex]::Matches($coreProjectText, '<Reference\s+Include="([^"]+)"') |
@@ -218,8 +219,9 @@ $coreReferences = @([regex]::Matches($coreProjectText, '<Reference\s+Include="([
 $coreAllowedReferences = @('Assembly-CSharp', 'UnityEngine.CoreModule',
     'UnityEngine.IMGUIModule', 'UnityEngine.TextRenderingModule')
 Check 'native-core-explicit-compile' ($coreProjectText -match '<EnableDefaultCompileItems>false</EnableDefaultCompileItems>' -and
-    $coreCompiles.Count -eq 2 -and $coreCompiles[0] -eq 'WildlifeMod.cs' -and
-    $coreCompiles[1] -eq 'WildlifeNativeFieldLog.cs') 'native core includes only vanilla entry point and witnessed field log'
+    $coreCompiles.Count -eq 3 -and $coreCompiles[0] -eq 'WildlifeMod.cs' -and
+    $coreCompiles[1] -eq 'WildlifeNativeFieldLog.cs' -and
+    $coreCompiles[2] -eq 'WildlifeNativeFieldJournalWindow.cs') 'native core includes only the vanilla entry point, witnessed field log and journal window'
 Check 'native-core-no-external-build-references' ($coreProjectText -notmatch '<ProjectReference\b' -and
     $coreProjectText -notmatch '<WildlifeRequire(?:Harmony|KnowledgeFramework|InsightCanvas)>true' -and
     $coreReferences.Count -eq 4 -and
@@ -227,7 +229,9 @@ Check 'native-core-no-external-build-references' ($coreProjectText -notmatch '<P
 Check 'native-core-no-third-party-types' ($coreSourceText -notmatch '\b(HarmonyLib|KnowledgeFramework|InsightCanvas|DeferredReality)\b' -and
     $coreSourceText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;' -and
     $coreFieldLogText -notmatch '\b(HarmonyLib|KnowledgeFramework|InsightCanvas|DeferredReality)\b' -and
-    $coreFieldLogText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;') 'native code does not reference companion mod types'
+    $coreFieldLogText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;' -and
+    $coreJournalText -notmatch '\b(HarmonyLib|KnowledgeFramework|InsightCanvas|DeferredReality)\b' -and
+    $coreJournalText -notmatch '(?m)^\s*using\s+(Herds|Packs)\s*;') 'native code does not reference companion mod types'
 Check 'native-core-safe-observation' ($coreSourceText -match 'Find\.CurrentMap' -and
     $coreSourceText -match 'AllPawnsSpawned' -and
     $coreSourceText -match 'pawn\.Position\.Fogged\(map\)' -and
@@ -251,6 +255,20 @@ Check 'native-log-independent-save-and-opt-out' ($coreFieldLogText -match 'nativ
     $coreFieldLogText -match 'WildlifeMod\.Settings\?\.recordWitnessedSightings' -and
     $coreSourceText -match 'CheckboxLabeled\(') 'native settings and sightings use separate Scribe keys and are user-configurable'
 
+
+Check 'native-journal-vanilla-window' ($coreJournalText -match 'class WildlifeNativeFieldJournalWindow : Window' -and
+    $coreJournalText -match 'override void DoWindowContents\(' -and
+    $coreSourceText -match 'Find\.WindowStack\.Add\(new WildlifeNativeFieldJournalWindow\(map\)\)') 'native settings opens a vanilla window for selected map'
+Check 'native-journal-read-only' ($coreJournalText -match 'log\.Records' -and
+    $coreJournalText -notmatch '\b(AllPawnsSpawned|DefDatabase|Scribe_|RecordWitnessedSpecies)\b' -and
+    $coreJournalText -match 'firstWitnessedTick' -and
+    $coreJournalText -match 'lastWitnessedTick' -and
+    $coreJournalText -match 'sampledSightings') 'journal renders persisted witnessed observations only'
+Check 'native-journal-bounded-filter-scroll' ($coreJournalText -match 'entries\.Count >= 48' -and
+    $coreJournalText -match 'StringComparison\.OrdinalIgnoreCase' -and
+    $coreJournalText -match 'Widgets\.TextField' -and
+    $coreJournalText -match 'Widgets\.BeginScrollView' -and
+    $coreJournalText -match 'Widgets\.EndScrollView') 'journal has bounded rows, case-insensitive search and scrolling'
 
 $bridgeProject = ReadText 'Source\BridgeTools\Wildlife.BridgeTools.csproj'
 $bridgeToolText = ReadText 'Source\BridgeTools\WildlifeBridgeTools.cs'

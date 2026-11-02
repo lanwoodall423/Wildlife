@@ -31,9 +31,15 @@ All Herds, Packs, Insight Canvas, Knowledge Framework, Harmony and optional Defe
 
 ## Witnessed wildlife field log staged (WILD-DEP-01B)
 
-The native-core candidate now compiles `WildlifeMod.cs` plus `WildlifeNativeFieldLog.cs` only. A bounded vanilla `MapComponent` preserves sampled **colonist-witnessed** wild-animal species sightings, recording first and last game ticks and the number of sampled intervals with direct line-of-sight evidence. It limits scans to 256 spawned Pawns and 24 colonists every 1,800 ticks and stores up to 48 species. The native UI labels its unfogged live-map view separately from the sampled, witnessed saved log; a persisted toggle pauses new field-log collection without rewriting old saves.
+At WILD-DEP-01B, the native-core candidate compiled `WildlifeMod.cs` plus `WildlifeNativeFieldLog.cs` only. A bounded vanilla `MapComponent` preserves sampled **colonist-witnessed** wild-animal species sightings, recording first and last game ticks and the number of sampled intervals with direct line-of-sight evidence. It limits scans to 256 spawned Pawns and 24 colonists every 1,800 ticks and stores up to 48 species. The native UI labels its unfogged live-map view separately from the sampled, witnessed saved log; a persisted toggle pauses new field-log collection without rewriting old saves.
 
 These new native Scribe keys do not migrate or reinterpret Knowledge Framework, Herds or Packs save data. The feature is a small source-level native field journal, **not** the full wildlife simulation or verified 1.7 persistence contract. No game assembly build or RimTest run has established its runtime behavior.
+
+## Native witnessed field journal window staged (WILD-DEP-01C)
+
+The native assembly explicitly includes `WildlifeNativeFieldJournalWindow.cs` in addition to `WildlifeMod.cs` and `WildlifeNativeFieldLog.cs`. Wildlife settings opens a vanilla, scrollable journal of **already saved witness records** with bounded rows, species filtering, recent/species sorting, first and last observed game ticks, and sampled-sighting counts. There is no new persistence, gameplay mutation, companion reference, or hidden-animal disclosure. This is a narrow native Journal fallback, not a replacement for the previous extensive wildlife simulation and UI.
+
+It remains uncompiled and unverified in RimWorld 1.7 until the RimTest-managed build, save/load and no-companion tests succeed; the 1.6 package and its mandatory dependencies remain unchanged.
 
 ## Required gates before switching to 1.7-only
 

@@ -45,6 +45,9 @@ namespace Wildlife
                 return;
             }
 
+            if (Widgets.ButtonText(listing.GetRect(30f), "Open witnessed field journal"))
+                Find.WindowStack.Add(new WildlifeNativeFieldJournalWindow(map));
+
             // Unfogged animals are a LIVE snapshot, not necessarily witnessed by
             // colonists. Keep that distinct from the persisted field log below.
             Dictionary<ThingDef, int> counts = new Dictionary<ThingDef, int>();

@@ -22,6 +22,7 @@
     <!-- Core compile boundary: adapters and legacy gameplay assemblies are separate. -->
     <Compile Include="WildlifeMod.cs" />
     <Compile Include="WildlifeNativeFieldLog.cs" />
+    <Compile Include="WildlifeNativeFieldJournalWindow.cs" />
     <Reference Include="Assembly-CSharp">
       <HintPath>$(WildlifeManagedPath)\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
