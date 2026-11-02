@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "projectId": "wildlife",
+  "displayName": "Wildlife",
+  "capabilities": {
+    "checks": [],
+    "transforms": [],
+    "localOperations": []
+  }
+}
