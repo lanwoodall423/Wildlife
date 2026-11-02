@@ -1,6 +1,6 @@
 # Portable Wildlife validation
 
-**WILD-17-01A (migration in progress):** The paths and commands below describe the **future 1.7 build target**, not a validated 1.7 package. The tracked game Defs, textures, checked-in 1.6 assemblies, `About/About.xml`, and `LoadFolders.xml` remain 1.6 until the content migration and native/optional integration work has been validated. The install script deliberately refuses to deploy 1.7 binaries to an unmigrated target. Do not release or install this intermediate configuration. RimTest remains the required runtime owner; no in-game compatibility result is implied by the source changes.
+**WILD-17-01A/B (migration in progress):** The paths and commands below describe the **future 1.7 build target**, not a validated 1.7 package. The 33 original 1.6 XML Defs/localization/patch files have initial 1.7 mirrors for inspection, but 13 textures and four 1.6 compiled DLLs have not migrated. `About/About.xml` and `LoadFolders.xml` still load the 1.6 package until the content migration and native/optional integration work has been validated. See `DevTools/WILDLIFE_17_STAGING.md` for exact gates. The install script deliberately refuses to deploy 1.7 binaries to an unmigrated target. Do not release or install this intermediate configuration. RimTest remains the required runtime owner; no in-game compatibility result is implied by the source changes.
 
 Set the build and coordinator locations explicitly:
 

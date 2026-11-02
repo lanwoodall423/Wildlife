@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <RulePackDef>
+    <defName>Herds_LogSignalAlarm</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A warning call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalHumanDanger</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A warning call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalAllClear</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A social call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalContact</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A social call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalFood</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A resource call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalWater</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A resource call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+  <RulePackDef>
+    <defName>Herds_LogSignalCoordination</defName>
+    <rulePack>
+      <rulesStrings>
+        <li>r_logentry->A hunting call was heard.</li>
+      </rulesStrings>
+    </rulePack>
+  </RulePackDef>
+</Defs>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <HediffDef>
+    <defName>Herds_RanchGuardian</defName>
+    <label>ranch guardian</label>
+    <description>This trained animal is assigned to patrol a ranch anchor and deter wild predators.</description>
+    <hediffClass>Hediff</hediffClass><isBad>false</isBad>
+  </HediffDef>
+  <HediffDef>
+    <defName>Herds_HuntedAdrenaline</defName>
+    <label>hunted - adrenaline</label>
+    <description>Immediate danger drives this animal through its wounds for a short time.</description>
+    <hediffClass>HediffWithComps</hediffClass><isBad>false</isBad>
+    <stages><li><statOffsets><MoveSpeed>0.70</MoveSpeed></statOffsets></li></stages>
+    <comps><li Class="Herds.HediffCompProperties_HuntTimed"><durationTicks>3600</durationTicks></li></comps>
+  </HediffDef>
+  <HediffDef>
+    <defName>Herds_HuntingOnTrack</defName>
+    <label>hunting - on track</label>
+    <description>This hunter has a fresh trail and is moving efficiently.</description>
+    <hediffClass>HediffWithComps</hediffClass><isBad>false</isBad>
+    <stages><li><statOffsets><MoveSpeed>0.35</MoveSpeed></statOffsets></li></stages>
+    <comps><li Class="Herds.HediffCompProperties_HuntTimed"><durationTicks>1800</durationTicks></li></comps>
+  </HediffDef>
+  <HediffDef>
+    <defName>Herds_HuntFatigue</defName>
+    <label>hunt fatigue</label>
+    <description>Prolonged pursuit has left this hunter winded.</description>
+    <hediffClass>HediffWithComps</hediffClass><isBad>true</isBad>
+    <stages><li><statOffsets><MoveSpeed>-0.30</MoveSpeed></statOffsets></li></stages>
+    <comps><li Class="Herds.HediffCompProperties_HuntTimed"><durationTicks>3000</durationTicks></li></comps>
+  </HediffDef>
+  <HediffDef>
+    <defName>Herds_FlightBurst</defName>
+    <label>airborne escape</label>
+    <description>This bird has burst into flight to escape a ground threat. It moves rapidly until it can regroup.</description>
+    <hediffClass>HediffWithComps</hediffClass><isBad>false</isBad>
+    <stages><li><statOffsets><MoveSpeed>1.60</MoveSpeed></statOffsets></li></stages>
+    <comps><li Class="Herds.HediffCompProperties_HuntTimed"><durationTicks>1200</durationTicks></li></comps>
+  </HediffDef>
+</Defs>

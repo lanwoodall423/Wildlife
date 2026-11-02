@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Defs>
+  <WorldObjectDef>
+    <defName>Wildlife_DeferredMapParent</defName>
+    <label>wildlife region</label>
+    <description>A Wildlife region materialized from deferred ecological state.</description>
+    <worldObjectClass>DeferredReality.Wildlife.WildlifeDeferredMapParent</worldObjectClass>
+    <mapGenerator>Wildlife_DeferredRegionMap</mapGenerator>
+    <overrideMapSize>(200, 1, 200)</overrideMapSize>
+    <canBePlayerHome>false</canBePlayerHome>
+    <canHaveMap>true</canHaveMap>
+    <isTempIncidentMapOwner>true</isTempIncidentMapOwner>
+    <selectable>true</selectable>
+    <saved>true</saved>
+  </WorldObjectDef>
+
+  <MapGeneratorDef ParentName="MapCommonBase">
+    <defName>Wildlife_DeferredRegionMap</defName>
+  </MapGeneratorDef>
+</Defs>

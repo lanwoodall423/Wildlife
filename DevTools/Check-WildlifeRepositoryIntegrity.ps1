@@ -32,7 +32,7 @@ $required = @(
     'DevTools\AssemblyMetadataReader\AssemblyMetadataReader.csproj',
     'DevTools\Read-AssemblyMetadata.ps1', 'DevTools\Verify-DeferredRealityIntegration.ps1',
     'DevTools\Verify-KnowledgeFramework.ps1', 'DevTools\Check-WildlifeTests.ps1', 'Source\Herds\Herds.csproj',
-    'DevTools\PORTABLE_VALIDATION.md', 'Source\Herds\WildlifeInsightUi.cs',
+    'DevTools\PORTABLE_VALIDATION.md', 'DevTools\WILDLIFE_17_STAGING.md', 'Source\Herds\WildlifeInsightUi.cs',
     'Source\Herds\WildlifeInspectorUi.cs', 'WILDLIFE_MIGRATION.md',
     'Source\Packs\PacksAndPredators.csproj', 'Source\Wildlife\Wildlife.csproj',
     'Source\Wildlife\DeferredReality.Wildlife.csproj',
@@ -94,6 +94,28 @@ foreach ($project in $versionedProjects) {
 Check '1.7-companion-defaults' ($propsText -match 'KnowledgeFrameworkPath.*1\.7' -and
     $propsText -match 'InsightCanvasPath.*1\.7' -and
     $propsText -match 'DeferredRealityFrameworkRoot.*1\.7') 'companion build references target 1.7'
+
+# WILD-17-01B is a staging gate, not a claim that these original XML
+# definitions have been vetted against RimWorld 1.7's Def/API changes.
+$legacyXmlRoot = Join-Path $root '1.6'
+$stagedXmlRoot = Join-Path $root '1.7'
+$legacyXmlFiles = @(Get-ChildItem -LiteralPath $legacyXmlRoot -Recurse -Filter '*.xml' -File)
+Check '1.7-text-staging:baseline-count' ($legacyXmlFiles.Count -eq 33) 'expected original 33 XML text assets'
+foreach ($legacyXmlFile in $legacyXmlFiles) {
+    $relative = $legacyXmlFile.FullName.Substring($legacyXmlRoot.Length + 1)
+    $stagedXmlPath = Join-Path $stagedXmlRoot $relative
+    $exists = Test-Path -LiteralPath $stagedXmlPath -PathType Leaf
+    Check "1.7-text-staging:$relative" $exists '1.7 counterpart exists'
+    if ($exists) {
+        $legacyHash = (Get-FileHash -LiteralPath $legacyXmlFile.FullName -Algorithm SHA256).Hash
+        $stagedHash = (Get-FileHash -LiteralPath $stagedXmlPath -Algorithm SHA256).Hash
+        Check "1.7-initial-mirror:$relative" ($legacyHash -eq $stagedHash) 'initial 1.7 text copy is byte-identical'
+    }
+}
+Check '1.7-stage:not-advertised' (([string]$about.ModMetaData.supportedVersions.li -eq '1.6') -and
+    $loadText -match '<v1\.6>' -and $loadText -notmatch '<v1\.7>') 'unverified 1.7 payload is not loaded or advertised'
+Check '1.7-stage:drf-only-conditional' ((Test-Path -LiteralPath (Join-Path $root '1.7\OptionalDeferredReality\Defs\WorldObjectDefs\DeferredReality_Wildlife.xml') -PathType Leaf) -and
+    -not (Test-Path -LiteralPath (Join-Path $root '1.7\Defs\WorldObjectDefs\DeferredReality_Wildlife.xml') -PathType Leaf)) 'deferred region Def remains optional'
 
 Check 'package:wildlife' ($about.ModMetaData.packageId -eq 'Lan.Wildlife') 'exact Wildlife package ID'
 Check 'package:knowledge-framework' (@($about.ModMetaData.modDependencies.li.packageId) -contains 'lan.knowledgeframework') 'exact Knowledge Framework package ID'

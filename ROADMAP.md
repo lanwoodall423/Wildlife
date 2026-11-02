@@ -43,6 +43,12 @@ The first migration slice changes versioned **Release build outputs** and instal
 
 Remaining WILD-17-01 gates: relocate all text/binary assets and remove obsolete packaged 1.6 outputs; build fresh 1.7 DLLs against actual RimWorld 1.7 references and supported companions; audit 1.7 Def/API changes; then switch metadata and LoadFolders atomically. WILD-DEP-01/02 must eliminate mandatory companion dependencies and establish independent loading before declaring a standalone release. Run RimTest's doctor/affected workflow and real 1.7 runtime/save-load matrix before checking off either milestone. Static source validation is not a substitute.
 
+### WILD-17-01B — text asset mirrors (staged, not loaded)
+
+The next migration slice stages **33 byte-identical XML assets** from `1.6/` into matching `1.7/` locations: 27 Def files, 2 localization files, 3 patch files, and 1 optional Deferred Reality Def. Repository integrity now verifies the initial mirrors and their optional integration placement. This prepares a concrete 1.7 Def/API review surface; copying old XML is **not** 1.7 compatibility proof.
+
+The remaining **13 PNG graphics and four compiled DLLs** are not copied. The original `1.6/` package, `About/About.xml`, and `LoadFolders.xml` stay unchanged; the new `1.7/` text payload is not loaded or advertised. See `DevTools/WILDLIFE_17_STAGING.md` for the binary inventory, 1.7 rebuild gates, eventual 1.7-only package switch, standalone companion fallback work, and RimTest evidence required before release.
+
 ### Existing baseline and design constraints
 
 - `About/About.xml` currently advertises 1.6 and lists Harmony, Knowledge Framework, and Insight Canvas as mandatory; `LoadFolders.xml` currently loads from `1.6`.

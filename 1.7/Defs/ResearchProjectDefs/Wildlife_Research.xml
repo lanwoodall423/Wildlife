@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ResearchTabDef>
+    <defName>Wildlife</defName>
+    <label>Wildlife</label>
+    <generalTitle>Wildlife research</generalTitle>
+    <generalDescription>Develop organized hunting, stewardship, wildlife monitoring, and applied ecology. Natural animal behavior does not require research.</generalDescription>
+  </ResearchTabDef>
+
+  <ResearchProjectDef>
+    <defName>Wildlife_Fieldcraft</defName>
+    <label>organized hunting</label>
+    <description>Formalize coordinated hunting techniques, advanced tracking, camouflage, scent masking, snares, and specialist positioning.</description>
+    <baseCost>500</baseCost>
+    <techLevel>Neolithic</techLevel>
+    <tab>Wildlife</tab>
+    <researchViewX>1</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>Wildlife_Stewardship</defName>
+    <label>wildlife stewardship</label>
+    <description>Establish reserves, migration corridors, hunting regulations, population goals, and the formal role of Wildlife Steward.</description>
+    <baseCost>700</baseCost>
+    <techLevel>Neolithic</techLevel>
+    <tab>Wildlife</tab>
+    <prerequisites>
+      <li>Wildlife_Fieldcraft</li>
+      <li>TreeSowing</li>
+    </prerequisites>
+    <researchViewX>3</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>Wildlife_HuntingExpedition</defName>
+    <label>wildlife expedition</label>
+    <description>Organize supplied wildlife parties that travel beyond the colony map to scout, track, hunt, capture, tag, or redirect regional wildlife.</description>
+    <baseCost>900</baseCost>
+    <techLevel>Medieval</techLevel>
+    <tab>Wildlife</tab>
+    <prerequisites>
+      <li>Wildlife_Fieldcraft</li>
+    </prerequisites>
+    <researchViewX>2</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>Wildlife_Telemetry</defName>
+    <label>wildlife telemetry</label>
+    <description>Use cameras, field optics, radio tracking collars, and automated surveys to monitor animals and regional migration.</description>
+    <baseCost>1800</baseCost>
+    <techLevel>Industrial</techLevel>
+    <tab>Wildlife</tab>
+    <prerequisites>
+      <li>Wildlife_Stewardship</li>
+      <li>Electricity</li>
+    </prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <researchViewX>4</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>Wildlife_AppliedEcology</defName>
+    <label>applied ecology</label>
+    <description>Model habitat capacity, population pressure, disease risk, migration, and the likely consequences of ecological interventions.</description>
+    <baseCost>2300</baseCost>
+    <techLevel>Industrial</techLevel>
+    <tab>Wildlife</tab>
+    <prerequisites>
+      <li>Wildlife_Telemetry</li>
+      <li>MicroelectronicsBasics</li>
+    </prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <researchViewX>5</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+</Defs>

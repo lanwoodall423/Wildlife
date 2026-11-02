@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <RecipeDef>
+    <defName>Herds_MakeCamouflageSupplies</defName><label>make camouflage supplies</label><description>Prepare five sets of field camouflage.</description>
+    <jobString>Making camouflage supplies.</jobString><workAmount>500</workAmount><workSkill>Crafting</workSkill>
+    <ingredients><li><filter><thingDefs><li>Cloth</li></thingDefs></filter><count>10</count></li></ingredients>
+    <fixedIngredientFilter><thingDefs><li>Cloth</li></thingDefs></fixedIngredientFilter>
+    <products><Herds_CamouflageSupplies>5</Herds_CamouflageSupplies></products><recipeUsers><li>CraftingSpot</li><li>HandTailoringBench</li><li>ElectricTailoringBench</li></recipeUsers>
+  </RecipeDef>
+  <RecipeDef>
+    <defName>Herds_MakeFieldBinoculars</defName><label>make field binoculars</label><description>Assemble simple field optics.</description>
+    <jobString>Making field binoculars.</jobString><workAmount>1800</workAmount><workSkill>Crafting</workSkill>
+    <ingredients><li><filter><thingDefs><li>Steel</li></thingDefs></filter><count>30</count></li><li><filter><thingDefs><li>ComponentIndustrial</li></thingDefs></filter><count>1</count></li></ingredients>
+    <fixedIngredientFilter><thingDefs><li>Steel</li><li>ComponentIndustrial</li></thingDefs></fixedIngredientFilter>
+    <products><Herds_FieldBinoculars>1</Herds_FieldBinoculars></products><recipeUsers><li>TableMachining</li></recipeUsers>
+  </RecipeDef>
+  <RecipeDef>
+    <defName>Herds_MakeTrackingCollar</defName><label>make wildlife tracking collar</label><description>Assemble a rugged radio collar for wildlife telemetry.</description>
+    <jobString>Making a wildlife tracking collar.</jobString><workAmount>2200</workAmount><workSkill>Crafting</workSkill>
+    <ingredients><li><filter><thingDefs><li>Steel</li></thingDefs></filter><count>10</count></li><li><filter><thingDefs><li>ComponentIndustrial</li></thingDefs></filter><count>1</count></li></ingredients>
+    <fixedIngredientFilter><thingDefs><li>Steel</li><li>ComponentIndustrial</li></thingDefs></fixedIngredientFilter>
+    <products><Herds_TrackingCollarItem>1</Herds_TrackingCollarItem></products><recipeUsers><li>TableMachining</li></recipeUsers>
+  </RecipeDef>
+</Defs>

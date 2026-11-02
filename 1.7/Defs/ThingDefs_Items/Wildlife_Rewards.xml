@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="ResourceBase">
+    <defName>Herds_WildlifeTrophy</defName>
+    <label>wildlife trophy</label>
+    <description>A carefully preserved horn, antler, tooth, feather, or other memorable part recovered from a difficult hunt. Collectors and storytellers value its history.</description>
+    <graphicData>
+      <texPath>UI/WildlifeKnowledge</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <color>(0.72,0.52,0.24)</color>
+    </graphicData>
+    <stackLimit>10</stackLimit>
+    <statBases>
+      <MarketValue>85</MarketValue>
+      <Mass>0.8</Mass>
+      <Flammability>0.25</Flammability>
+      <DeteriorationRate>0.5</DeteriorationRate>
+    </statBases>
+  </ThingDef>
+</Defs>

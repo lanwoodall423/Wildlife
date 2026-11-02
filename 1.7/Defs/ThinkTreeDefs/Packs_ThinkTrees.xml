@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThinkTreeDef>
+    <defName>Packs_CooperativeHunt</defName>
+    <insertTag>Animal_PreMain</insertTag>
+    <insertPriority>900</insertPriority>
+    <thinkRoot Class="Packs.JobGiver_PackHunt" />
+  </ThinkTreeDef>
+</Defs>

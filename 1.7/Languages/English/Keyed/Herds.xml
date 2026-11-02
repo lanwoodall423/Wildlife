@@ -1,0 +1,817 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <Herds_Group>Group</Herds_Group>
+  <Herds_PreyGroups>Prey Groups</Herds_PreyGroups>
+  <Herds_Hiding>Hiding</Herds_Hiding>
+  <Herds_WildlifeKnowledge>Wildlife</Herds_WildlifeKnowledge>
+  <Herds_AnimalMemoryTab>Memory</Herds_AnimalMemoryTab>
+  <Wildlife.UI.Inspector.Title>Wildlife inspection</Wildlife.UI.Inspector.Title>
+  <Wildlife.UI.Inspector.Unavailable>This wildlife record is unavailable.</Wildlife.UI.Inspector.Unavailable>
+  <Wildlife.UI.Inspector.UnknownAnimal>Unknown animal</Wildlife.UI.Inspector.UnknownAnimal>
+  <Wildlife.UI.Inspector.Focus.Help>Focus this subject on the map.</Wildlife.UI.Inspector.Focus.Help>
+  <Wildlife.UI.Inspector.Value.None>None</Wildlife.UI.Inspector.Value.None>
+  <Wildlife.UI.Inspector.Value.Unknown>Unknown</Wildlife.UI.Inspector.Value.Unknown>
+  <Wildlife.UI.Inspector.Status.Downed>Downed</Wildlife.UI.Inspector.Status.Downed>
+  <Wildlife.UI.Inspector.Status.MentalState>Mental state</Wildlife.UI.Inspector.Status.MentalState>
+  <Wildlife.UI.Inspector.Status.Idle>Idle</Wildlife.UI.Inspector.Status.Idle>
+  <Wildlife.UI.Inspector.Knowledge>Knowledge</Wildlife.UI.Inspector.Knowledge>
+  <Wildlife.UI.Inspector.KnowledgeProgress>Knowledge progress</Wildlife.UI.Inspector.KnowledgeProgress>
+  <Wildlife.UI.Inspector.Species>Species</Wildlife.UI.Inspector.Species>
+  <Wildlife.UI.Inspector.Observation>Observation</Wildlife.UI.Inspector.Observation>
+  <Wildlife.UI.Inspector.Observed>Observed</Wildlife.UI.Inspector.Observed>
+  <Wildlife.UI.Inspector.NotObserved>Not observed</Wildlife.UI.Inspector.NotObserved>
+  <Wildlife.UI.Inspector.Lifestyle>Lifestyle</Wildlife.UI.Inspector.Lifestyle>
+  <Wildlife.UI.Inspector.Survival>Survival</Wildlife.UI.Inspector.Survival>
+  <Wildlife.UI.Inspector.Refuge>Refuge</Wildlife.UI.Inspector.Refuge>
+  <Wildlife.UI.Inspector.DetailsLocked>More detail is locked</Wildlife.UI.Inspector.DetailsLocked>
+  <Wildlife.UI.Inspector.Knowledge.IdentityHelp>Observe, study trails, tend, or encounter this animal during a hunt to identify it and reveal more wildlife information.</Wildlife.UI.Inspector.Knowledge.IdentityHelp>
+  <Wildlife.UI.Inspector.ObservationHelp>Observe this animal or group nearby, or use an active observation post, to reveal its behavior and social structure.</Wildlife.UI.Inspector.ObservationHelp>
+  <Wildlife.UI.Inspector.Knowledge.SocialHelp>Tracked Animal Knowledge is required to reveal social structure and behavior.</Wildlife.UI.Inspector.Knowledge.SocialHelp>
+  <Wildlife.UI.Inspector.Independent>Independent animal</Wildlife.UI.Inspector.Independent>
+  <Wildlife.UI.Inspector.SoloBird>Solo bird</Wildlife.UI.Inspector.SoloBird>
+  <Wildlife.UI.Inspector.Individual>Individual profile</Wildlife.UI.Inspector.Individual>
+  <Wildlife.UI.Inspector.Solitary>Solitary</Wildlife.UI.Inspector.Solitary>
+  <Wildlife.UI.Inspector.Flock>Flock</Wildlife.UI.Inspector.Flock>
+  <Wildlife.UI.Inspector.SocialGroup>Social group</Wildlife.UI.Inspector.SocialGroup>
+  <Wildlife.UI.Inspector.Leader>Leader</Wildlife.UI.Inspector.Leader>
+  <Wildlife.UI.Inspector.Sentinel>Sentinel</Wildlife.UI.Inspector.Sentinel>
+  <Wildlife.UI.Inspector.CurrentBehavior>Current behavior</Wildlife.UI.Inspector.CurrentBehavior>
+  <Wildlife.UI.Inspector.State>State</Wildlife.UI.Inspector.State>
+  <Wildlife.UI.Inspector.Vigilance>Vigilance</Wildlife.UI.Inspector.Vigilance>
+  <Wildlife.UI.Inspector.Personality>Personality</Wildlife.UI.Inspector.Personality>
+  <Wildlife.UI.Inspector.HomeSafety>Home and safety</Wildlife.UI.Inspector.HomeSafety>
+  <Wildlife.UI.Inspector.Home>Home</Wildlife.UI.Inspector.Home>
+  <Wildlife.UI.Inspector.Threat>Threat</Wildlife.UI.Inspector.Threat>
+  <Wildlife.UI.Inspector.Enclosure>Enclosure</Wildlife.UI.Inspector.Enclosure>
+  <Wildlife.UI.Inspector.Season>Season</Wildlife.UI.Inspector.Season>
+  <Wildlife.UI.Inspector.Landscape>Landscape</Wildlife.UI.Inspector.Landscape>
+  <Wildlife.UI.Inspector.LocalSignals>Local signals</Wildlife.UI.Inspector.LocalSignals>
+  <Wildlife.UI.Inspector.NoSignals>No local signals recorded.</Wildlife.UI.Inspector.NoSignals>
+  <Wildlife.UI.Inspector.IndividualMemory>Individual memory</Wildlife.UI.Inspector.IndividualMemory>
+  <Wildlife.UI.Inspector.NoMemories>No lasting memories recorded.</Wildlife.UI.Inspector.NoMemories>
+  <Wildlife.UI.Inspector.CurrentActivity>Current activity</Wildlife.UI.Inspector.CurrentActivity>
+  <Wildlife.UI.Inspector.GroupMembers>Group members</Wildlife.UI.Inspector.GroupMembers>
+  <Wildlife.UI.Inspector.Members>members</Wildlife.UI.Inspector.Members>
+  <Wildlife.UI.Inspector.State.Calm>Calm</Wildlife.UI.Inspector.State.Calm>
+  <Wildlife.UI.Inspector.State.Flocking>Flocking</Wildlife.UI.Inspector.State.Flocking>
+  <Wildlife.UI.Inspector.State.GroundFeeding>Ground feeding</Wildlife.UI.Inspector.State.GroundFeeding>
+  <Wildlife.UI.Inspector.State.Hunted>Hunted</Wildlife.UI.Inspector.State.Hunted>
+  <Wildlife.UI.Inspector.State.Threatened>Threatened</Wildlife.UI.Inspector.State.Threatened>
+  <Wildlife.UI.Inspector.Defense.Inactive>Inactive</Wildlife.UI.Inspector.Defense.Inactive>
+  <Wildlife.UI.Inspector.Defense.ProtectYoung>Protecting young</Wildlife.UI.Inspector.Defense.ProtectYoung>
+  <Wildlife.UI.Inspector.Defense.Flight>Fleeing</Wildlife.UI.Inspector.Defense.Flight>
+  <Wildlife.UI.Inspector.Defense.Scatter>Scattering</Wildlife.UI.Inspector.Defense.Scatter>
+  <Wildlife.UI.Inspector.Defense.Hide>Seeking refuge</Wildlife.UI.Inspector.Defense.Hide>
+  <Wildlife.UI.Inspector.Defense.Freeze>Freezing</Wildlife.UI.Inspector.Defense.Freeze>
+  <Wildlife.UI.Inspector.Defense.StandGround>Standing ground</Wildlife.UI.Inspector.Defense.StandGround>
+  <Wildlife.UI.Inspector.Refuge.TreesVegetation>Trees / vegetation</Wildlife.UI.Inspector.Refuge.TreesVegetation>
+  <Wildlife.UI.Inspector.Refuge.TreesDens>Trees / dens</Wildlife.UI.Inspector.Refuge.TreesDens>
+  <Wildlife.UI.Inspector.PenTitle>Pen prey groups</Wildlife.UI.Inspector.PenTitle>
+  <Wildlife.UI.Inspector.GroupCount>Groups</Wildlife.UI.Inspector.GroupCount>
+  <Wildlife.UI.Inspector.NoGroups>No eligible prey are currently present.</Wildlife.UI.Inspector.NoGroups>
+  <Wildlife.UI.Inspector.NoGroups.Help>Prey groups appear when eligible animals are assigned to this pen.</Wildlife.UI.Inspector.NoGroups.Help>
+  <Wildlife.UI.Inspector.TreeHome>Claimed tree home</Wildlife.UI.Inspector.TreeHome>
+  <Wildlife.UI.Inspector.CurrentlyHiding>Currently hiding</Wildlife.UI.Inspector.CurrentlyHiding>
+  <Wildlife.UI.Inspector.HomeAnimals>Home animals</Wildlife.UI.Inspector.HomeAnimals>
+  <Wildlife.UI.Memory.Title>Animal memory</Wildlife.UI.Memory.Title>
+  <Wildlife.UI.Memory.Subtitle>Relationships, encounters, and learned responses</Wildlife.UI.Memory.Subtitle>
+  <Wildlife.UI.Memory.OpenTimeline>Open timeline</Wildlife.UI.Memory.OpenTimeline>
+  <Wildlife.UI.Memory.Temperament>Temperament</Wildlife.UI.Memory.Temperament>
+  <Wildlife.UI.Memory.ColonistCount>Remembered colonists</Wildlife.UI.Memory.ColonistCount>
+  <Wildlife.UI.Memory.AnimalCount>Remembered animals</Wildlife.UI.Memory.AnimalCount>
+  <Wildlife.UI.Memory.NoColonists>No recognized colonists.</Wildlife.UI.Memory.NoColonists>
+  <Wildlife.UI.Memory.Relationships>Animal relationships</Wildlife.UI.Memory.Relationships>
+  <Wildlife.UI.Memory.NoRelationships>No lasting animal relationships have formed.</Wildlife.UI.Memory.NoRelationships>
+  <Wildlife.UI.Memory.BondFearRivalry>Bond / fear / rivalry</Wildlife.UI.Memory.BondFearRivalry>
+  <Wildlife.UI.Memory.Colonists>Colonist memories</Wildlife.UI.Memory.Colonists>
+  <Wildlife.UI.Memory.TrustFearHostility>Trust / fear / hostility</Wildlife.UI.Memory.TrustFearHostility>
+  <Wildlife.UI.Memory.Latest>Latest event</Wildlife.UI.Memory.Latest>
+  <Wildlife.UI.Memory.NoEvent>No recorded event</Wildlife.UI.Memory.NoEvent>
+  <Wildlife.UI.Memory.Timeline>Timeline</Wildlife.UI.Memory.Timeline>
+  <Wildlife.UI.Memory.NoEvents>No recorded encounters.</Wildlife.UI.Memory.NoEvents>
+  <Wildlife.UI.Memory.NoEvents.Help>This animal has no recorded encounters with colonists or other animals.</Wildlife.UI.Memory.NoEvents.Help>
+  <Wildlife.UI.Memory.Subject>Subject</Wildlife.UI.Memory.Subject>
+  <Wildlife.UI.Memory.Event>Event</Wildlife.UI.Memory.Event>
+  <Wildlife.UI.Memory.Ago>ago</Wildlife.UI.Memory.Ago>
+  <Wildlife.UI.Memory.SocialWeb>Social web</Wildlife.UI.Memory.SocialWeb>
+  <Wildlife.UI.Memory.Relationship>Relationship</Wildlife.UI.Memory.Relationship>
+  <Wildlife.UI.Memory.Time>Time</Wildlife.UI.Memory.Time>
+  <Wildlife.UI.Memory.Focus>Focus</Wildlife.UI.Memory.Focus>
+  <Wildlife.UI.Knowledge.Breadcrumb>Animal knowledge</Wildlife.UI.Knowledge.Breadcrumb>
+  <Wildlife.UI.Knowledge.Subtitle>Species knowledge learned by this colonist</Wildlife.UI.Knowledge.Subtitle>
+  <Wildlife.UI.Knowledge.SpeciesCount>Known species</Wildlife.UI.Knowledge.SpeciesCount>
+  <Wildlife.UI.Knowledge.Experience>Experience</Wildlife.UI.Knowledge.Experience>
+  <Wildlife.UI.Knowledge.Empty>No Animal Knowledge yet.</Wildlife.UI.Knowledge.Empty>
+  <Wildlife.UI.Knowledge.Empty.Help>Track, observe, tend, or successfully hunt wildlife to learn it.</Wildlife.UI.Knowledge.Empty.Help>
+  <Wildlife.UI.Hunt.Breadcrumb>Hunt planning</Wildlife.UI.Hunt.Breadcrumb>
+  <Wildlife.UI.Hunt.Title>Plan hunt</Wildlife.UI.Hunt.Title>
+  <Wildlife.UI.Hunt.Subtitle>Choose a target, prepare the party, and review readiness.</Wildlife.UI.Hunt.Subtitle>
+  <Wildlife.UI.Hunt.Unavailable>The hunting spot is unavailable.</Wildlife.UI.Hunt.Unavailable>
+  <Wildlife.UI.Hunt.Unavailable.Help>Select an active hunting spot to continue.</Wildlife.UI.Hunt.Unavailable.Help>
+  <Wildlife.UI.Hunt.Target>Target</Wildlife.UI.Hunt.Target>
+  <Wildlife.UI.Hunt.TargetAnimal>Animal</Wildlife.UI.Hunt.TargetAnimal>
+  <Wildlife.UI.Hunt.NoPrey>No prey selected</Wildlife.UI.Hunt.NoPrey>
+  <Wildlife.UI.Hunt.SelectPrey>Select prey</Wildlife.UI.Hunt.SelectPrey>
+  <Wildlife.UI.Hunt.ChangePrey>Change prey</Wildlife.UI.Hunt.ChangePrey>
+  <Wildlife.UI.Hunt.Hunters>Hunters</Wildlife.UI.Hunt.Hunters>
+  <Wildlife.UI.Hunt.Unlimited>no fieldcraft limit</Wildlife.UI.Hunt.Unlimited>
+  <Wildlife.UI.Hunt.SelectAll>Select all</Wildlife.UI.Hunt.SelectAll>
+  <Wildlife.UI.Hunt.Clear>Clear</Wildlife.UI.Hunt.Clear>
+  <Wildlife.UI.Hunt.TargetDependent>target-dependent knowledge</Wildlife.UI.Hunt.TargetDependent>
+  <Wildlife.UI.Hunt.Skill>skill</Wildlife.UI.Hunt.Skill>
+  <Wildlife.UI.Hunt.Unarmed>unarmed</Wildlife.UI.Hunt.Unarmed>
+  <Wildlife.UI.Hunt.HunterHelp>Toggle this hunter in the party.</Wildlife.UI.Hunt.HunterHelp>
+  <Wildlife.UI.Hunt.Policy>Hunt policy</Wildlife.UI.Hunt.Policy>
+  <Wildlife.UI.Hunt.Risk>Risk</Wildlife.UI.Hunt.Risk>
+  <Wildlife.UI.Hunt.Retreat>Retreat below</Wildlife.UI.Hunt.Retreat>
+  <Wildlife.UI.Hunt.Launch>Launch offset</Wildlife.UI.Hunt.Launch>
+  <Wildlife.UI.Hunt.Cautious>Cautious</Wildlife.UI.Hunt.Cautious>
+  <Wildlife.UI.Hunt.Balanced>Balanced</Wildlife.UI.Hunt.Balanced>
+  <Wildlife.UI.Hunt.Bold>Bold</Wildlife.UI.Hunt.Bold>
+  <Wildlife.UI.Hunt.PolicyHelp>Cautious keeps distance and retreats sooner. Balanced uses standard positioning. Bold closes distance and retreats later.</Wildlife.UI.Hunt.PolicyHelp>
+  <Wildlife.UI.Hunt.Resources>Resources</Wildlife.UI.Hunt.Resources>
+  <Wildlife.UI.Hunt.Resources.Help>Discovered equipment available near the spot or carried by selected hunters.</Wildlife.UI.Hunt.Resources.Help>
+  <Wildlife.UI.Hunt.Resources.Locked>Advanced equipment unlocks with Fieldcraft.</Wildlife.UI.Hunt.Resources.Locked>
+  <Wildlife.UI.Hunt.NoResources>None available.</Wildlife.UI.Hunt.NoResources>
+  <Wildlife.UI.Hunt.Readiness.Title>Readiness</Wildlife.UI.Hunt.Readiness.Title>
+  <Wildlife.UI.Hunt.Readiness.SelectPrey>Select prey to calculate species knowledge and readiness.</Wildlife.UI.Hunt.Readiness.SelectPrey>
+  <Wildlife.UI.Hunt.Readiness.Qualified>selected hunters meet effective skill</Wildlife.UI.Hunt.Readiness.Qualified>
+  <Wildlife.UI.Hunt.Readiness.Ready>All requirements are met.</Wildlife.UI.Hunt.Readiness.Ready>
+  <Wildlife.UI.Hunt.NotReady>Not ready</Wildlife.UI.Hunt.NotReady>
+  <Wildlife.UI.Hunt.Begin>Begin hunt</Wildlife.UI.Hunt.Begin>
+  <Wildlife.UI.Hunt.BeginHelp>Complete all hunt requirements first.</Wildlife.UI.Hunt.BeginHelp>
+  <Wildlife.UI.Hunt.Reason.SelectPrey>Select an available prey target.</Wildlife.UI.Hunt.Reason.SelectPrey>
+  <Wildlife.UI.Hunt.Reason.SelectHunter>Select at least one hunter.</Wildlife.UI.Hunt.Reason.SelectHunter>
+  <Wildlife.UI.Hunt.Reason.TooMany>Fieldcraft is required to coordinate more hunters.</Wildlife.UI.Hunt.Reason.TooMany>
+  <Wildlife.UI.Hunt.Reason.Skill>Every selected hunter must meet the required effective skill.</Wildlife.UI.Hunt.Reason.Skill>
+  <Wildlife.UI.Hunt.Reason.Resource>is not available in sufficient quantity.</Wildlife.UI.Hunt.Reason.Resource>
+  <Wildlife.UI.Hunt.Reason.AlreadyTargeted>This prey is already targeted by another coordinated hunt.</Wildlife.UI.Hunt.Reason.AlreadyTargeted>
+  <Herds_Nature>Nature</Herds_Nature>
+  <Wildlife.UI.Settings.CategoryName>Wildlife</Wildlife.UI.Settings.CategoryName>
+  <Wildlife.UI.Settings.Breadcrumb>Settings</Wildlife.UI.Settings.Breadcrumb>
+  <Wildlife.UI.Settings.Title>Wildlife Settings</Wildlife.UI.Settings.Title>
+  <Wildlife.UI.Settings.Subtitle>Configure wildlife simulation, player interaction, and presentation.</Wildlife.UI.Settings.Subtitle>
+  <Wildlife.UI.Settings.SearchPlaceholder>Search settings</Wildlife.UI.Settings.SearchPlaceholder>
+  <Wildlife.UI.Settings.NoResults>No matching settings</Wildlife.UI.Settings.NoResults>
+  <Wildlife.UI.Settings.NoResults.Help>Try another search term or clear the search to browse every category.</Wildlife.UI.Settings.NoResults.Help>
+  <Wildlife.UI.Settings.NoMatches>No matching settings in this category.</Wildlife.UI.Settings.NoMatches>
+  <Wildlife.UI.Settings.Compatibility.Title>Applies to current games</Wildlife.UI.Settings.Compatibility.Title>
+  <Wildlife.UI.Settings.Numeric.Help>Changes apply immediately. Shorter intervals can increase simulation work.</Wildlife.UI.Settings.Numeric.Help>
+  <Wildlife.UI.Settings.Disabled>{0} must be enabled.</Wildlife.UI.Settings.Disabled>
+  <Wildlife.UI.Settings.OpenProfiles>Open Species Behavior Profiles</Wildlife.UI.Settings.OpenProfiles>
+  <Wildlife.UI.Settings.OpenProfiles.Help>Adjust social structure, defense, refuge, and concealment defaults for individual species.</Wildlife.UI.Settings.OpenProfiles.Help>
+  <Wildlife.UI.Settings.Category.Overview>Overview</Wildlife.UI.Settings.Category.Overview>
+  <Wildlife.UI.Settings.Category.Overview.Description>Core wildlife systems, progression gates, and onboarding.</Wildlife.UI.Settings.Category.Overview.Description>
+  <Wildlife.UI.Settings.Category.HerdsPrey>Herds &amp; Prey</Wildlife.UI.Settings.Category.HerdsPrey>
+  <Wildlife.UI.Settings.Category.HerdsPrey.Description>Herd coordination, prey movement, hiding, and refresh intervals.</Wildlife.UI.Settings.Category.HerdsPrey.Description>
+  <Wildlife.UI.Settings.Category.Predators>Predators</Wildlife.UI.Settings.Category.Predators>
+  <Wildlife.UI.Settings.Category.Predators.Description>Predator escape, deterrence, guardians, and scavenging.</Wildlife.UI.Settings.Category.Predators.Description>
+  <Wildlife.UI.Settings.Category.Fieldcraft>Fieldcraft</Wildlife.UI.Settings.Category.Fieldcraft>
+  <Wildlife.UI.Settings.Category.Fieldcraft.Description>Observation, tracking, hunting tools, and field practices.</Wildlife.UI.Settings.Category.Fieldcraft.Description>
+  <Wildlife.UI.Settings.Category.Knowledge>Knowledge</Wildlife.UI.Settings.Category.Knowledge>
+  <Wildlife.UI.Settings.Category.Knowledge.Description>Observation, species knowledge, signals, and learning.</Wildlife.UI.Settings.Category.Knowledge.Description>
+  <Wildlife.UI.Settings.Category.Ecology>Ecology</Wildlife.UI.Settings.Category.Ecology>
+  <Wildlife.UI.Settings.Category.Ecology.Description>Landscape, populations, migration, and ecological consequences.</Wildlife.UI.Settings.Category.Ecology.Description>
+  <Wildlife.UI.Settings.Category.AnimalLives>Animal Lives</Wildlife.UI.Settings.Category.AnimalLives>
+  <Wildlife.UI.Settings.Category.AnimalLives.Description>Memory, relationships, personalities, families, and life events.</Wildlife.UI.Settings.Category.AnimalLives.Description>
+  <Wildlife.UI.Settings.Category.CultureFolklore>Culture &amp; Folklore</Wildlife.UI.Settings.Category.CultureFolklore>
+  <Wildlife.UI.Settings.Category.CultureFolklore.Description>Animal traditions, stories, ideology, and cultural presentation.</Wildlife.UI.Settings.Category.CultureFolklore.Description>
+  <Wildlife.UI.Settings.Category.Expeditions>Expeditions</Wildlife.UI.Settings.Category.Expeditions>
+  <Wildlife.UI.Settings.Category.Expeditions.Description>Expedition systems and encounter options reserved for the expedition suite.</Wildlife.UI.Settings.Category.Expeditions.Description>
+  <Wildlife.UI.Settings.Category.Advanced>Advanced</Wildlife.UI.Settings.Category.Advanced>
+  <Wildlife.UI.Settings.Category.Advanced.Description>Additional controls for experienced players and compatibility tuning.</Wildlife.UI.Settings.Category.Advanced.Description>
+  <Wildlife.UI.Profiles.Title>Species Behavior Profiles</Wildlife.UI.Profiles.Title>
+  <Wildlife.UI.Profiles.Breadcrumb>Settings / Species Behavior Profiles</Wildlife.UI.Profiles.Breadcrumb>
+  <Wildlife.UI.Profiles.Subtitle>Review defaults and override behavior for eligible wildlife species.</Wildlife.UI.Profiles.Subtitle>
+  <Wildlife.UI.Profiles.SearchPlaceholder>Search species</Wildlife.UI.Profiles.SearchPlaceholder>
+  <Wildlife.UI.Profiles.NoResults>No eligible species match this search.</Wildlife.UI.Profiles.NoResults>
+  <Wildlife.UI.Profiles.NoResults.Help>Clear the search to browse eligible species.</Wildlife.UI.Profiles.NoResults.Help>
+  <Wildlife.UI.Profiles.SpeciesList>Species</Wildlife.UI.Profiles.SpeciesList>
+  <Wildlife.UI.Profiles.Detail>Profile details</Wildlife.UI.Profiles.Detail>
+  <Wildlife.UI.Profiles.Species.Help>Select a species to inspect or edit its behavior override.</Wildlife.UI.Profiles.Species.Help>
+  <Wildlife.UI.Profiles.DefaultSummary>Default behavior</Wildlife.UI.Profiles.DefaultSummary>
+  <Wildlife.UI.Profiles.HelpTitle>About overrides</Wildlife.UI.Profiles.HelpTitle>
+  <Wildlife.UI.Profiles.HelpBody>Overrides are saved with Wildlife settings and affect new behavior resolution immediately.</Wildlife.UI.Profiles.HelpBody>
+  <Wildlife.UI.Profiles.EnableOverride>Use species-specific behavior</Wildlife.UI.Profiles.EnableOverride>
+  <Wildlife.UI.Profiles.PredatorOverride>Override predator classification</Wildlife.UI.Profiles.PredatorOverride>
+  <Wildlife.UI.Profiles.PreyOverride>Override prey classification</Wildlife.UI.Profiles.PreyOverride>
+  <Wildlife.UI.Profiles.Social>Social structure</Wildlife.UI.Profiles.Social>
+  <Wildlife.UI.Profiles.Defense>Defense strategy</Wildlife.UI.Profiles.Defense>
+  <Wildlife.UI.Profiles.Refuge>Refuge preference</Wildlife.UI.Profiles.Refuge>
+  <Wildlife.UI.Profiles.GroupSize>Preferred group size</Wildlife.UI.Profiles.GroupSize>
+  <Wildlife.UI.Profiles.GroupSize.SolitaryHelp>Group size is not used while social structure is Solitary.</Wildlife.UI.Profiles.GroupSize.SolitaryHelp>
+  <Wildlife.UI.Profiles.Vigilance>Vigilance chance</Wildlife.UI.Profiles.Vigilance>
+  <Wildlife.UI.Profiles.HidingSize>Maximum hiding body size</Wildlife.UI.Profiles.HidingSize>
+  <Wildlife.UI.Profiles.RefugeRadius>Refuge search radius</Wildlife.UI.Profiles.RefugeRadius>
+  <Wildlife.UI.Profiles.Concealment>Concealment success chance</Wildlife.UI.Profiles.Concealment>
+  <Wildlife.UI.Profiles.Reset>Reset species override</Wildlife.UI.Profiles.Reset>
+  <Wildlife.UI.Profiles.DisabledHelp>Enable the species-specific behavior to edit these controls.</Wildlife.UI.Profiles.DisabledHelp>
+  <Wildlife.UI.Profiles.Enum.Herd>Herd</Wildlife.UI.Profiles.Enum.Herd>
+  <Wildlife.UI.Profiles.Enum.Family>Family</Wildlife.UI.Profiles.Enum.Family>
+  <Wildlife.UI.Profiles.Enum.Colony>Colony</Wildlife.UI.Profiles.Enum.Colony>
+  <Wildlife.UI.Profiles.Enum.Solitary>Solitary</Wildlife.UI.Profiles.Enum.Solitary>
+  <Wildlife.UI.Profiles.Enum.Flock>Flock</Wildlife.UI.Profiles.Enum.Flock>
+  <Wildlife.UI.Profiles.Enum.Flight>Flight</Wildlife.UI.Profiles.Enum.Flight>
+  <Wildlife.UI.Profiles.Enum.Scatter>Scatter</Wildlife.UI.Profiles.Enum.Scatter>
+  <Wildlife.UI.Profiles.Enum.ProtectYoung>Protect young</Wildlife.UI.Profiles.Enum.ProtectYoung>
+  <Wildlife.UI.Profiles.Enum.Hide>Hide</Wildlife.UI.Profiles.Enum.Hide>
+  <Wildlife.UI.Profiles.Enum.Freeze>Freeze</Wildlife.UI.Profiles.Enum.Freeze>
+  <Wildlife.UI.Profiles.Enum.StandGround>Stand ground</Wildlife.UI.Profiles.Enum.StandGround>
+  <Wildlife.UI.Profiles.Enum.None>None</Wildlife.UI.Profiles.Enum.None>
+  <Wildlife.UI.Profiles.Enum.Trees>Trees</Wildlife.UI.Profiles.Enum.Trees>
+  <Wildlife.UI.Profiles.Enum.Vegetation>Vegetation</Wildlife.UI.Profiles.Enum.Vegetation>
+  <Wildlife.UI.Profiles.Enum.Dens>Dens</Wildlife.UI.Profiles.Enum.Dens>
+  <Wildlife.UI.Profiles.Enum.TreesAndVegetation>Trees and vegetation</Wildlife.UI.Profiles.Enum.TreesAndVegetation>
+  <Wildlife.UI.Profiles.Enum.Any>Any refuge</Wildlife.UI.Profiles.Enum.Any>
+  <Wildlife.UI.Profiles.Enum.TreesAndDens>Trees and dens</Wildlife.UI.Profiles.Enum.TreesAndDens>
+  <Wildlife.UI.Settings.Field.allowExpeditionDeaths>Allow Expedition Deaths</Wildlife.UI.Settings.Field.allowExpeditionDeaths>
+  <Wildlife.UI.Settings.Field.allowNaturalBurrows>Allow Natural Burrows</Wildlife.UI.Settings.Field.allowNaturalBurrows>
+  <Wildlife.UI.Settings.Field.basePredatorEscapeChance>Base Predator Escape Chance</Wildlife.UI.Settings.Field.basePredatorEscapeChance>
+  <Wildlife.UI.Settings.Field.coordinateWildHerds>coordinate Wild Herds</Wildlife.UI.Settings.Field.coordinateWildHerds>
+  <Wildlife.UI.Settings.Field.defaultHideSuccessChance>Default Hide Success Chance</Wildlife.UI.Settings.Field.defaultHideSuccessChance>
+  <Wildlife.UI.Settings.Field.defenseScanIntervalTicks>defense Scan Interval Ticks</Wildlife.UI.Settings.Field.defenseScanIntervalTicks>
+  <Wildlife.UI.Settings.Field.enableAdaptivePreyResponses>Enable Adaptive Prey Responses</Wildlife.UI.Settings.Field.enableAdaptivePreyResponses>
+  <Wildlife.UI.Settings.Field.enableAdvancedScavenging>Enable Advanced Scavenging</Wildlife.UI.Settings.Field.enableAdvancedScavenging>
+  <Wildlife.UI.Settings.Field.enableAnimalCalls>Enable Animal Calls</Wildlife.UI.Settings.Field.enableAnimalCalls>
+  <Wildlife.UI.Settings.Field.enableAnimalMemory>Enable Animal Memory</Wildlife.UI.Settings.Field.enableAnimalMemory>
+  <Wildlife.UI.Settings.Field.enableAnimalPersonalities>Enable Animal Personalities</Wildlife.UI.Settings.Field.enableAnimalPersonalities>
+  <Wildlife.UI.Settings.Field.enableAnimalRelationships>Enable Animal Relationships</Wildlife.UI.Settings.Field.enableAnimalRelationships>
+  <Wildlife.UI.Settings.Field.enableAnimalSocialMemory>Enable Animal Social Memory</Wildlife.UI.Settings.Field.enableAnimalSocialMemory>
+  <Wildlife.UI.Settings.Field.enableAnimalTraditions>Enable Animal Traditions</Wildlife.UI.Settings.Field.enableAnimalTraditions>
+  <Wildlife.UI.Settings.Field.enableAppliedEcology>Enable Applied Ecology</Wildlife.UI.Settings.Field.enableAppliedEcology>
+  <Wildlife.UI.Settings.Field.enableCameraTraps>Enable Camera Traps</Wildlife.UI.Settings.Field.enableCameraTraps>
+  <Wildlife.UI.Settings.Field.enableColonyWildlifeLandmark>Enable Colony Wildlife Landmark</Wildlife.UI.Settings.Field.enableColonyWildlifeLandmark>
+  <Wildlife.UI.Settings.Field.enableConservationActions>Enable Conservation Actions</Wildlife.UI.Settings.Field.enableConservationActions>
+  <Wildlife.UI.Settings.Field.enableCulturalAnimals>Enable Cultural Animals</Wildlife.UI.Settings.Field.enableCulturalAnimals>
+  <Wildlife.UI.Settings.Field.enableDefensiveBehavior>Enable Defensive Behavior</Wildlife.UI.Settings.Field.enableDefensiveBehavior>
+  <Wildlife.UI.Settings.Field.enableDiseaseMonitoring>Enable Disease Monitoring</Wildlife.UI.Settings.Field.enableDiseaseMonitoring>
+  <Wildlife.UI.Settings.Field.enableDomesticPredatorRoles>Enable Domestic Predator Roles</Wildlife.UI.Settings.Field.enableDomesticPredatorRoles>
+  <Wildlife.UI.Settings.Field.enableDomesticRoleProgression>Enable Domestic Role Progression</Wildlife.UI.Settings.Field.enableDomesticRoleProgression>
+  <Wildlife.UI.Settings.Field.enableDynamicWildlifeOpportunities>Enable Dynamic Wildlife Opportunities</Wildlife.UI.Settings.Field.enableDynamicWildlifeOpportunities>
+  <Wildlife.UI.Settings.Field.enableEcologicalConsequences>Enable Ecological Consequences</Wildlife.UI.Settings.Field.enableEcologicalConsequences>
+  <Wildlife.UI.Settings.Field.enableExpeditionBiomeEvents>Enable Expedition Biome Events</Wildlife.UI.Settings.Field.enableExpeditionBiomeEvents>
+  <Wildlife.UI.Settings.Field.enableExpeditionIncidents>Enable Expedition Incidents</Wildlife.UI.Settings.Field.enableExpeditionIncidents>
+  <Wildlife.UI.Settings.Field.enableExtendedHuntingExpeditions>Enable Extended Hunting Expeditions</Wildlife.UI.Settings.Field.enableExtendedHuntingExpeditions>
+  <Wildlife.UI.Settings.Field.enableFieldcraftEquipment>Enable Fieldcraft Equipment</Wildlife.UI.Settings.Field.enableFieldcraftEquipment>
+  <Wildlife.UI.Settings.Field.enableFieldJournal>Enable Field Journal</Wildlife.UI.Settings.Field.enableFieldJournal>
+  <Wildlife.UI.Settings.Field.enableFolkloreDisplays>Enable Folklore Displays</Wildlife.UI.Settings.Field.enableFolkloreDisplays>
+  <Wildlife.UI.Settings.Field.enableFolkloreRetelling>Enable Folklore Retelling</Wildlife.UI.Settings.Field.enableFolkloreRetelling>
+  <Wildlife.UI.Settings.Field.enableGuardianPatrolAreas>Enable Guardian Patrol Areas</Wildlife.UI.Settings.Field.enableGuardianPatrolAreas>
+  <Wildlife.UI.Settings.Field.enableHabitatEcology>Enable Habitat Ecology</Wildlife.UI.Settings.Field.enableHabitatEcology>
+  <Wildlife.UI.Settings.Field.enableHiding>Enable Hiding</Wildlife.UI.Settings.Field.enableHiding>
+  <Wildlife.UI.Settings.Field.enableHuntedAdrenaline>Enable Hunted Adrenaline</Wildlife.UI.Settings.Field.enableHuntedAdrenaline>
+  <Wildlife.UI.Settings.Field.enableHuntEndurance>Enable Hunt Endurance</Wildlife.UI.Settings.Field.enableHuntEndurance>
+  <Wildlife.UI.Settings.Field.enableHuntingChanges>Enable Hunting Changes</Wildlife.UI.Settings.Field.enableHuntingChanges>
+  <Wildlife.UI.Settings.Field.enableHuntingExpeditions>Enable Hunting Expeditions</Wildlife.UI.Settings.Field.enableHuntingExpeditions>
+  <Wildlife.UI.Settings.Field.enableHuntingRegulations>Enable Hunting Regulations</Wildlife.UI.Settings.Field.enableHuntingRegulations>
+  <Wildlife.UI.Settings.Field.enableHuntRewards>Enable Hunt Rewards</Wildlife.UI.Settings.Field.enableHuntRewards>
+  <Wildlife.UI.Settings.Field.enableHuntTracking>Enable Hunt Tracking</Wildlife.UI.Settings.Field.enableHuntTracking>
+  <Wildlife.UI.Settings.Field.enableInteractiveExpeditionEncounters>Enable Interactive Expedition Encounters</Wildlife.UI.Settings.Field.enableInteractiveExpeditionEncounters>
+  <Wildlife.UI.Settings.Field.enableJuvenileLearning>Enable Juvenile Learning</Wildlife.UI.Settings.Field.enableJuvenileLearning>
+  <Wildlife.UI.Settings.Field.enableLandscapeCrossroads>Enable Landscape Crossroads</Wildlife.UI.Settings.Field.enableLandscapeCrossroads>
+  <Wildlife.UI.Settings.Field.enableLandscapeEffects>Enable Landscape Effects</Wildlife.UI.Settings.Field.enableLandscapeEffects>
+  <Wildlife.UI.Settings.Field.enableLegendaryPresentation>Enable Legendary Presentation</Wildlife.UI.Settings.Field.enableLegendaryPresentation>
+  <Wildlife.UI.Settings.Field.enableLegendQuests>Enable Legend Quests</Wildlife.UI.Settings.Field.enableLegendQuests>
+  <Wildlife.UI.Settings.Field.enableLegendSpread>Enable Legend Spread</Wildlife.UI.Settings.Field.enableLegendSpread>
+  <Wildlife.UI.Settings.Field.enableMannedBlinds>Enable Manned Blinds</Wildlife.UI.Settings.Field.enableMannedBlinds>
+  <Wildlife.UI.Settings.Field.enableNotableAnimals>Enable Notable Animals</Wildlife.UI.Settings.Field.enableNotableAnimals>
+  <Wildlife.UI.Settings.Field.enableObservationPosts>Enable Observation Posts</Wildlife.UI.Settings.Field.enableObservationPosts>
+  <Wildlife.UI.Settings.Field.enableOffMapHuntingExpeditions>Enable Off Map Hunting Expeditions</Wildlife.UI.Settings.Field.enableOffMapHuntingExpeditions>
+  <Wildlife.UI.Settings.Field.enableOutcomeHistory>Enable Outcome History</Wildlife.UI.Settings.Field.enableOutcomeHistory>
+  <Wildlife.UI.Settings.Field.enablePersistentFamilyLines>Enable Persistent Family Lines</Wildlife.UI.Settings.Field.enablePersistentFamilyLines>
+  <Wildlife.UI.Settings.Field.enablePersistentRoamingAnimals>Enable Persistent Roaming Animals</Wildlife.UI.Settings.Field.enablePersistentRoamingAnimals>
+  <Wildlife.UI.Settings.Field.enablePersonalityInheritance>Enable Personality Inheritance</Wildlife.UI.Settings.Field.enablePersonalityInheritance>
+  <Wildlife.UI.Settings.Field.enablePhysicalWildlifeStories>Enable Physical Wildlife Stories</Wildlife.UI.Settings.Field.enablePhysicalWildlifeStories>
+  <Wildlife.UI.Settings.Field.enablePlayerOnboarding>Enable Player Onboarding</Wildlife.UI.Settings.Field.enablePlayerOnboarding>
+  <Wildlife.UI.Settings.Field.enablePlayerSignalImitation>Enable Player Signal Imitation</Wildlife.UI.Settings.Field.enablePlayerSignalImitation>
+  <Wildlife.UI.Settings.Field.enablePopulationConsequences>Enable Population Consequences</Wildlife.UI.Settings.Field.enablePopulationConsequences>
+  <Wildlife.UI.Settings.Field.enablePredatorDeterrents>Enable Predator Deterrents</Wildlife.UI.Settings.Field.enablePredatorDeterrents>
+  <Wildlife.UI.Settings.Field.enablePredatorEscapeChance>Enable Predator Escape Chance</Wildlife.UI.Settings.Field.enablePredatorEscapeChance>
+  <Wildlife.UI.Settings.Field.enablePredatorSignalLearning>Enable Predator Signal Learning</Wildlife.UI.Settings.Field.enablePredatorSignalLearning>
+  <Wildlife.UI.Settings.Field.enablePreyAndHerds>Enable Prey and Herds</Wildlife.UI.Settings.Field.enablePreyAndHerds>
+  <Wildlife.UI.Settings.Field.enableRanchGuardians>Enable Ranch Guardians</Wildlife.UI.Settings.Field.enableRanchGuardians>
+  <Wildlife.UI.Settings.Field.enableRegionalMap>Enable Regional Map</Wildlife.UI.Settings.Field.enableRegionalMap>
+  <Wildlife.UI.Settings.Field.enableRegionalMigration>Enable Regional Migration</Wildlife.UI.Settings.Field.enableRegionalMigration>
+  <Wildlife.UI.Settings.Field.enableRegionalPopulations>Enable Regional Populations</Wildlife.UI.Settings.Field.enableRegionalPopulations>
+  <Wildlife.UI.Settings.Field.enableResearchProgression>Enable Research Progression</Wildlife.UI.Settings.Field.enableResearchProgression>
+  <Wildlife.UI.Settings.Field.enableReturnSigns>Enable Return Signs</Wildlife.UI.Settings.Field.enableReturnSigns>
+  <Wildlife.UI.Settings.Field.enableRoamingExpeditionEncounters>Enable Roaming Expedition Encounters</Wildlife.UI.Settings.Field.enableRoamingExpeditionEncounters>
+  <Wildlife.UI.Settings.Field.enableScavenging>Enable Scavenging</Wildlife.UI.Settings.Field.enableScavenging>
+  <Wildlife.UI.Settings.Field.enableScentMasking>Enable Scent Masking</Wildlife.UI.Settings.Field.enableScentMasking>
+  <Wildlife.UI.Settings.Field.enableSeasonalEcologyEvents>Enable Seasonal Ecology Events</Wildlife.UI.Settings.Field.enableSeasonalEcologyEvents>
+  <Wildlife.UI.Settings.Field.enableSpeciesKnowledgeProgression>Enable Species Knowledge Progression</Wildlife.UI.Settings.Field.enableSpeciesKnowledgeProgression>
+  <Wildlife.UI.Settings.Field.enableStewardProjects>Enable Steward Projects</Wildlife.UI.Settings.Field.enableStewardProjects>
+  <Wildlife.UI.Settings.Field.enableTelemetry>Enable Telemetry</Wildlife.UI.Settings.Field.enableTelemetry>
+  <Wildlife.UI.Settings.Field.enableTerritorialSigns>Enable Territorial Signs</Wildlife.UI.Settings.Field.enableTerritorialSigns>
+  <Wildlife.UI.Settings.Field.enableTerritoryHistory>Enable Territory History</Wildlife.UI.Settings.Field.enableTerritoryHistory>
+  <Wildlife.UI.Settings.Field.enableTrackingSigns>Enable Tracking Signs</Wildlife.UI.Settings.Field.enableTrackingSigns>
+  <Wildlife.UI.Settings.Field.enableTrailReading>Enable Trail Reading</Wildlife.UI.Settings.Field.enableTrailReading>
+  <Wildlife.UI.Settings.Field.enableUncertainPredatorWarnings>Enable Uncertain Predator Warnings</Wildlife.UI.Settings.Field.enableUncertainPredatorWarnings>
+  <Wildlife.UI.Settings.Field.enableUnlockLetters>Enable Unlock Letters</Wildlife.UI.Settings.Field.enableUnlockLetters>
+  <Wildlife.UI.Settings.Field.enableVisibleMigrationWaves>Enable Visible Migration Waves</Wildlife.UI.Settings.Field.enableVisibleMigrationWaves>
+  <Wildlife.UI.Settings.Field.enableWeaponAwareTactics>Enable Weapon Aware Tactics</Wildlife.UI.Settings.Field.enableWeaponAwareTactics>
+  <Wildlife.UI.Settings.Field.enableWildlifeAlerts>Enable Wildlife Alerts</Wildlife.UI.Settings.Field.enableWildlifeAlerts>
+  <Wildlife.UI.Settings.Field.enableWildlifeBait>Enable Wildlife Bait</Wildlife.UI.Settings.Field.enableWildlifeBait>
+  <Wildlife.UI.Settings.Field.enableWildlifeCeremonies>Enable Wildlife Ceremonies</Wildlife.UI.Settings.Field.enableWildlifeCeremonies>
+  <Wildlife.UI.Settings.Field.enableWildlifeEvents>Enable Wildlife Events</Wildlife.UI.Settings.Field.enableWildlifeEvents>
+  <Wildlife.UI.Settings.Field.enableWildlifeFolklore>Enable Wildlife Folklore</Wildlife.UI.Settings.Field.enableWildlifeFolklore>
+  <Wildlife.UI.Settings.Field.enableWildlifeIdeology>Enable Wildlife Ideology</Wildlife.UI.Settings.Field.enableWildlifeIdeology>
+  <Wildlife.UI.Settings.Field.enableWildlifeIdeologyRoles>Enable Wildlife Ideology Roles</Wildlife.UI.Settings.Field.enableWildlifeIdeologyRoles>
+  <Wildlife.UI.Settings.Field.enableWildlifeKnowledge>Enable Wildlife Knowledge</Wildlife.UI.Settings.Field.enableWildlifeKnowledge>
+  <Wildlife.UI.Settings.Field.enableWildlifeLandscaping>Enable Wildlife Landscaping</Wildlife.UI.Settings.Field.enableWildlifeLandscaping>
+  <Wildlife.UI.Settings.Field.enableWildlifeLearning>Enable Wildlife Learning</Wildlife.UI.Settings.Field.enableWildlifeLearning>
+  <Wildlife.UI.Settings.Field.enableWildlifeLifeIncidents>Enable Wildlife Life Incidents</Wildlife.UI.Settings.Field.enableWildlifeLifeIncidents>
+  <Wildlife.UI.Settings.Field.enableWildlifeManagementGoals>Enable Wildlife Management Goals</Wildlife.UI.Settings.Field.enableWildlifeManagementGoals>
+  <Wildlife.UI.Settings.Field.enableWildlifeMysteries>Enable Wildlife Mysteries</Wildlife.UI.Settings.Field.enableWildlifeMysteries>
+  <Wildlife.UI.Settings.Field.enableWildlifeReserves>Enable Wildlife Reserves</Wildlife.UI.Settings.Field.enableWildlifeReserves>
+  <Wildlife.UI.Settings.Field.enableWildlifeSignalCulture>Enable Wildlife Signal Culture</Wildlife.UI.Settings.Field.enableWildlifeSignalCulture>
+  <Wildlife.UI.Settings.Field.enableWildlifeSteward>Enable Wildlife Steward</Wildlife.UI.Settings.Field.enableWildlifeSteward>
+  <Wildlife.UI.Settings.Field.enableWindHud>Enable Wind HUD</Wildlife.UI.Settings.Field.enableWindHud>
+  <Wildlife.UI.Settings.Field.enableWoundedTrackingAndRetreat>Enable Wounded Tracking and Retreat</Wildlife.UI.Settings.Field.enableWoundedTrackingAndRetreat>
+  <Wildlife.UI.Settings.Field.failedHideRetryTicks>Failed Hide Retry Ticks</Wildlife.UI.Settings.Field.failedHideRetryTicks>
+  <Wildlife.UI.Settings.Field.flightDistance>flight Distance</Wildlife.UI.Settings.Field.flightDistance>
+  <Wildlife.UI.Settings.Field.frightenedMemoryLifetimeTicks>Frightened Memory Lifetime Ticks</Wildlife.UI.Settings.Field.frightenedMemoryLifetimeTicks>
+  <Wildlife.UI.Settings.Field.gateHuntingByResearch>Gate Hunting By Research</Wildlife.UI.Settings.Field.gateHuntingByResearch>
+  <Wildlife.UI.Settings.Field.gateIndustrialEcologyByResearch>Gate Industrial Ecology By Research</Wildlife.UI.Settings.Field.gateIndustrialEcologyByResearch>
+  <Wildlife.UI.Settings.Field.gateKnowledgeByResearch>Gate Knowledge By Research</Wildlife.UI.Settings.Field.gateKnowledgeByResearch>
+  <Wildlife.UI.Settings.Field.gateStewardshipByResearch>Gate Stewardship By Research</Wildlife.UI.Settings.Field.gateStewardshipByResearch>
+  <Wildlife.UI.Settings.Field.guardiansAttackPredators>guardians Attack Predators</Wildlife.UI.Settings.Field.guardiansAttackPredators>
+  <Wildlife.UI.Settings.Field.hiddenPreySafeDistance>Hidden Prey Safe Distance</Wildlife.UI.Settings.Field.hiddenPreySafeDistance>
+  <Wildlife.UI.Settings.Field.hideEntryTicks>hide Entry Ticks</Wildlife.UI.Settings.Field.hideEntryTicks>
+  <Wildlife.UI.Settings.Field.maximumHideTicks>Maximum Hide Ticks</Wildlife.UI.Settings.Field.maximumHideTicks>
+  <Wildlife.UI.Settings.Field.maximumInferredHidingBodySize>Maximum Inferred Hiding Body Size</Wildlife.UI.Settings.Field.maximumInferredHidingBodySize>
+  <Wildlife.UI.Settings.Field.minimumFieldcraftSkill>Minimum Fieldcraft Skill</Wildlife.UI.Settings.Field.minimumFieldcraftSkill>
+  <Wildlife.UI.Settings.Field.minimumHideTicks>Minimum Hide Ticks</Wildlife.UI.Settings.Field.minimumHideTicks>
+  <Wildlife.UI.Settings.Field.packMemberKilledMemoryLifetimeTicks>Pack Member Killed Memory Lifetime Ticks</Wildlife.UI.Settings.Field.packMemberKilledMemoryLifetimeTicks>
+  <Wildlife.UI.Settings.Field.predatorEscapeCheckIntervalTicks>Predator Escape Check Interval Ticks</Wildlife.UI.Settings.Field.predatorEscapeCheckIntervalTicks>
+  <Wildlife.UI.Settings.Field.preyAvoidColonists>prey Avoid Colonists</Wildlife.UI.Settings.Field.preyAvoidColonists>
+  <Wildlife.UI.Settings.Field.protectiveBodySizeThreshold>Protective Body Size Threshold</Wildlife.UI.Settings.Field.protectiveBodySizeThreshold>
+  <Wildlife.UI.Settings.Field.refugeRefreshIntervalTicks>Refuge Refresh Interval Ticks</Wildlife.UI.Settings.Field.refugeRefreshIntervalTicks>
+  <Wildlife.UI.Settings.Field.requireObservationForDetails>Require Observation For Details</Wildlife.UI.Settings.Field.requireObservationForDetails>
+  <Wildlife.UI.Settings.Field.showIdentifiedSignalText>Show Identified Signal Text</Wildlife.UI.Settings.Field.showIdentifiedSignalText>
+  <Wildlife.UI.Settings.Field.unpennedJoinDistance>Unpenned Join Distance</Wildlife.UI.Settings.Field.unpennedJoinDistance>
+  <Wildlife.UI.Settings.Field.updateIntervalTicks>Update Interval Ticks</Wildlife.UI.Settings.Field.updateIntervalTicks>
+  <Wildlife.UI.Journal.Action.ChooseResponse>Choose response</Wildlife.UI.Journal.Action.ChooseResponse>
+  <Wildlife.UI.Journal.Action.FocusMap>Focus on map</Wildlife.UI.Journal.Action.FocusMap>
+  <Wildlife.UI.Journal.Action.Inspect>Inspect</Wildlife.UI.Journal.Action.Inspect>
+  <Wildlife.UI.Journal.Action.LeaveAlone>Leave alone</Wildlife.UI.Journal.Action.LeaveAlone>
+  <Wildlife.UI.Journal.Action.OpenExpedition>Open expedition</Wildlife.UI.Journal.Action.OpenExpedition>
+  <Wildlife.UI.Journal.Action.PlanExpedition>Plan expedition</Wildlife.UI.Journal.Action.PlanExpedition>
+  <Wildlife.UI.Journal.Action.Refresh>Refresh</Wildlife.UI.Journal.Action.Refresh>
+  <Wildlife.UI.Journal.Attention>Needs attention</Wildlife.UI.Journal.Attention>
+  <Wildlife.UI.Journal.Breadcrumb>Journal</Wildlife.UI.Journal.Breadcrumb>
+  <Wildlife.UI.Journal.Certainty.Confirmed>Confirmed</Wildlife.UI.Journal.Certainty.Confirmed>
+  <Wildlife.UI.Journal.Certainty.Contradictory>Contradictory</Wildlife.UI.Journal.Certainty.Contradictory>
+  <Wildlife.UI.Journal.Certainty.Probable>Probable</Wildlife.UI.Journal.Certainty.Probable>
+  <Wildlife.UI.Journal.Certainty.Uncertain>Uncertain</Wildlife.UI.Journal.Certainty.Uncertain>
+  <Wildlife.UI.Journal.Certainty.Urgent>Urgent</Wildlife.UI.Journal.Certainty.Urgent>
+  <Wildlife.UI.Journal.Chronicle.Help>Stories and outcomes retain consequential history without inventing explanations.</Wildlife.UI.Journal.Chronicle.Help>
+  <Wildlife.UI.Journal.Deterrent.Disabled>Predator deterrents are disabled.</Wildlife.UI.Journal.Deterrent.Disabled>
+  <Wildlife.UI.Journal.Deterrent.Research>Complete the predator deterrent research first.</Wildlife.UI.Journal.Deterrent.Research>
+  <Wildlife.UI.Journal.Deterrent.Unavailable>The predator deterrent is unavailable.</Wildlife.UI.Journal.Deterrent.Unavailable>
+  <Wildlife.UI.Journal.EventKind.Documentation>Documentation</Wildlife.UI.Journal.EventKind.Documentation>
+  <Wildlife.UI.Journal.EventKind.Expedition>Expedition</Wildlife.UI.Journal.EventKind.Expedition>
+  <Wildlife.UI.Journal.EventKind.Forecast>Forecast</Wildlife.UI.Journal.EventKind.Forecast>
+  <Wildlife.UI.Journal.EventKind.Hunt>Hunt</Wildlife.UI.Journal.EventKind.Hunt>
+  <Wildlife.UI.Journal.EventKind.Memory>Memory</Wildlife.UI.Journal.EventKind.Memory>
+  <Wildlife.UI.Journal.EventKind.Migration>Migration</Wildlife.UI.Journal.EventKind.Migration>
+  <Wildlife.UI.Journal.EventKind.MysteryEvidence>Mystery Evidence</Wildlife.UI.Journal.EventKind.MysteryEvidence>
+  <Wildlife.UI.Journal.EventKind.NotableAnimal>Notable Animal</Wildlife.UI.Journal.EventKind.NotableAnimal>
+  <Wildlife.UI.Journal.EventKind.Policy>Policy</Wildlife.UI.Journal.EventKind.Policy>
+  <Wildlife.UI.Journal.EventKind.PopulationChange>Population Change</Wildlife.UI.Journal.EventKind.PopulationChange>
+  <Wildlife.UI.Journal.EventKind.Report>Report</Wildlife.UI.Journal.EventKind.Report>
+  <Wildlife.UI.Journal.EventKind.Sighting>Sighting</Wildlife.UI.Journal.EventKind.Sighting>
+  <Wildlife.UI.Journal.EventKind.Signal>Signal</Wildlife.UI.Journal.EventKind.Signal>
+  <Wildlife.UI.Journal.EventKind.Story>Story</Wildlife.UI.Journal.EventKind.Story>
+  <Wildlife.UI.Journal.EventKind.Study>Study</Wildlife.UI.Journal.EventKind.Study>
+  <Wildlife.UI.Journal.EventKind.Survey>Survey</Wildlife.UI.Journal.EventKind.Survey>
+  <Wildlife.UI.Journal.EventKind.Taming>Taming</Wildlife.UI.Journal.EventKind.Taming>
+  <Wildlife.UI.Journal.EventKind.Tending>Tending</Wildlife.UI.Journal.EventKind.Tending>
+  <Wildlife.UI.Journal.EventKind.Tracks>Tracks</Wildlife.UI.Journal.EventKind.Tracks>
+  <Wildlife.UI.Journal.EventKind.TrailCompletion>Trail Completion</Wildlife.UI.Journal.EventKind.TrailCompletion>
+  <Wildlife.UI.Journal.Evidence>Evidence</Wildlife.UI.Journal.Evidence>
+  <Wildlife.UI.Journal.Evidence.Count>{0} observations</Wildlife.UI.Journal.Evidence.Count>
+  <Wildlife.UI.Journal.Expeditions.Active>Active expedition</Wildlife.UI.Journal.Expeditions.Active>
+  <Wildlife.UI.Journal.Expeditions.Disabled>Expeditions are unavailable</Wildlife.UI.Journal.Expeditions.Disabled>
+  <Wildlife.UI.Journal.Expeditions.Disabled.Help>Complete the expedition research and enable off-map expeditions to use this area.</Wildlife.UI.Journal.Expeditions.Disabled.Help>
+  <Wildlife.UI.Journal.Expeditions.Empty>No active expeditions</Wildlife.UI.Journal.Expeditions.Empty>
+  <Wildlife.UI.Journal.Expeditions.Empty.Help>Active expeditions and their outcomes appear here when the expedition system records them.</Wildlife.UI.Journal.Expeditions.Empty.Help>
+  <Wildlife.UI.Journal.Expeditions.Objective>{0} • {1}</Wildlife.UI.Journal.Expeditions.Objective>
+  <Wildlife.UI.Journal.Expeditions.Rescue>Rescue needed</Wildlife.UI.Journal.Expeditions.Rescue>
+  <Wildlife.UI.Journal.Expeditions.Return>Expected return</Wildlife.UI.Journal.Expeditions.Return>
+  <Wildlife.UI.Journal.Expeditions.ReturnSoon>Return due</Wildlife.UI.Journal.Expeditions.ReturnSoon>
+  <Wildlife.UI.Journal.Expeditions.Title>Expedition {0}</Wildlife.UI.Journal.Expeditions.Title>
+  <Wildlife.UI.Journal.Expeditions.Tracked>Being tracked</Wildlife.UI.Journal.Expeditions.Tracked>
+  <Wildlife.UI.Journal.FieldGuide.Empty>No observed species</Wildlife.UI.Journal.FieldGuide.Empty>
+  <Wildlife.UI.Journal.FieldGuide.Empty.Help>The Field Guide shows species with observation-backed evidence, signals, trails, or migrations.</Wildlife.UI.Journal.FieldGuide.Empty.Help>
+  <Wildlife.UI.Journal.FieldGuide.IdentityHelp>Unknown facets stay unknown until the required observation evidence exists.</Wildlife.UI.Journal.FieldGuide.IdentityHelp>
+  <Wildlife.UI.Journal.FieldLog.Empty>No field-log records</Wildlife.UI.Journal.FieldLog.Empty>
+  <Wildlife.UI.Journal.FieldLog.Empty.Help>Wildlife moments, sightings, signals, trails, investigations, expeditions, and outcomes appear here when recorded.</Wildlife.UI.Journal.FieldLog.Empty.Help>
+  <Wildlife.UI.Journal.Investigation.Confirmed>Cause supported</Wildlife.UI.Journal.Investigation.Confirmed>
+  <Wildlife.UI.Journal.Investigation.NoHypothesis>No explanation is established.</Wildlife.UI.Journal.Investigation.NoHypothesis>
+  <Wildlife.UI.Journal.Investigation.Response>Review response</Wildlife.UI.Journal.Investigation.Response>
+  <Wildlife.UI.Journal.Investigation.Review>Review evidence</Wildlife.UI.Journal.Investigation.Review>
+  <Wildlife.UI.Journal.Investigation.Working>Investigation in progress</Wildlife.UI.Journal.Investigation.Working>
+  <Wildlife.UI.Journal.Investigations.Empty>No active investigations</Wildlife.UI.Journal.Investigations.Empty>
+  <Wildlife.UI.Journal.Investigations.Empty.Help>Investigations begin only when real ecology or narrative evidence creates an open question.</Wildlife.UI.Journal.Investigations.Empty.Help>
+  <Wildlife.UI.Journal.Investigations.Next>Next evidence</Wildlife.UI.Journal.Investigations.Next>
+  <Wildlife.UI.Journal.Investigations.Uncertainty>Uncertainty</Wildlife.UI.Journal.Investigations.Uncertainty>
+  <Wildlife.UI.Journal.Knowledge.Claim>Claim</Wildlife.UI.Journal.Knowledge.Claim>
+  <Wildlife.UI.Journal.Knowledge.ClaimDetail>{0} observations • {1} confidence • Source: {2}</Wildlife.UI.Journal.Knowledge.ClaimDetail>
+  <Wildlife.UI.Journal.Knowledge.Claims>Claims</Wildlife.UI.Journal.Knowledge.Claims>
+  <Wildlife.UI.Journal.Knowledge.Claims.Empty>No claims are recorded for this subject.</Wildlife.UI.Journal.Knowledge.Claims.Empty>
+  <Wildlife.UI.Journal.Knowledge.Empty>No documented knowledge</Wildlife.UI.Journal.Knowledge.Empty>
+  <Wildlife.UI.Journal.Knowledge.Empty.Help>Knowledge remains hidden until observation and progression provide evidence.</Wildlife.UI.Journal.Knowledge.Empty.Help>
+  <Wildlife.UI.Journal.Knowledge.Evidence>Evidence</Wildlife.UI.Journal.Knowledge.Evidence>
+  <Wildlife.UI.Journal.Knowledge.Evidence.Empty>No supporting observations are recorded.</Wildlife.UI.Journal.Knowledge.Evidence.Empty>
+  <Wildlife.UI.Journal.Knowledge.Facets>Facets</Wildlife.UI.Journal.Knowledge.Facets>
+  <Wildlife.UI.Journal.Knowledge.IdentityHelp>Knowledge Framework values are shown with their current stage, confidence, evidence, and contradictions.</Wildlife.UI.Journal.Knowledge.IdentityHelp>
+  <Wildlife.UI.Journal.Meta.BeyondMap>Beyond map</Wildlife.UI.Journal.Meta.BeyondMap>
+  <Wildlife.UI.Journal.Meta.Certainty>Certainty</Wildlife.UI.Journal.Meta.Certainty>
+  <Wildlife.UI.Journal.Meta.ColonyRecord>Colony record</Wildlife.UI.Journal.Meta.ColonyRecord>
+  <Wildlife.UI.Journal.Meta.Confidence>Confidence</Wildlife.UI.Journal.Meta.Confidence>
+  <Wildlife.UI.Journal.Meta.Direct>Direct observation</Wildlife.UI.Journal.Meta.Direct>
+  <Wildlife.UI.Journal.Meta.Evidence>Evidence</Wildlife.UI.Journal.Meta.Evidence>
+  <Wildlife.UI.Journal.Meta.Facet>Facet</Wildlife.UI.Journal.Meta.Facet>
+  <Wildlife.UI.Journal.Meta.Facets>Known facets</Wildlife.UI.Journal.Meta.Facets>
+  <Wildlife.UI.Journal.Meta.FieldRecord>Field record</Wildlife.UI.Journal.Meta.FieldRecord>
+  <Wildlife.UI.Journal.Meta.Location>Location</Wildlife.UI.Journal.Meta.Location>
+  <Wildlife.UI.Journal.Meta.Observers>Observers</Wildlife.UI.Journal.Meta.Observers>
+  <Wildlife.UI.Journal.Meta.Recorded>Recorded</Wildlife.UI.Journal.Meta.Recorded>
+  <Wildlife.UI.Journal.Meta.Regional>Regional</Wildlife.UI.Journal.Meta.Regional>
+  <Wildlife.UI.Journal.Meta.Sector>Sector {0}, {1}</Wildlife.UI.Journal.Meta.Sector>
+  <Wildlife.UI.Journal.Meta.Source>Source</Wildlife.UI.Journal.Meta.Source>
+  <Wildlife.UI.Journal.Meta.Species>Species</Wildlife.UI.Journal.Meta.Species>
+  <Wildlife.UI.Journal.Meta.Stage>Stage</Wildlife.UI.Journal.Meta.Stage>
+  <Wildlife.UI.Journal.Meta.State>State</Wildlife.UI.Journal.Meta.State>
+  <Wildlife.UI.Journal.Meta.Time>Time</Wildlife.UI.Journal.Meta.Time>
+  <Wildlife.UI.Journal.Meta.Type>Type</Wildlife.UI.Journal.Meta.Type>
+  <Wildlife.UI.Journal.Moment.Learned>Knowledge gained</Wildlife.UI.Journal.Moment.Learned>
+  <Wildlife.UI.Journal.Moment.Underway>Response underway</Wildlife.UI.Journal.Moment.Underway>
+  <Wildlife.UI.Journal.Moment.Unresolved>Outcome unresolved</Wildlife.UI.Journal.Moment.Unresolved>
+  <Wildlife.UI.Journal.Moment.Waiting>Awaiting a response</Wildlife.UI.Journal.Moment.Waiting>
+  <Wildlife.UI.Journal.Outcome.Recorded>Recorded outcome</Wildlife.UI.Journal.Outcome.Recorded>
+  <Wildlife.UI.Journal.Outcome.Setback>Setback recorded</Wildlife.UI.Journal.Outcome.Setback>
+  <Wildlife.UI.Journal.Outcome.Title>Wildlife outcome</Wildlife.UI.Journal.Outcome.Title>
+  <Wildlife.UI.Journal.Page.Chronicle>Chronicle</Wildlife.UI.Journal.Page.Chronicle>
+  <Wildlife.UI.Journal.Page.Chronicle.Description>Review chronicle evidence and consequences.</Wildlife.UI.Journal.Page.Chronicle.Description>
+  <Wildlife.UI.Journal.Page.Expeditions>Expeditions</Wildlife.UI.Journal.Page.Expeditions>
+  <Wildlife.UI.Journal.Page.Expeditions.Description>Review expeditions evidence and consequences.</Wildlife.UI.Journal.Page.Expeditions.Description>
+  <Wildlife.UI.Journal.Page.FieldGuide>Field Guide</Wildlife.UI.Journal.Page.FieldGuide>
+  <Wildlife.UI.Journal.Page.FieldGuide.Description>Review field guide evidence and consequences.</Wildlife.UI.Journal.Page.FieldGuide.Description>
+  <Wildlife.UI.Journal.Page.FieldLog>Field Log</Wildlife.UI.Journal.Page.FieldLog>
+  <Wildlife.UI.Journal.Page.FieldLog.Description>Review field log evidence and consequences.</Wildlife.UI.Journal.Page.FieldLog.Description>
+  <Wildlife.UI.Journal.Page.Investigations>Investigations</Wildlife.UI.Journal.Page.Investigations>
+  <Wildlife.UI.Journal.Page.Investigations.Description>Review investigations evidence and consequences.</Wildlife.UI.Journal.Page.Investigations.Description>
+  <Wildlife.UI.Journal.Page.Knowledge>Knowledge</Wildlife.UI.Journal.Page.Knowledge>
+  <Wildlife.UI.Journal.Page.Knowledge.Description>Review knowledge evidence and consequences.</Wildlife.UI.Journal.Page.Knowledge.Description>
+  <Wildlife.UI.Journal.Page.LivingAtlas>Living Atlas</Wildlife.UI.Journal.Page.LivingAtlas>
+  <Wildlife.UI.Journal.Page.LivingAtlas.Description>Review living atlas evidence and consequences.</Wildlife.UI.Journal.Page.LivingAtlas.Description>
+  <Wildlife.UI.Journal.Page.Region>Region</Wildlife.UI.Journal.Page.Region>
+  <Wildlife.UI.Journal.Page.Region.Description>Review region evidence and consequences.</Wildlife.UI.Journal.Page.Region.Description>
+  <Wildlife.UI.Journal.Page.Signals>Signals</Wildlife.UI.Journal.Page.Signals>
+  <Wildlife.UI.Journal.Page.Signals.Description>Review signals evidence and consequences.</Wildlife.UI.Journal.Page.Signals.Description>
+  <Wildlife.UI.Journal.Page.Stories>Stories</Wildlife.UI.Journal.Page.Stories>
+  <Wildlife.UI.Journal.Page.Stories.Description>Review stories evidence and consequences.</Wildlife.UI.Journal.Page.Stories.Description>
+  <Wildlife.UI.Journal.Region.Empty>No regional wildlife records</Wildlife.UI.Journal.Region.Empty>
+  <Wildlife.UI.Journal.Region.Empty.Help>The Living Atlas and Region views populate from bounded ecology snapshots, trails, migrations, and populations.</Wildlife.UI.Journal.Region.Empty.Help>
+  <Wildlife.UI.Journal.Region.Habitat>Habitat</Wildlife.UI.Journal.Region.Habitat>
+  <Wildlife.UI.Journal.Region.Local>Local population</Wildlife.UI.Journal.Region.Local>
+  <Wildlife.UI.Journal.Region.MigrationCount>{0} migrations</Wildlife.UI.Journal.Region.MigrationCount>
+  <Wildlife.UI.Journal.Region.Movement>Movement</Wildlife.UI.Journal.Region.Movement>
+  <Wildlife.UI.Journal.Region.Moving>Moving through region</Wildlife.UI.Journal.Region.Moving>
+  <Wildlife.UI.Journal.Region.NoMovement>No active movement</Wildlife.UI.Journal.Region.NoMovement>
+  <Wildlife.UI.Journal.Region.Present>Present locally</Wildlife.UI.Journal.Region.Present>
+  <Wildlife.UI.Journal.Region.Pressure>Pressure</Wildlife.UI.Journal.Region.Pressure>
+  <Wildlife.UI.Journal.Region.Pressure.High>High</Wildlife.UI.Journal.Region.Pressure.High>
+  <Wildlife.UI.Journal.Region.Pressure.Low>Low</Wildlife.UI.Journal.Region.Pressure.Low>
+  <Wildlife.UI.Journal.Region.Pressure.Moderate>Moderate</Wildlife.UI.Journal.Region.Pressure.Moderate>
+  <Wildlife.UI.Journal.Region.Regional>Regional population</Wildlife.UI.Journal.Region.Regional>
+  <Wildlife.UI.Journal.Region.Summary>{0} local • {1} regional</Wildlife.UI.Journal.Region.Summary>
+  <Wildlife.UI.Journal.Region.TrailCount>{0} active trails</Wildlife.UI.Journal.Region.TrailCount>
+  <Wildlife.UI.Journal.Region.Trend>Trend</Wildlife.UI.Journal.Region.Trend>
+  <Wildlife.UI.Journal.Region.Unseen>Not observed locally</Wildlife.UI.Journal.Region.Unseen>
+  <Wildlife.UI.Journal.Response.Hunt>Hunt</Wildlife.UI.Journal.Response.Hunt>
+  <Wildlife.UI.Journal.Response.Ignore>Ignore</Wildlife.UI.Journal.Response.Ignore>
+  <Wildlife.UI.Journal.Response.None>None</Wildlife.UI.Journal.Response.None>
+  <Wildlife.UI.Journal.Response.Observe>Observe</Wildlife.UI.Journal.Response.Observe>
+  <Wildlife.UI.Journal.Response.Protect>Protect</Wildlife.UI.Journal.Response.Protect>
+  <Wildlife.UI.Journal.Response.Track>Track</Wildlife.UI.Journal.Response.Track>
+  <Wildlife.UI.Journal.SearchPlaceholder>Search wildlife records</Wildlife.UI.Journal.SearchPlaceholder>
+  <Wildlife.UI.Journal.Selection.Empty>Nothing selected</Wildlife.UI.Journal.Selection.Empty>
+  <Wildlife.UI.Journal.Selection.Empty.Help>Select a record to inspect evidence and available map actions.</Wildlife.UI.Journal.Selection.Empty.Help>
+  <Wildlife.UI.Journal.SignalKind.Alarm>Alarm</Wildlife.UI.Journal.SignalKind.Alarm>
+  <Wildlife.UI.Journal.SignalKind.AllClear>All Clear</Wildlife.UI.Journal.SignalKind.AllClear>
+  <Wildlife.UI.Journal.SignalKind.Contact>Contact</Wildlife.UI.Journal.SignalKind.Contact>
+  <Wildlife.UI.Journal.SignalKind.Coordination>Coordination</Wildlife.UI.Journal.SignalKind.Coordination>
+  <Wildlife.UI.Journal.SignalKind.Food>Food</Wildlife.UI.Journal.SignalKind.Food>
+  <Wildlife.UI.Journal.SignalKind.HumanDanger>Human Danger</Wildlife.UI.Journal.SignalKind.HumanDanger>
+  <Wildlife.UI.Journal.SignalKind.Water>Water</Wildlife.UI.Journal.SignalKind.Water>
+  <Wildlife.UI.Journal.Signals.Colony>Colony knowledge</Wildlife.UI.Journal.Signals.Colony>
+  <Wildlife.UI.Journal.Signals.Contradictions>Contradictions</Wildlife.UI.Journal.Signals.Contradictions>
+  <Wildlife.UI.Journal.Signals.Disabled>Signals are disabled</Wildlife.UI.Journal.Signals.Disabled>
+  <Wildlife.UI.Journal.Signals.Disabled.Help>Enable Wildlife Signal Culture in settings to review signal families, observers, interpretations, and contradictions.</Wildlife.UI.Journal.Signals.Disabled.Help>
+  <Wildlife.UI.Journal.Signals.Empty>No signals recorded</Wildlife.UI.Journal.Signals.Empty>
+  <Wildlife.UI.Journal.Signals.Empty.Help>Signal records appear after wildlife produces observable calls or warnings.</Wildlife.UI.Journal.Signals.Empty.Help>
+  <Wildlife.UI.Journal.Signals.Family>Signal family</Wildlife.UI.Journal.Signals.Family>
+  <Wildlife.UI.Journal.Signals.Interpretation>Interpretation</Wildlife.UI.Journal.Signals.Interpretation>
+  <Wildlife.UI.Journal.Signals.Observer>Observer</Wildlife.UI.Journal.Signals.Observer>
+  <Wildlife.UI.Journal.Signals.Unresolved>Meaning unresolved</Wildlife.UI.Journal.Signals.Unresolved>
+  <Wildlife.UI.Journal.Snapshot.Live>Live snapshot</Wildlife.UI.Journal.Snapshot.Live>
+  <Wildlife.UI.Journal.Snapshot.Waiting>Snapshot pending</Wildlife.UI.Journal.Snapshot.Waiting>
+  <Wildlife.UI.Journal.State.AwaitingRescue>Awaiting Rescue</Wildlife.UI.Journal.State.AwaitingRescue>
+  <Wildlife.UI.Journal.State.Confirmed>Confirmed</Wildlife.UI.Journal.State.Confirmed>
+  <Wildlife.UI.Journal.State.Disputed>Disputed</Wildlife.UI.Journal.State.Disputed>
+  <Wildlife.UI.Journal.State.Embarking>Embarking</Wildlife.UI.Journal.State.Embarking>
+  <Wildlife.UI.Journal.State.Engagement>Engagement</Wildlife.UI.Journal.State.Engagement>
+  <Wildlife.UI.Journal.State.FieldDressing>Field Dressing</Wildlife.UI.Journal.State.FieldDressing>
+  <Wildlife.UI.Journal.State.Open>Open</Wildlife.UI.Journal.State.Open>
+  <Wildlife.UI.Journal.State.OutboundTravel>Outbound Travel</Wildlife.UI.Journal.State.OutboundTravel>
+  <Wildlife.UI.Journal.State.Resolved>Resolved</Wildlife.UI.Journal.State.Resolved>
+  <Wildlife.UI.Journal.State.Returning>Returning</Wildlife.UI.Journal.State.Returning>
+  <Wildlife.UI.Journal.State.Stalking>Stalking</Wildlife.UI.Journal.State.Stalking>
+  <Wildlife.UI.Journal.State.Supported>Supported</Wildlife.UI.Journal.State.Supported>
+  <Wildlife.UI.Journal.State.Tracking>Tracking</Wildlife.UI.Journal.State.Tracking>
+  <Wildlife.UI.Journal.State.Working>Working</Wildlife.UI.Journal.State.Working>
+  <Wildlife.UI.Journal.Stories.Empty>No wildlife stories</Wildlife.UI.Journal.Stories.Empty>
+  <Wildlife.UI.Journal.Stories.Empty.Help>Consequential wildlife stories appear after the narrative and experience systems record them.</Wildlife.UI.Journal.Stories.Empty.Help>
+  <Wildlife.UI.Journal.Stories.Interpretation>Interpretation</Wildlife.UI.Journal.Stories.Interpretation>
+  <Wildlife.UI.Journal.Subtitle>A bounded record of wildlife evidence, knowledge, and consequences.</Wildlife.UI.Journal.Subtitle>
+  <Wildlife.UI.Journal.Time.Ago>ago</Wildlife.UI.Journal.Time.Ago>
+  <Wildlife.UI.Journal.Time.Recent>Recently</Wildlife.UI.Journal.Time.Recent>
+  <Wildlife.UI.Journal.Title>Wildlife Journal</Wildlife.UI.Journal.Title>
+  <Wildlife.UI.Journal.Trail.Actionable>Actionable trail</Wildlife.UI.Journal.Trail.Actionable>
+  <Wildlife.UI.Journal.Trail.Direction>Leads toward {0}</Wildlife.UI.Journal.Trail.Direction>
+  <Wildlife.UI.Journal.Trail.Uncertain>Uncertain trail</Wildlife.UI.Journal.Trail.Uncertain>
+  <Wildlife.UI.Journal.TrailState.Ambient>.Ambient</Wildlife.UI.Journal.TrailState.Ambient>
+  <Wildlife.UI.Journal.TrailState.BeyondMap>.Beyond Map</Wildlife.UI.Journal.TrailState.BeyondMap>
+  <Wildlife.UI.Journal.TrailState.Cold>.Cold</Wildlife.UI.Journal.TrailState.Cold>
+  <Wildlife.UI.Journal.TrailState.LiveQuarry>.Live Quarry</Wildlife.UI.Journal.TrailState.LiveQuarry>
+  <Wildlife.UI.Journal.TrailState.Pursuit>.Pursuit</Wildlife.UI.Journal.TrailState.Pursuit>
+  <Wildlife.UI.Journal.Type.Expedition>Expedition</Wildlife.UI.Journal.Type.Expedition>
+  <Wildlife.UI.Journal.Type.Investigation>Investigation</Wildlife.UI.Journal.Type.Investigation>
+  <Wildlife.UI.Journal.Type.Moment>Moment</Wildlife.UI.Journal.Type.Moment>
+  <Wildlife.UI.Journal.Type.Outcome>Outcome</Wildlife.UI.Journal.Type.Outcome>
+  <Wildlife.UI.Journal.Type.Signal>Signal</Wildlife.UI.Journal.Type.Signal>
+  <Wildlife.UI.Journal.Type.Trail>Trail</Wildlife.UI.Journal.Type.Trail>
+  <Wildlife.UI.Journal.Uncertainty.Competing>Competing explanations</Wildlife.UI.Journal.Uncertainty.Competing>
+  <Wildlife.UI.Journal.Uncertainty.Narrow>Narrowing uncertainty</Wildlife.UI.Journal.Uncertainty.Narrow>
+  <Wildlife.UI.Journal.Uncertainty.Open>Open uncertainty</Wildlife.UI.Journal.Uncertainty.Open>
+  <Wildlife.UI.Journal.Value.Known>Known</Wildlife.UI.Journal.Value.Known>
+  <Wildlife.UI.Journal.Value.None>None recorded</Wildlife.UI.Journal.Value.None>
+  <Wildlife.UI.Journal.Value.NotSpeciesSpecific>Not species-specific</Wildlife.UI.Journal.Value.NotSpeciesSpecific>
+  <Wildlife.UI.Journal.Value.Present>Present</Wildlife.UI.Journal.Value.Present>
+  <Wildlife.UI.Journal.Value.Unknown>Unknown</Wildlife.UI.Journal.Value.Unknown>
+  <Wildlife.UI.Expedition.Breadcrumb>Expeditions</Wildlife.UI.Expedition.Breadcrumb>
+  <Wildlife.UI.Expedition.Search>Search destinations</Wildlife.UI.Expedition.Search>
+  <Wildlife.UI.Expedition.MapUnavailable>The colony map is unavailable.</Wildlife.UI.Expedition.MapUnavailable>
+  <Wildlife.UI.Expedition.Value.Unknown>Unknown</Wildlife.UI.Expedition.Value.Unknown>
+  <Wildlife.UI.Expedition.Value.None>None</Wildlife.UI.Expedition.Value.None>
+  <Wildlife.UI.Expedition.Warning>Attention</Wildlife.UI.Expedition.Warning>
+  <Wildlife.UI.Expedition.Ready>Ready to begin</Wildlife.UI.Expedition.Ready>
+  <Wildlife.UI.Expedition.NotReady>Action needed before departure</Wildlife.UI.Expedition.NotReady>
+  <Wildlife.UI.Expedition.Begin.Failed>Could not begin this expedition.</Wildlife.UI.Expedition.Begin.Failed>
+  <Wildlife.UI.Expedition.Objective.Hunt>Hunt</Wildlife.UI.Expedition.Objective.Hunt>
+  <Wildlife.UI.Expedition.Objective.Scout>Scout</Wildlife.UI.Expedition.Objective.Scout>
+  <Wildlife.UI.Expedition.Objective.Capture>Capture</Wildlife.UI.Expedition.Objective.Capture>
+  <Wildlife.UI.Expedition.Objective.Tag>Tag</Wildlife.UI.Expedition.Objective.Tag>
+  <Wildlife.UI.Expedition.Objective.Protect>Protect</Wildlife.UI.Expedition.Objective.Protect>
+  <Wildlife.UI.Expedition.Objective.Redirect>Redirect</Wildlife.UI.Expedition.Objective.Redirect>
+  <Wildlife.UI.Expedition.Objective.Help>Choose what the field party should accomplish. Available objectives depend on knowledge and progression.</Wildlife.UI.Expedition.Objective.Help>
+  <Wildlife.UI.Expedition.Route.Fastest>Fastest</Wildlife.UI.Expedition.Route.Fastest>
+  <Wildlife.UI.Expedition.Route.Safest>Safest</Wildlife.UI.Expedition.Route.Safest>
+  <Wildlife.UI.Expedition.Route.Balanced>Balanced</Wildlife.UI.Expedition.Route.Balanced>
+  <Wildlife.UI.Expedition.Route.Help>Route policy changes travel time and exposure to danger; it does not reveal unsupported outcomes.</Wildlife.UI.Expedition.Route.Help>
+  <Wildlife.UI.Expedition.Route.Tiles>{0} route tiles</Wildlife.UI.Expedition.Route.Tiles>
+  <Wildlife.UI.Expedition.Route.Title>Expedition route</Wildlife.UI.Expedition.Route.Title>
+  <Wildlife.UI.Expedition.Route.Empty>No route information is available.</Wildlife.UI.Expedition.Route.Empty>
+  <Wildlife.UI.Expedition.Route.Empty.Help>The route will appear after the expedition has been accepted and scheduled.</Wildlife.UI.Expedition.Route.Empty.Help>
+  <Wildlife.UI.Expedition.Route.Legend>Route conditions</Wildlife.UI.Expedition.Route.Legend>
+  <Wildlife.UI.Expedition.Route.Legend.Help>Each tile reflects supported terrain and temperature risk. The current tile is marked as current.</Wildlife.UI.Expedition.Route.Legend.Help>
+  <Wildlife.UI.Expedition.Route.Colony>Colony</Wildlife.UI.Expedition.Route.Colony>
+  <Wildlife.UI.Expedition.Route.Destination>Destination</Wildlife.UI.Expedition.Route.Destination>
+  <Wildlife.UI.Expedition.Route.Travel>Travel</Wildlife.UI.Expedition.Route.Travel>
+  <Wildlife.UI.Expedition.Route.Current>Current</Wildlife.UI.Expedition.Route.Current>
+  <Wildlife.UI.Expedition.Risk.Cautious>Cautious</Wildlife.UI.Expedition.Risk.Cautious>
+  <Wildlife.UI.Expedition.Risk.Balanced>Balanced</Wildlife.UI.Expedition.Risk.Balanced>
+  <Wildlife.UI.Expedition.Risk.Bold>Bold</Wildlife.UI.Expedition.Risk.Bold>
+  <Wildlife.UI.Expedition.Confidence.Unsurveyed>Unsurveyed</Wildlife.UI.Expedition.Confidence.Unsurveyed>
+  <Wildlife.UI.Expedition.Confidence.Low>Low confidence</Wildlife.UI.Expedition.Confidence.Low>
+  <Wildlife.UI.Expedition.Confidence.Moderate>Moderate confidence</Wildlife.UI.Expedition.Confidence.Moderate>
+  <Wildlife.UI.Expedition.Confidence.High>High confidence</Wildlife.UI.Expedition.Confidence.High>
+  <Wildlife.UI.Expedition.Stage.Embarking>Embarking</Wildlife.UI.Expedition.Stage.Embarking>
+  <Wildlife.UI.Expedition.Stage.OutboundTravel>Traveling out</Wildlife.UI.Expedition.Stage.OutboundTravel>
+  <Wildlife.UI.Expedition.Stage.Tracking>Tracking</Wildlife.UI.Expedition.Stage.Tracking>
+  <Wildlife.UI.Expedition.Stage.Stalking>Stalking</Wildlife.UI.Expedition.Stage.Stalking>
+  <Wildlife.UI.Expedition.Stage.Engagement>Engagement</Wildlife.UI.Expedition.Stage.Engagement>
+  <Wildlife.UI.Expedition.Stage.FieldDressing>Field dressing</Wildlife.UI.Expedition.Stage.FieldDressing>
+  <Wildlife.UI.Expedition.Stage.Returning>Returning</Wildlife.UI.Expedition.Stage.Returning>
+  <Wildlife.UI.Expedition.Stage.AwaitingRescue>Awaiting rescue</Wildlife.UI.Expedition.Stage.AwaitingRescue>
+  <Wildlife.UI.Expedition.Destination.None>No destination selected</Wildlife.UI.Expedition.Destination.None>
+  <Wildlife.UI.Expedition.Destination.Unavailable>Destination information is unavailable</Wildlife.UI.Expedition.Destination.Unavailable>
+  <Wildlife.UI.Expedition.Destination.Unknown>Unknown region • {0} tiles from the colony</Wildlife.UI.Expedition.Destination.Unknown>
+  <Wildlife.UI.Expedition.Destination.Unsurveyed>Not yet surveyed</Wildlife.UI.Expedition.Destination.Unsurveyed>
+  <Wildlife.UI.Expedition.Destination.UnknownRegion>Unknown region</Wildlife.UI.Expedition.Destination.UnknownRegion>
+  <Wildlife.UI.Expedition.Destination.Title>Choose a destination</Wildlife.UI.Expedition.Destination.Title>
+  <Wildlife.UI.Expedition.Destination.Subtitle>Known regions show supported ecology and travel facts. Unknown values remain hidden.</Wildlife.UI.Expedition.Destination.Subtitle>
+  <Wildlife.UI.Expedition.Destination.Help>Choose a valid, passable tile. Discovery and confidence control which destination facts are shown.</Wildlife.UI.Expedition.Destination.Help>
+  <Wildlife.UI.Expedition.Destination.Empty>No valid destinations match</Wildlife.UI.Expedition.Destination.Empty>
+  <Wildlife.UI.Expedition.Destination.Empty.Help>Try another search or survey a region before planning an expedition there.</Wildlife.UI.Expedition.Destination.Empty.Help>
+  <Wildlife.UI.Expedition.Destination.Select>Select a destination</Wildlife.UI.Expedition.Destination.Select>
+  <Wildlife.UI.Expedition.Destination.Select.Help>Choose a destination from the list to review its supported travel and wildlife information.</Wildlife.UI.Expedition.Destination.Select.Help>
+  <Wildlife.UI.Expedition.Destination.Distance>Distance</Wildlife.UI.Expedition.Destination.Distance>
+  <Wildlife.UI.Expedition.Destination.Survey>Survey confidence</Wildlife.UI.Expedition.Destination.Survey>
+  <Wildlife.UI.Expedition.Destination.Wildlife>Known wildlife</Wildlife.UI.Expedition.Destination.Wildlife>
+  <Wildlife.UI.Expedition.Destination.Risk>Known risk</Wildlife.UI.Expedition.Destination.Risk>
+  <Wildlife.UI.Expedition.Destination.Access>Travel access</Wildlife.UI.Expedition.Destination.Access>
+  <Wildlife.UI.Expedition.Range.Title>Destination range</Wildlife.UI.Expedition.Range.Title>
+  <Wildlife.UI.Expedition.Range.Subtitle>Browse supported destination facts without exposing undiscovered ecology.</Wildlife.UI.Expedition.Range.Subtitle>
+  <Wildlife.UI.Expedition.Range.Empty>No destinations match</Wildlife.UI.Expedition.Range.Empty>
+  <Wildlife.UI.Expedition.Range.Empty.Help>Clear the search or survey more regions.</Wildlife.UI.Expedition.Range.Empty.Help>
+  <Wildlife.UI.Expedition.Range.Distance>{0} tiles</Wildlife.UI.Expedition.Range.Distance>
+  <Wildlife.UI.Expedition.Discovery.None>No field discovery recorded</Wildlife.UI.Expedition.Discovery.None>
+  <Wildlife.UI.Expedition.Wildlife.None>No wildlife identified</Wildlife.UI.Expedition.Wildlife.None>
+  <Wildlife.UI.Expedition.Access.Road>road</Wildlife.UI.Expedition.Access.Road>
+  <Wildlife.UI.Expedition.Access.River>river crossing</Wildlife.UI.Expedition.Access.River>
+  <Wildlife.UI.Expedition.Population.About>about {0}</Wildlife.UI.Expedition.Population.About>
+  <Wildlife.UI.Expedition.Population.Unlikely>unlikely signs</Wildlife.UI.Expedition.Population.Unlikely>
+  <Wildlife.UI.Expedition.Population.Sparse>sparse signs</Wildlife.UI.Expedition.Population.Sparse>
+  <Wildlife.UI.Expedition.Population.Moderate>moderate signs</Wildlife.UI.Expedition.Population.Moderate>
+  <Wildlife.UI.Expedition.Population.Abundant>abundant signs</Wildlife.UI.Expedition.Population.Abundant>
+  <Wildlife.UI.Expedition.Setup.Title>Plan an expedition</Wildlife.UI.Expedition.Setup.Title>
+  <Wildlife.UI.Expedition.Setup.Subtitle>Review the objective, destination, party, supplies, and supported forecast before departure.</Wildlife.UI.Expedition.Setup.Subtitle>
+  <Wildlife.UI.Expedition.Summary.Objective>Objective</Wildlife.UI.Expedition.Summary.Objective>
+  <Wildlife.UI.Expedition.Summary.Destination>Destination</Wildlife.UI.Expedition.Summary.Destination>
+  <Wildlife.UI.Expedition.Summary.Target>Target</Wildlife.UI.Expedition.Summary.Target>
+  <Wildlife.UI.Expedition.Summary.Party>Party</Wildlife.UI.Expedition.Summary.Party>
+  <Wildlife.UI.Expedition.Summary.Travel>Travel estimate</Wildlife.UI.Expedition.Summary.Travel>
+  <Wildlife.UI.Expedition.Summary.Days>{0} days</Wildlife.UI.Expedition.Summary.Days>
+  <Wildlife.UI.Expedition.Summary.Status>Status</Wildlife.UI.Expedition.Summary.Status>
+  <Wildlife.UI.Expedition.Target.NotRequired>No target required</Wildlife.UI.Expedition.Target.NotRequired>
+  <Wildlife.UI.Expedition.Target.Unknown>Unknown wildlife</Wildlife.UI.Expedition.Target.Unknown>
+  <Wildlife.UI.Expedition.Target.UnknownHerd>Unknown herd</Wildlife.UI.Expedition.Target.UnknownHerd>
+  <Wildlife.UI.Expedition.Target.None>No target selected</Wildlife.UI.Expedition.Target.None>
+  <Wildlife.UI.Expedition.Target.Help>Only discovered species can be selected. Unknown targets preserve the uncertainty of the objective.</Wildlife.UI.Expedition.Target.Help>
+  <Wildlife.UI.Expedition.Field.Objective>Objective</Wildlife.UI.Expedition.Field.Objective>
+  <Wildlife.UI.Expedition.Field.Destination>Destination</Wildlife.UI.Expedition.Field.Destination>
+  <Wildlife.UI.Expedition.Field.Target>Target</Wildlife.UI.Expedition.Field.Target>
+  <Wildlife.UI.Expedition.Field.Route>Route policy</Wildlife.UI.Expedition.Field.Route>
+  <Wildlife.UI.Expedition.Field.Risk>Risk tolerance</Wildlife.UI.Expedition.Field.Risk>
+  <Wildlife.UI.Expedition.Tab.Overview>Overview</Wildlife.UI.Expedition.Tab.Overview>
+  <Wildlife.UI.Expedition.Tab.Party>Party</Wildlife.UI.Expedition.Tab.Party>
+  <Wildlife.UI.Expedition.Tab.Supplies>Supplies</Wildlife.UI.Expedition.Tab.Supplies>
+  <Wildlife.UI.Expedition.Tab.Forecast>Forecast</Wildlife.UI.Expedition.Tab.Forecast>
+  <Wildlife.UI.Expedition.Party.Title>Choose the field party</Wildlife.UI.Expedition.Party.Title>
+  <Wildlife.UI.Expedition.Party.Help>Party choices affect carrying capacity, travel, and objective eligibility.</Wildlife.UI.Expedition.Party.Help>
+  <Wildlife.UI.Expedition.Party.Summary>{0} hunters • {1} pack animals</Wildlife.UI.Expedition.Party.Summary>
+  <Wildlife.UI.Expedition.Party.Empty>No eligible colonists or pack animals are available.</Wildlife.UI.Expedition.Party.Empty>
+  <Wildlife.UI.Expedition.Party.Empty.Help>Free able colonists and suitable pack animals are required for a field party.</Wildlife.UI.Expedition.Party.Empty.Help>
+  <Wildlife.UI.Expedition.Party.Pacifist>Not eligible for a hunting objective</Wildlife.UI.Expedition.Party.Pacifist>
+  <Wildlife.UI.Expedition.Party.Unarmed>Unarmed</Wildlife.UI.Expedition.Party.Unarmed>
+  <Wildlife.UI.Expedition.Party.Carry>Carry capacity {0}</Wildlife.UI.Expedition.Party.Carry>
+  <Wildlife.UI.Expedition.Skill>Hunting skill {0}</Wildlife.UI.Expedition.Skill>
+  <Wildlife.UI.Expedition.Supplies.Title>Supplies</Wildlife.UI.Expedition.Supplies.Title>
+  <Wildlife.UI.Expedition.Supplies.Provisions>Provisions</Wildlife.UI.Expedition.Supplies.Provisions>
+  <Wildlife.UI.Expedition.Supplies.Provisions.Help>Food is estimated from party nutrition needs and the selected travel time.</Wildlife.UI.Expedition.Supplies.Provisions.Help>
+  <Wildlife.UI.Expedition.Supplies.Medicine>Medicine</Wildlife.UI.Expedition.Supplies.Medicine>
+  <Wildlife.UI.Expedition.Supplies.Medicine.Help>Only medicine present on the colony map can be selected.</Wildlife.UI.Expedition.Supplies.Medicine.Help>
+  <Wildlife.UI.Expedition.Supplies.Bedrolls>{0} bedrolls available</Wildlife.UI.Expedition.Supplies.Bedrolls>
+  <Wildlife.UI.Expedition.Supplies.Alternatives>Allow supported alternatives when packing supplies</Wildlife.UI.Expedition.Supplies.Alternatives>
+  <Wildlife.UI.Expedition.Supplies.OptionsHelp>Final supply and resource validation remains authoritative at departure.</Wildlife.UI.Expedition.Supplies.OptionsHelp>
+  <Wildlife.UI.Expedition.Supplies.Nutrition>Nutrition</Wildlife.UI.Expedition.Supplies.Nutrition>
+  <Wildlife.UI.Expedition.Supplies.NutritionValue>{0} selected of {1} required</Wildlife.UI.Expedition.Supplies.NutritionValue>
+  <Wildlife.UI.Expedition.Supplies.Carry>Estimated carrying capacity</Wildlife.UI.Expedition.Supplies.Carry>
+  <Wildlife.UI.Expedition.Supplies.Record>{0} medicine • {1} bedrolls</Wildlife.UI.Expedition.Supplies.Record>
+  <Wildlife.UI.Expedition.Action.BrowseDestinations>Browse destinations</Wildlife.UI.Expedition.Action.BrowseDestinations>
+  <Wildlife.UI.Expedition.Action.ChooseDestination>Choose this destination</Wildlife.UI.Expedition.Action.ChooseDestination>
+  <Wildlife.UI.Expedition.Action.WorldMap>Focus on World Map</Wildlife.UI.Expedition.Action.WorldMap>
+  <Wildlife.UI.Expedition.Action.BestHunters>Choose best hunters</Wildlife.UI.Expedition.Action.BestHunters>
+  <Wildlife.UI.Expedition.Action.ClearParty>Clear party</Wildlife.UI.Expedition.Action.ClearParty>
+  <Wildlife.UI.Expedition.Action.EditProvisions>Edit provisions</Wildlife.UI.Expedition.Action.EditProvisions>
+  <Wildlife.UI.Expedition.Action.EditMedicine>Edit medicine</Wildlife.UI.Expedition.Action.EditMedicine>
+  <Wildlife.UI.Expedition.Action.AutoFill>Auto-fill provisions</Wildlife.UI.Expedition.Action.AutoFill>
+  <Wildlife.UI.Expedition.Action.Begin>Begin expedition</Wildlife.UI.Expedition.Action.Begin>
+  <Wildlife.UI.Expedition.Action.Send>Send new expedition</Wildlife.UI.Expedition.Action.Send>
+  <Wildlife.UI.Expedition.Action.Details>Details</Wildlife.UI.Expedition.Action.Details>
+  <Wildlife.UI.Expedition.Action.Route>Route</Wildlife.UI.Expedition.Action.Route>
+  <Wildlife.UI.Expedition.Action.SendRescue>Send rescue</Wildlife.UI.Expedition.Action.SendRescue>
+  <Wildlife.UI.Expedition.Action.RescueEnRoute>Rescue en route</Wildlife.UI.Expedition.Action.RescueEnRoute>
+  <Wildlife.UI.Expedition.Action.Recall>Recall expedition</Wildlife.UI.Expedition.Action.Recall>
+  <Wildlife.UI.Expedition.Action.Outcome>Outcome factors</Wildlife.UI.Expedition.Action.Outcome>
+  <Wildlife.UI.Expedition.Action.Max>Max</Wildlife.UI.Expedition.Action.Max>
+  <Wildlife.UI.Expedition.Recall.Confirm>Recall expedition {0}? The party will abandon its objective and return to the colony.</Wildlife.UI.Expedition.Recall.Confirm>
+  <Wildlife.UI.Expedition.Readiness.Destination>Select a valid destination.</Wildlife.UI.Expedition.Readiness.Destination>
+  <Wildlife.UI.Expedition.Readiness.Hunters>Choose at least one able hunter.</Wildlife.UI.Expedition.Readiness.Hunters>
+  <Wildlife.UI.Expedition.Readiness.TooManyHunters>The selected party is too large.</Wildlife.UI.Expedition.Readiness.TooManyHunters>
+  <Wildlife.UI.Expedition.Readiness.Pacifist>A hunting party cannot include a colonist who cannot fight.</Wildlife.UI.Expedition.Readiness.Pacifist>
+  <Wildlife.UI.Expedition.Readiness.Target>Select a supported target or enable an unknown-target objective.</Wildlife.UI.Expedition.Readiness.Target>
+  <Wildlife.UI.Expedition.Readiness.Herd>Redirect requires a supported herd target.</Wildlife.UI.Expedition.Readiness.Herd>
+  <Wildlife.UI.Expedition.Readiness.Provisions>Pack enough provisions for the supported travel estimate.</Wildlife.UI.Expedition.Readiness.Provisions>
+  <Wildlife.UI.Expedition.Readiness.SupplyUnavailable>Some selected supplies are no longer available.</Wildlife.UI.Expedition.Readiness.SupplyUnavailable>
+  <Wildlife.UI.Expedition.Readiness.Bedrolls>Not enough bedrolls are available.</Wildlife.UI.Expedition.Readiness.Bedrolls>
+  <Wildlife.UI.Expedition.Readiness.Equipment>Required field resources are unavailable.</Wildlife.UI.Expedition.Readiness.Equipment>
+  <Wildlife.UI.Expedition.List.Title>Wildlife expeditions</Wildlife.UI.Expedition.List.Title>
+  <Wildlife.UI.Expedition.List.Subtitle>Manage active field parties and review completed expedition outcomes.</Wildlife.UI.Expedition.List.Subtitle>
+  <Wildlife.UI.Expedition.Tab.Active>Active</Wildlife.UI.Expedition.Tab.Active>
+  <Wildlife.UI.Expedition.Tab.History>History</Wildlife.UI.Expedition.Tab.History>
+  <Wildlife.UI.Expedition.Active.Empty>No active expeditions.</Wildlife.UI.Expedition.Active.Empty>
+  <Wildlife.UI.Expedition.Active.Empty.Help>Send a field party to scout, hunt, capture, tag, protect, or redirect wildlife.</Wildlife.UI.Expedition.Active.Empty.Help>
+  <Wildlife.UI.Expedition.History.Empty>No completed expeditions have been recorded.</Wildlife.UI.Expedition.History.Empty>
+  <Wildlife.UI.Expedition.History.Empty.Help>Completed outcomes will remain available here when the history setting is enabled.</Wildlife.UI.Expedition.History.Empty.Help>
+  <Wildlife.UI.Expedition.Card.Title>Expedition {0} • {1}</Wildlife.UI.Expedition.Card.Title>
+  <Wildlife.UI.Expedition.Rescue.None>No able colonist is available to send as a rescuer.</Wildlife.UI.Expedition.Rescue.None>
+  <Wildlife.UI.Expedition.Status.Title>Expedition status</Wildlife.UI.Expedition.Status.Title>
+  <Wildlife.UI.Expedition.Status.Unavailable>This expedition is no longer active.</Wildlife.UI.Expedition.Status.Unavailable>
+  <Wildlife.UI.Expedition.Status.Log>Field log</Wildlife.UI.Expedition.Status.Log>
+  <Wildlife.UI.Expedition.Status.LogEmpty>No field log entries have been recorded.</Wildlife.UI.Expedition.Status.LogEmpty>
+  <Wildlife.UI.Expedition.Status.Stranded>The party is stranded.</Wildlife.UI.Expedition.Status.Stranded>
+  <Wildlife.UI.Expedition.Status.RescueHelp>Open Wildlife Expeditions to choose a rescuer.</Wildlife.UI.Expedition.Status.RescueHelp>
+  <Wildlife.UI.Expedition.Assessment.Title>Expedition assessment</Wildlife.UI.Expedition.Assessment.Title>
+  <Wildlife.UI.Expedition.Assessment.Outcome>Expedition outcome factors</Wildlife.UI.Expedition.Assessment.Outcome>
+  <Wildlife.UI.Expedition.Assessment.Empty>No assessment is available.</Wildlife.UI.Expedition.Assessment.Empty>
+  <Wildlife.UI.Expedition.Medicine.Title>Choose medicine</Wildlife.UI.Expedition.Medicine.Title>
+  <Wildlife.UI.Expedition.Medicine.Summary>{0} selected of {1} available</Wildlife.UI.Expedition.Medicine.Summary>
+  <Wildlife.UI.Expedition.Medicine.Available>{0} available</Wildlife.UI.Expedition.Medicine.Available>
+  <Wildlife.UI.Expedition.Medicine.Empty>No medicine is available on the colony map.</Wildlife.UI.Expedition.Medicine.Empty>
+  <Wildlife.UI.Expedition.Medicine.Empty.Help>Medicine must be accessible and unrestricted to be packed.</Wildlife.UI.Expedition.Medicine.Empty.Help>
+  <Wildlife.UI.Expedition.Provisions.Title>Choose provisions</Wildlife.UI.Expedition.Provisions.Title>
+  <Wildlife.UI.Expedition.Provisions.Help>Choose food for the supported travel estimate. Unknown future consumption remains unknown.</Wildlife.UI.Expedition.Provisions.Help>
+  <Wildlife.UI.Expedition.Provisions.Available>{0} available • {1} nutrition each</Wildlife.UI.Expedition.Provisions.Available>
+  <Wildlife.UI.Expedition.Provisions.Empty>No suitable provisions are available.</Wildlife.UI.Expedition.Provisions.Empty>
+  <Wildlife.UI.Expedition.Provisions.Empty.Help>Accessible human-edible food is required before departure.</Wildlife.UI.Expedition.Provisions.Empty.Help>
+  <Wildlife.UI.Expedition.Provisions.Unavailable>Provisions cannot be edited because the plan is unavailable.</Wildlife.UI.Expedition.Provisions.Unavailable>
+  <Wildlife.UI.Expedition.Encounter.Title>Expedition encounter</Wildlife.UI.Expedition.Encounter.Title>
+  <Wildlife.UI.Expedition.Encounter.Breadcrumb>Encounter</Wildlife.UI.Expedition.Encounter.Breadcrumb>
+  <Wildlife.UI.Expedition.Encounter.PauseHelp>The expedition is paused until you choose a response.</Wildlife.UI.Expedition.Encounter.PauseHelp>
+  <Wildlife.UI.Expedition.Encounter.Context>Encounter context</Wildlife.UI.Expedition.Encounter.Context>
+  <Wildlife.UI.Expedition.Encounter.RoamingTitle>Roaming animal encounter</Wildlife.UI.Expedition.Encounter.RoamingTitle>
+  <Wildlife.UI.Expedition.Encounter.RoamingBody>{0} ({1}) has entered the expedition's path.</Wildlife.UI.Expedition.Encounter.RoamingBody>
+  <Wildlife.UI.Expedition.Encounter.FieldSigns>Field signs: {0}</Wildlife.UI.Expedition.Encounter.FieldSigns>
+  <Wildlife.UI.Expedition.Encounter.NoChoices>No supported choices are available.</Wildlife.UI.Expedition.Encounter.NoChoices>
+  <Wildlife.UI.Expedition.Encounter.Unavailable>This encounter is no longer available.</Wildlife.UI.Expedition.Encounter.Unavailable>
+  <Wildlife.UI.Expedition.Choice.Unavailable>Unavailable choice</Wildlife.UI.Expedition.Choice.Unavailable>
+  <Wildlife.UI.Expedition.Choice.Follow>Follow the signs</Wildlife.UI.Expedition.Choice.Follow>
+  <Wildlife.UI.Expedition.Choice.Follow.Help>Continue along the evidence and accept the supported travel risk.</Wildlife.UI.Expedition.Choice.Follow.Help>
+  <Wildlife.UI.Expedition.Choice.Document>Document and proceed</Wildlife.UI.Expedition.Choice.Document>
+  <Wildlife.UI.Expedition.Choice.Document.Help>Record the encounter and continue without pursuing it.</Wildlife.UI.Expedition.Choice.Document.Help>
+  <Wildlife.UI.Expedition.Choice.Detour>Take a careful detour</Wildlife.UI.Expedition.Choice.Detour>
+  <Wildlife.UI.Expedition.Choice.Detour.Help>Spend additional time to reduce immediate exposure.</Wildlife.UI.Expedition.Choice.Detour.Help>
+  <Wildlife.UI.Expedition.Choice.Observe>Observe</Wildlife.UI.Expedition.Choice.Observe>
+  <Wildlife.UI.Expedition.Choice.Observe.Help>Observe the animal and preserve the encounter evidence.</Wildlife.UI.Expedition.Choice.Observe.Help>
+  <Wildlife.UI.Expedition.Choice.Help>Help</Wildlife.UI.Expedition.Choice.Help>
+  <Wildlife.UI.Expedition.Choice.Help.Help>Assist the animal when the encounter supports intervention.</Wildlife.UI.Expedition.Choice.Help.Help>
+  <Wildlife.UI.Expedition.Choice.Hunt>Hunt</Wildlife.UI.Expedition.Choice.Hunt>
+  <Wildlife.UI.Expedition.Choice.Hunt.Help>Attempt a hunt and accept its supported risk.</Wildlife.UI.Expedition.Choice.Hunt.Help>
+  <Wildlife.UI.Expedition.Choice.Tag>Tag</Wildlife.UI.Expedition.Choice.Tag>
+  <Wildlife.UI.Expedition.Choice.Tag.Help>Use supported telemetry to identify and follow the animal.</Wildlife.UI.Expedition.Choice.Tag.Help>
+  <Wildlife.UI.Expedition.Choice.Redirect>Redirect</Wildlife.UI.Expedition.Choice.Redirect>
+  <Wildlife.UI.Expedition.Choice.Redirect.Help>Attempt to redirect a supported herd away from danger.</Wildlife.UI.Expedition.Choice.Redirect.Help>
+  <Wildlife.UI.Expedition.Choice.Avoid>Avoid</Wildlife.UI.Expedition.Choice.Avoid>
+  <Wildlife.UI.Expedition.Choice.Avoid.Help>Leave the animal alone and continue safely.</Wildlife.UI.Expedition.Choice.Avoid.Help>
+  <Wildlife.UI.Journal.FieldLog.Filter.Type>Event type</Wildlife.UI.Journal.FieldLog.Filter.Type>
+  <Wildlife.UI.Journal.FieldLog.Filter.Urgency>Urgency</Wildlife.UI.Journal.FieldLog.Filter.Urgency>
+  <Wildlife.UI.Journal.FieldLog.Filter.All>All</Wildlife.UI.Journal.FieldLog.Filter.All>
+  <Wildlife.UI.Journal.FieldLog.NoResults>No matching field records</Wildlife.UI.Journal.FieldLog.NoResults>
+  <Wildlife.UI.Journal.FieldLog.NoResults.Help>Try another search, event type, or urgency filter.</Wildlife.UI.Journal.FieldLog.NoResults.Help>
+  <Wildlife.UI.Journal.Urgency.Urgent>Urgent</Wildlife.UI.Journal.Urgency.Urgent>
+  <Wildlife.UI.Journal.Urgency.Routine>Routine</Wildlife.UI.Journal.Urgency.Routine>
+  <Wildlife.UI.Journal.Meta.Urgency>Urgency</Wildlife.UI.Journal.Meta.Urgency>
+  <Wildlife.UI.Journal.Stage.Unknown>Unknown</Wildlife.UI.Journal.Stage.Unknown>
+  <Wildlife.UI.Journal.Stage.Sighted>Sighted</Wildlife.UI.Journal.Stage.Sighted>
+  <Wildlife.UI.Journal.Stage.Identified>Identified</Wildlife.UI.Journal.Stage.Identified>
+  <Wildlife.UI.Journal.Stage.Studied>Studied</Wildlife.UI.Journal.Stage.Studied>
+  <Wildlife.UI.Journal.Stage.Understood>Understood</Wildlife.UI.Journal.Stage.Understood>
+  <Wildlife.UI.Journal.Stage.Documented>Documented</Wildlife.UI.Journal.Stage.Documented>
+  <Wildlife.UI.Journal.Facet.Identity>Identity</Wildlife.UI.Journal.Facet.Identity>
+  <Wildlife.UI.Journal.Facet.Habitat>Habitat</Wildlife.UI.Journal.Facet.Habitat>
+  <Wildlife.UI.Journal.Facet.Movement>Movement</Wildlife.UI.Journal.Facet.Movement>
+  <Wildlife.UI.Journal.Facet.Social>Social behaviour</Wildlife.UI.Journal.Facet.Social>
+  <Wildlife.UI.Journal.Facet.Signals>Signals</Wildlife.UI.Journal.Facet.Signals>
+  <Wildlife.UI.Journal.Facet.Danger>Danger</Wildlife.UI.Journal.Facet.Danger>
+  <Wildlife.UI.Journal.Facet.Population>Population</Wildlife.UI.Journal.Facet.Population>
+  <Wildlife.UI.Journal.Claim.PopulationEstimate>Population estimate</Wildlife.UI.Journal.Claim.PopulationEstimate>
+  <Wildlife.UI.Journal.Claim.MovementDirection>Movement direction</Wildlife.UI.Journal.Claim.MovementDirection>
+  <Wildlife.UI.Journal.Claim.HabitatQuality>Habitat quality</Wildlife.UI.Journal.Claim.HabitatQuality>
+  <Wildlife.UI.Journal.Claim.SignalMeaning>Signal meaning</Wildlife.UI.Journal.Claim.SignalMeaning>
+  <Wildlife.UI.Journal.Claim.PredatorPressure>Repeated local predator encounters</Wildlife.UI.Journal.Claim.PredatorPressure>
+  <Wildlife.UI.Journal.Claim.DangerLevel>Danger level</Wildlife.UI.Journal.Claim.DangerLevel>
+  <Wildlife.UI.Journal.Claim.DietPreference>Diet preference</Wildlife.UI.Journal.Claim.DietPreference>
+  <Wildlife.UI.Journal.Claim.DenLocation>Den or refuge location</Wildlife.UI.Journal.Claim.DenLocation>
+  <Wildlife.UI.Journal.Claim.SocialPattern>Social pattern</Wildlife.UI.Journal.Claim.SocialPattern>
+  <Wildlife.UI.Journal.Claim.PolicyOutcome>Policy outcome</Wildlife.UI.Journal.Claim.PolicyOutcome>
+  <Wildlife.UI.Journal.Knowledge.NextEvidence>Next evidence</Wildlife.UI.Journal.Knowledge.NextEvidence>
+  <Wildlife.UI.Journal.Knowledge.NextEvidence.Facet>Gather evidence about {0}.</Wildlife.UI.Journal.Knowledge.NextEvidence.Facet>
+  <Wildlife.UI.Journal.Knowledge.NextEvidence.Document>Document additional observation evidence to advance this record.</Wildlife.UI.Journal.Knowledge.NextEvidence.Document>
+  <Wildlife.UI.Journal.Knowledge.NextEvidence.None>No further evidence target is currently known.</Wildlife.UI.Journal.Knowledge.NextEvidence.None>
+  <Wildlife.UI.Journal.FieldGuide.ObservationGated>Observation required</Wildlife.UI.Journal.FieldGuide.ObservationGated>
+  <Wildlife.UI.Journal.FieldGuide.ObservationGated.Help>Unrevealed facets, confidence, and evidence remain unknown until a qualifying observation is recorded.</Wildlife.UI.Journal.FieldGuide.ObservationGated.Help>
+  <Wildlife.UI.Journal.Region.Trails>Active trails</Wildlife.UI.Journal.Region.Trails>
+  <Wildlife.UI.Journal.Region.Migrations>Recent migrations</Wildlife.UI.Journal.Region.Migrations>
+  <Wildlife.UI.Journal.Region.Notable>Notable animals</Wildlife.UI.Journal.Region.Notable>
+  <Wildlife.UI.Journal.Region.Variations>Regional variations</Wildlife.UI.Journal.Region.Variations>
+  <Wildlife.UI.Journal.Region.SummaryLabel>Regional summary</Wildlife.UI.Journal.Region.SummaryLabel>
+  <Wildlife.UI.Journal.LivingAtlas.Summary>{0} evidence, {1} trails, {2} migrations, {3} notable animals, {4} active expeditions</Wildlife.UI.Journal.LivingAtlas.Summary>
+  <Wildlife.UI.Journal.LivingAtlas.Evidence>Known atlas connections</Wildlife.UI.Journal.LivingAtlas.Evidence>
+  <Wildlife.UI.Journal.Chronicle.StoriesHelp>Stories show consequences already recorded by Wildlife.</Wildlife.UI.Journal.Chronicle.StoriesHelp>
+  <Wildlife.UI.Journal.Chronicle.InvestigationsHelp>Investigations show hypotheses, evidence, and unresolved consequences.</Wildlife.UI.Journal.Chronicle.InvestigationsHelp>
+</LanguageData>

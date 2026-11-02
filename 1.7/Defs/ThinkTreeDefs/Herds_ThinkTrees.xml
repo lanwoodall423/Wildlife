@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThinkTreeDef>
+    <defName>Herds_CoordinatedDefense</defName>
+    <insertTag>Animal_PreMain</insertTag>
+    <insertPriority>1000</insertPriority>
+    <thinkRoot Class="Herds.JobGiver_HerdDefense" />
+  </ThinkTreeDef>
+</Defs>
