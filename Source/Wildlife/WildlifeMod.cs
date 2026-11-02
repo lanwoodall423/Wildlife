@@ -16,6 +16,56 @@ namespace Wildlife
         }
     }
 
+    // Presentation-only extension point. The native assembly never resolves
+    // companion assemblies or translates receipt counts into knowledge evidence.
+    public static class WildlifeJournalRouting
+    {
+        private static Action<Map> enhancedJournal;
+
+        public static bool EnhancedAvailable => enhancedJournal != null;
+
+        public static void RegisterEnhancedJournal(Action<Map> opener)
+        {
+            if (opener == null) return;
+            if (enhancedJournal != null && !enhancedJournal.Equals(opener))
+            {
+                Log.Warning("[Wildlife] An enhanced journal provider is already registered.");
+                return;
+            }
+            enhancedJournal = opener;
+        }
+
+        public static void OpenNative(Map map)
+        {
+            if (map != null)
+                Find.WindowStack.Add(new WildlifeNativeFieldJournalWindow(map));
+        }
+
+        public static void OpenEnhanced(Map map)
+        {
+            if (map == null) return;
+            Action<Map> opener = enhancedJournal;
+            if (opener == null)
+            {
+                OpenNative(map);
+                return;
+            }
+
+            try
+            {
+                opener(map);
+            }
+            catch (Exception exception)
+            {
+                // A failed optional UI must not block the basic field journal
+                // or throw repeatedly every time the player opens settings.
+                enhancedJournal = null;
+                Log.Warning("[Wildlife] Enhanced journal unavailable; using the native field journal. " + exception);
+                OpenNative(map);
+            }
+        }
+    }
+
     // Vanilla-only field views. The deeper Herds/Packs simulation and companion
     // presentations remain separate, unvalidated migration work.
     public sealed class WildlifeMod : Mod
@@ -45,8 +95,11 @@ namespace Wildlife
                 return;
             }
 
-            if (Widgets.ButtonText(listing.GetRect(30f), "Open witnessed field journal"))
-                Find.WindowStack.Add(new WildlifeNativeFieldJournalWindow(map));
+            if (Widgets.ButtonText(listing.GetRect(30f), "Open basic witnessed field journal"))
+                WildlifeJournalRouting.OpenNative(map);
+            if (WildlifeJournalRouting.EnhancedAvailable &&
+                Widgets.ButtonText(listing.GetRect(30f), "Open enhanced Wildlife journal"))
+                WildlifeJournalRouting.OpenEnhanced(map);
 
             // Unfogged animals are a LIVE snapshot, not necessarily witnessed by
             // colonists. Keep that distinct from the persisted field log below.

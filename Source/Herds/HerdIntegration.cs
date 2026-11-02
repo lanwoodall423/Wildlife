@@ -40,6 +40,10 @@ namespace Herds
                 WildlifeProgression.RefreshDefGates();
                 HerdsMod.Harmony.PatchAll(Assembly.GetExecutingAssembly());
                 WildlifeSharedKnowledgeIntegration.Register();
+                // The enhanced presentation already exists in this framework-dependent
+                // assembly; the vanilla core only receives a delegate to open it.
+                Wildlife.WildlifeJournalRouting.RegisterEnhancedJournal(
+                    map => WildlifeJournal.OpenFieldLog(map));
             });
         }
 
